@@ -159,20 +159,13 @@ function App() {
       <div className="app-header">
         <div className="header-spacer">
           {showDayProgress && (
-            <span style={{
-              fontSize: '0.85rem',
-              color: 'var(--text-secondary)',
-              fontFamily: "'Inter', sans-serif",
-              fontWeight: 500,
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em'
-            }}>
+            <span className="day-progress">
               {dayProgressStr}
             </span>
           )}
         </div>
         <h1 className="app-year">{year}</h1>
-        <div className="header-spacer" style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <div className="header-spacer header-spacer--right">
           <button
             className="header-settings-btn"
             onClick={() => setShowSettings(true)}

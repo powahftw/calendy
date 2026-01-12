@@ -102,16 +102,16 @@ export const calculateViewProgress = (
         totalDays += daysInMonth;
 
         if (viewYear < todayYear) {
-            currentProgress = totalDays;
+            currentProgress += daysInMonth;
         } else if (viewYear === todayYear) {
             if (m < todayMonth) {
                 currentProgress += daysInMonth;
             } else if (m === todayMonth) {
                 currentProgress += Math.min(todayDate, daysInMonth);
             }
-        } else {
-            currentProgress = 0;
         }
+        // For years in the future, currentProgress remains 0 (or whatever it accumulated to).
+        // Actually, logic dictates: if viewYear > todayYear, we add nothing to currentProgress.
     }
 
     return { current: currentProgress, total: totalDays };
