@@ -15,6 +15,8 @@ interface SettingsModalProps {
     setHighlightToday: (h: boolean) => void;
     showWeekends: boolean;
     setShowWeekends: (s: boolean) => void;
+    showDayProgress: boolean;
+    setShowDayProgress: (s: boolean) => void;
     clearAll: () => void;
     onClose: () => void;
     user: User | null;
@@ -28,6 +30,7 @@ const SettingsModal: FC<SettingsModalProps> = ({
     weekdayAlign, setWeekdayAlign,
     highlightToday, setHighlightToday,
     showWeekends, setShowWeekends,
+    showDayProgress, setShowDayProgress,
     clearAll, onClose, user, onSignOut
 }) => {
     useEffect(() => {
@@ -89,6 +92,10 @@ const SettingsModal: FC<SettingsModalProps> = ({
                         <div className="setting-row checkbox">
                             <input className="checkbox-input" type="checkbox" id="shwWeekends" checked={showWeekends} onChange={e => setShowWeekends(e.target.checked)} />
                             <label htmlFor="shwWeekends">Highlight Weekends</label>
+                        </div>
+                        <div className="setting-row checkbox">
+                            <input className="checkbox-input" type="checkbox" id="shwDayProg" checked={showDayProgress} onChange={e => setShowDayProgress(e.target.checked)} />
+                            <label htmlFor="shwDayProg">Show Day Progress (Day X / 365)</label>
                         </div>
                     </div>
 

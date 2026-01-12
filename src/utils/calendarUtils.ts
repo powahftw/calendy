@@ -27,6 +27,7 @@ export interface PlannerSettings {
     theme: string;
     highlightToday: boolean;
     showWeekends: boolean;
+    showDayProgress: boolean;
     year: number;
     monthsToShow: number;
 }
@@ -79,4 +80,39 @@ export const toDateStr = (year: number, month: number, day: number): string => {
 export const isDateInRange = (year: number, month: number, day: number, startStr: string, endStr: string): boolean => {
     const currentStr = toDateStr(year, month, day);
     return currentStr >= startStr && currentStr <= endStr;
+};
+
+/**
+ * Calculates current progress and total days for the visible months in a given year.
+ */
+export const calculateViewProgress = (
+    viewYear: number,
+    monthsToShow: number,
+    today: Date = new Date()
+): { current: number; total: number } => {
+    const todayYear = today.getFullYear();
+    const todayMonth = today.getMonth();
+    const todayDate = today.getDate();
+
+    let totalDays = 0;
+    let currentProgress = 0;
+
+    for (let m = 0; m < monthsToShow; m++) {
+        const daysInMonth = getDaysInMonth(viewYear, m);
+        totalDays += daysInMonth;
+
+        if (viewYear < todayYear) {
+            currentProgress = totalDays;
+        } else if (viewYear === todayYear) {
+            if (m < todayMonth) {
+                currentProgress += daysInMonth;
+            } else if (m === todayMonth) {
+                currentProgress += Math.min(todayDate, daysInMonth);
+            }
+        } else {
+            currentProgress = 0;
+        }
+    }
+
+    return { current: currentProgress, total: totalDays };
 };
