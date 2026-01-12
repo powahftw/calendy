@@ -15,6 +15,10 @@ const usePlannerPersistence = (user: User | null) => {
         const saved = localStorage.getItem('planner_show_weekends');
         return saved !== null ? JSON.parse(saved) : true;
     });
+    const [showDayProgress, setShowDayProgress] = useState<boolean>(() => {
+        const saved = localStorage.getItem('planner_show_day_progress');
+        return saved !== null ? JSON.parse(saved) : false;
+    });
 
     const [events, setEvents] = useState<PlannerEvent[]>(() => {
         const saved = localStorage.getItem('planner_events');
@@ -41,8 +45,9 @@ const usePlannerPersistence = (user: User | null) => {
             localStorage.setItem('planner_theme', theme);
             localStorage.setItem('planner_highlight_today', JSON.stringify(highlightToday));
             localStorage.setItem('planner_show_weekends', JSON.stringify(showWeekends));
+            localStorage.setItem('planner_show_day_progress', JSON.stringify(showDayProgress));
         }
-    }, [events, theme, highlightToday, showWeekends, user]);
+    }, [events, theme, highlightToday, showWeekends, showDayProgress, user]);
 
     // Sync to Firestore
     useEffect(() => {
@@ -53,9 +58,9 @@ const usePlannerPersistence = (user: User | null) => {
 
     useEffect(() => {
         if (user && isInitialLoadDone && !isRemoteUpdate.current) {
-            syncSettings(user.uid, { theme, highlightToday, showWeekends, year, monthsToShow });
+            syncSettings(user.uid, { theme, highlightToday, showWeekends, showDayProgress, year, monthsToShow });
         }
-    }, [theme, highlightToday, showWeekends, year, monthsToShow, user, isInitialLoadDone]);
+    }, [theme, highlightToday, showWeekends, showDayProgress, year, monthsToShow, user, isInitialLoadDone]);
 
     // Handle resetting the remote update flag
     useEffect(() => {
@@ -65,7 +70,7 @@ const usePlannerPersistence = (user: User | null) => {
             }, 50);
             return () => clearTimeout(timer);
         }
-    }, [events, theme, highlightToday, showWeekends, year, monthsToShow]);
+    }, [events, theme, highlightToday, showWeekends, showDayProgress, year, monthsToShow]);
 
     // Subscribe to Firestore changes
     useEffect(() => {
@@ -88,6 +93,7 @@ const usePlannerPersistence = (user: User | null) => {
                     if (firestoreSettings.theme) setTheme(firestoreSettings.theme);
                     if (firestoreSettings.highlightToday !== undefined) setHighlightToday(firestoreSettings.highlightToday);
                     if (firestoreSettings.showWeekends !== undefined) setShowWeekends(firestoreSettings.showWeekends);
+                    if (firestoreSettings.showDayProgress !== undefined) setShowDayProgress(firestoreSettings.showDayProgress);
                     if (firestoreSettings.year) setYear(firestoreSettings.year);
                     if (firestoreSettings.monthsToShow) setMonthsToShow(firestoreSettings.monthsToShow);
                 }
@@ -113,6 +119,7 @@ const usePlannerPersistence = (user: User | null) => {
                 (remoteSettings.theme && remoteSettings.theme !== theme) ||
                 (remoteSettings.highlightToday !== undefined && remoteSettings.highlightToday !== highlightToday) ||
                 (remoteSettings.showWeekends !== undefined && remoteSettings.showWeekends !== showWeekends) ||
+                (remoteSettings.showDayProgress !== undefined && remoteSettings.showDayProgress !== showDayProgress) ||
                 (remoteSettings.year !== undefined && remoteSettings.year !== year) ||
                 (remoteSettings.monthsToShow !== undefined && remoteSettings.monthsToShow !== monthsToShow)
             );
@@ -122,6 +129,7 @@ const usePlannerPersistence = (user: User | null) => {
                 if (remoteSettings.theme) setTheme(remoteSettings.theme);
                 if (remoteSettings.highlightToday !== undefined) setHighlightToday(remoteSettings.highlightToday);
                 if (remoteSettings.showWeekends !== undefined) setShowWeekends(remoteSettings.showWeekends);
+                if (remoteSettings.showDayProgress !== undefined) setShowDayProgress(remoteSettings.showDayProgress);
                 if (remoteSettings.year) setYear(remoteSettings.year);
                 if (remoteSettings.monthsToShow) setMonthsToShow(remoteSettings.monthsToShow);
             }
@@ -131,7 +139,7 @@ const usePlannerPersistence = (user: User | null) => {
             unsubEvents();
             unsubSettings();
         };
-    }, [user, theme, highlightToday, showWeekends, year, monthsToShow]);
+    }, [user, theme, highlightToday, showWeekends, showDayProgress, year, monthsToShow]);
 
     return {
         year, setYear,
@@ -139,6 +147,7 @@ const usePlannerPersistence = (user: User | null) => {
         theme, setTheme,
         highlightToday, setHighlightToday,
         showWeekends, setShowWeekends,
+        showDayProgress, setShowDayProgress,
         events, setEvents,
         isInitialLoadDone
     };
