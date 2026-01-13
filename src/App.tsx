@@ -45,7 +45,12 @@ function App() {
     startDrag,
     updateDrag,
     endDrag,
-    isHighlighted
+    isHighlighted,
+    onTouchStart,
+    onTouchMove,
+    onTouchEnd: onTouchEndHook,
+    onContextMenu,
+    selectionMode
   } = useDragSelection(year);
 
   // App UI State
@@ -53,6 +58,9 @@ function App() {
   const [weekdayAlign, setWeekdayAlign] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [modalType, setModalType] = useState<'create' | 'list' | null>(null);
+
+  // Visibility State
+  const [todayInView, setTodayInView] = useState(false);
 
   // Selection State
   const [selectedDateEvents, setSelectedDateEvents] = useState<PlannerEvent[]>([]);
@@ -68,12 +76,116 @@ function App() {
     document.body.setAttribute('data-theme', theme);
   }, [theme]);
 
+  // Today Visibility Logic
+  useEffect(() => {
+    const scrollArea = document.querySelector('.planner-scroll-area');
+    if (!scrollArea) return;
+
+    const checkVisibility = () => {
+      const todayEl = document.querySelector('.today-marker');
+      if (!todayEl) {
+        setTodayInView(true); // Default to true if not found to avoid ghost button (safest)
+        return;
+      }
+
+      const rect = todayEl.getBoundingClientRect();
+      const containerRect = scrollArea.getBoundingClientRect();
+
+      // Buffer for responsiveness
+      const buffer = 5;
+
+      const isInView = (
+        rect.bottom > containerRect.top + buffer &&
+        rect.top < containerRect.bottom - buffer &&
+        rect.right > containerRect.left + buffer &&
+        rect.left < containerRect.right - buffer
+      );
+
+      setTodayInView(isInView);
+    };
+
+    scrollArea.addEventListener('scroll', checkVisibility, { passive: true });
+    window.addEventListener('resize', checkVisibility);
+
+    // Check multiple times as the layout settles (vital for mobile/fonts)
+    const timers = [100, 500, 1000, 2000].map(ms => setTimeout(checkVisibility, ms));
+
+    return () => {
+      scrollArea.removeEventListener('scroll', checkVisibility);
+      window.removeEventListener('resize', checkVisibility);
+      timers.forEach(clearTimeout);
+    };
+  }, [year, monthsToShow, highlightToday, events]);
+
   // Handlers
+  const handleRangeComplete = (range: EventRange) => {
+    setTempRange(range);
+    setModalType('create');
+    setSelectedDateEvents([]);
+  };
+
   const handleMouseUp = () => {
-    endDrag((range) => {
-      setTempRange(range);
-      setModalType('create');
-      setSelectedDateEvents([]);
+    endDrag(handleRangeComplete);
+  };
+
+  const handleTouchEnd = () => {
+    onTouchEndHook(handleRangeComplete);
+  };
+
+  const handleBackToToday = () => {
+    // Find the today cell
+    const todayEl = document.querySelector('.today-marker');
+    if (todayEl) {
+      todayEl.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+    }
+  };
+
+  const handleExport = () => {
+    if (events.length === 0) {
+      alert("No events to export.");
+      return;
+    }
+
+    // Group by Month Year
+    const groups: { [key: string]: PlannerEvent[] } = {};
+    const sortedEvents = [...events].sort((a, b) => {
+      const da = new Date(a.start);
+      const db = new Date(b.start);
+      return da.getTime() - db.getTime();
+    });
+
+    sortedEvents.forEach(ev => {
+      const [y, m, dstr] = ev.start.split('-').map(Number);
+      // Create date using local time constructor to avoid timezone offsets causing month shifts
+      const dateObj = new Date(y, m - 1, dstr);
+      const key = dateObj.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(ev);
+    });
+
+    let exportText = "";
+    for (const [groupName, groupEvents] of Object.entries(groups)) {
+      exportText += `${groupName}:\n`;
+      groupEvents.forEach(ev => {
+        // Format: [DD-MM - DD-MM] Title
+        // Assuming start and end are YYYY-MM-DD
+        const startParts = ev.start.split('-');
+        const endParts = ev.end.split('-');
+        const startStr = `${startParts[2]}-${startParts[1]}`;
+        const endStr = `${endParts[2]}-${endParts[1]}`;
+
+        exportText += `[${startStr} - ${endStr}] ${ev.title}\n`;
+      });
+      exportText += "\n";
+    }
+
+    navigator.clipboard.writeText(exportText).then(() => {
+      alert("Events exported to clipboard!");
+    }).catch(err => {
+      console.error('Failed to copy: ', err);
+      // Fallback or just logs
+      alert("Failed to copy events.");
     });
   };
 
@@ -140,7 +252,7 @@ function App() {
 
   if (authLoading) {
     return (
-      <div className="app-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div className="loading-container">
         <p style={{ color: 'var(--text-secondary)' }}>Loading...</p>
       </div>
     );
@@ -156,9 +268,13 @@ function App() {
   if (!user && !isGuest) return <LoginScreen onGuestLogin={() => setIsGuest(true)} />;
 
   return (
-    <div className="app-container" onMouseUp={handleMouseUp}>
+    <div
+      className={`app-container ${selectionMode ? 'selection-mode' : ''}`}
+      onMouseUp={handleMouseUp}
+      onContextMenu={onContextMenu}
+    >
       <div className="app-header">
-        <div className="header-spacer">
+        <div className="header-spacer left">
           {showDayProgress && (
             <span className="day-progress">
               {dayProgressStr}
@@ -166,7 +282,20 @@ function App() {
           )}
         </div>
         <h1 className="app-year">{year}</h1>
-        <div className="header-spacer header-spacer--right">
+        <div className="header-spacer right">
+          {!todayInView && (
+            <button
+              className="header-settings-btn"
+              onClick={handleBackToToday}
+              title="Back to Today"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
+            </button>
+          )}
+
           <button
             className="header-settings-btn"
             onClick={() => setShowSettings(true)}
@@ -209,6 +338,9 @@ function App() {
               today={todayData}
               highlightToday={highlightToday}
               showWeekends={showWeekends}
+              onTouchStart={onTouchStart}
+              onTouchMove={onTouchMove}
+              onTouchEnd={handleTouchEnd}
             />
           ))}
         </div>
@@ -246,6 +378,7 @@ function App() {
           showDayProgress={showDayProgress} setShowDayProgress={setShowDayProgress}
           clearAll={clearAll}
           onClose={() => setShowSettings(false)}
+          onExport={handleExport}
           user={user}
           onSignOut={() => {
             if (isGuest) setIsGuest(false);
