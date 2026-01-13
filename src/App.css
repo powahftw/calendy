@@ -591,8 +591,7 @@ body[data-theme='dark'] .day-cell.highlighted {
   padding: 8px 16px;
   border-radius: 6px;
   cursor: pointer;
-  font-weight: 500;
-  transition: background 0.2s;
+  transition: all 0.2s;
 }
 
 .btn-danger-outline:hover {
@@ -727,6 +726,14 @@ body[data-theme='dark'] .day-cell.highlighted {
   height: 36px;
   border-radius: 50%;
   border: 1px solid var(--line-color);
+}
+
+.account-avatar-placeholder {
+  background-color: #e0e0e0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
 }
 
 .account-details {
