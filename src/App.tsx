@@ -45,7 +45,11 @@ function App() {
     startDrag,
     updateDrag,
     endDrag,
-    isHighlighted
+    isHighlighted,
+    onTouchStart,
+    onTouchMove,
+    onTouchEnd: onTouchEndHook,
+    selectionMode
   } = useDragSelection(year);
 
   // App UI State
@@ -69,11 +73,74 @@ function App() {
   }, [theme]);
 
   // Handlers
+  const handleRangeComplete = (range: EventRange) => {
+    setTempRange(range);
+    setModalType('create');
+    setSelectedDateEvents([]);
+  };
+
   const handleMouseUp = () => {
-    endDrag((range) => {
-      setTempRange(range);
-      setModalType('create');
-      setSelectedDateEvents([]);
+    endDrag(handleRangeComplete);
+  };
+
+  const handleTouchEnd = () => {
+    onTouchEndHook(handleRangeComplete);
+  };
+
+  const handleBackToToday = () => {
+    // Find the today cell
+    const todayEl = document.querySelector('.day-cell.today');
+    if (todayEl) {
+      todayEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  };
+
+  const handleExport = () => {
+    if (events.length === 0) {
+      alert("No events to export.");
+      return;
+    }
+
+    // Group by Month Year
+    const groups: { [key: string]: PlannerEvent[] } = {};
+    const sortedEvents = [...events].sort((a, b) => {
+      const da = new Date(a.start);
+      const db = new Date(b.start);
+      return da.getTime() - db.getTime();
+    });
+
+    sortedEvents.forEach(ev => {
+      const [y, m, dstr] = ev.start.split('-').map(Number);
+      // Create date using local time constructor to avoid timezone offsets causing month shifts
+      const dateObj = new Date(y, m - 1, dstr);
+      const key = dateObj.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(ev);
+    });
+
+    let exportText = "";
+    for (const [groupName, groupEvents] of Object.entries(groups)) {
+      exportText += `${groupName}:\n`;
+      groupEvents.forEach(ev => {
+        // Format: [DD-MM - DD-MM] Title
+        // Assuming start and end are YYYY-MM-DD
+        const startParts = ev.start.split('-');
+        const endParts = ev.end.split('-');
+        const startStr = `${startParts[2]}-${startParts[1]}`;
+        const endStr = `${endParts[2]}-${endParts[1]}`;
+
+        exportText += `[${startStr} - ${endStr}] ${ev.title}\n`;
+      });
+      exportText += "\n";
+    }
+
+    navigator.clipboard.writeText(exportText).then(() => {
+      alert("Events exported to clipboard!");
+    }).catch(err => {
+      console.error('Failed to copy: ', err);
+      // Fallback or just logs
+      alert("Failed to copy events.");
     });
   };
 
@@ -156,11 +223,35 @@ function App() {
   if (!user && !isGuest) return <LoginScreen onGuestLogin={() => setIsGuest(true)} />;
 
   return (
-    <div className="app-container" onMouseUp={handleMouseUp}>
+    <div className={`app-container ${selectionMode ? 'selection-mode' : ''}`} onMouseUp={handleMouseUp}>
       <div className="app-header">
         <div className="header-spacer">
+          <button
+            className="header-settings-btn"
+            onClick={handleBackToToday}
+            title="Back to Today"
+            style={{ marginRight: '10px' }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <circle cx="12" cy="12" r="3"></circle>
+            </svg>
+          </button>
+
+          <button
+            className="header-settings-btn"
+            onClick={handleExport}
+            title="Export Events"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+          </button>
+
           {showDayProgress && (
-            <span className="day-progress">
+            <span className="day-progress" style={{ marginLeft: '15px' }}>
               {dayProgressStr}
             </span>
           )}
@@ -209,6 +300,9 @@ function App() {
               today={todayData}
               highlightToday={highlightToday}
               showWeekends={showWeekends}
+              onTouchStart={onTouchStart}
+              onTouchMove={onTouchMove}
+              onTouchEnd={handleTouchEnd}
             />
           ))}
         </div>

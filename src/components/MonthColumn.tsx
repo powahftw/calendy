@@ -19,6 +19,9 @@ interface MonthColumnProps {
     };
     highlightToday: boolean;
     showWeekends: boolean;
+    onTouchStart: (e: React.TouchEvent, m: number, d: number) => void;
+    onTouchMove: (e: React.TouchEvent) => void;
+    onTouchEnd: () => void;
 }
 
 const MonthColumn: FC<MonthColumnProps> = ({
@@ -34,7 +37,10 @@ const MonthColumn: FC<MonthColumnProps> = ({
     maxRows,
     today,
     highlightToday,
-    showWeekends
+    showWeekends,
+    onTouchStart,
+    onTouchMove,
+    onTouchEnd
 }) => {
     const daysInMonth = getDaysInMonth(year, monthIndex);
 
@@ -78,8 +84,13 @@ const MonthColumn: FC<MonthColumnProps> = ({
                     <div
                         key={day}
                         className={`day-cell ${isWeekend && showWeekends ? 'weekend' : ''} ${highlighted ? 'highlighted' : ''} ${isToday ? 'today' : ''}`}
+                        data-month={monthIndex}
+                        data-day={day}
                         onMouseDown={() => onMouseDown(monthIndex, day)}
                         onMouseEnter={() => onMouseEnter(monthIndex, day)}
+                        onTouchStart={(e) => onTouchStart(e, monthIndex, day)}
+                        onTouchMove={onTouchMove}
+                        onTouchEnd={onTouchEnd}
                     >
                         <span className="day-num">{day}</span>
 
