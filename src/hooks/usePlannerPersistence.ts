@@ -34,17 +34,6 @@ const usePlannerPersistence = (user: User | null) => {
             const storKey = getStorageKey(currentUser, key);
             const saved = localStorage.getItem(storKey);
 
-            // Migration: Check legacy key if new key missing (Only for logged-in users)
-            if (saved === null && currentUser) {
-                const legacyKey = `planner_${key}`;
-                const legacySaved = localStorage.getItem(legacyKey);
-                if (legacySaved !== null) {
-                    // Found legacy data! Migrate it relative to this user.
-                    localStorage.setItem(storKey, legacySaved);
-                    return JSON.parse(legacySaved);
-                }
-            }
-
             return saved !== null ? JSON.parse(saved) : defaultVal;
         };
 
@@ -163,7 +152,7 @@ const usePlannerPersistence = (user: User | null) => {
                         // UNLESS remote is also populated.
                         // Edge case: User has data on BOTH.
                         // Current logic: Remote wins.
-                        if (JSON.stringify(prev) !== JSON.stringify(remoteEvents) && remoteEvents.length > 0) {
+                        if (JSON.stringify(prev) !== JSON.stringify(remoteEvents)) {
                             isRemoteUpdate.current = true;
                             return remoteEvents;
                         }
@@ -230,7 +219,7 @@ const usePlannerPersistence = (user: User | null) => {
                 }
             };
 
-            if (remoteSettings.theme) updateIfChanged(theme, remoteSettings.theme, setTheme);
+            updateIfChanged(theme, remoteSettings.theme, setTheme);
             updateIfChanged(highlightToday, remoteSettings.highlightToday, setHighlightToday);
             updateIfChanged(showWeekends, remoteSettings.showWeekends, setShowWeekends);
             updateIfChanged(showDayProgress, remoteSettings.showDayProgress, setShowDayProgress);
@@ -259,12 +248,18 @@ const usePlannerPersistence = (user: User | null) => {
         }
     }, [events, theme, highlightToday, showWeekends, showDayProgress, year, monthsToShow]);
 
-    // 6. Offline Support (Sync on reconnect)
+    // 6. Offline Support (Sync on reconnect) - Optimized with useRef
+    const stateRef = useRef({ events, theme, highlightToday, showWeekends, showDayProgress, year, monthsToShow });
+
+    useEffect(() => {
+        stateRef.current = { events, theme, highlightToday, showWeekends, showDayProgress, year, monthsToShow };
+    }, [events, theme, highlightToday, showWeekends, showDayProgress, year, monthsToShow]);
+
     useEffect(() => {
         const handleOnline = () => {
             if (user && isInitialLoadDone) {
                 console.log("Back online! Force syncing...");
-                // Force sync current state to cloud
+                const { events, theme, highlightToday, showWeekends, showDayProgress, year, monthsToShow } = stateRef.current;
                 syncEvents(user.uid, events);
                 syncSettings(user.uid, { theme, highlightToday, showWeekends, showDayProgress, year, monthsToShow });
             }
@@ -272,7 +267,7 @@ const usePlannerPersistence = (user: User | null) => {
 
         window.addEventListener('online', handleOnline);
         return () => window.removeEventListener('online', handleOnline);
-    }, [user, isInitialLoadDone, events, theme, highlightToday, showWeekends, showDayProgress, year, monthsToShow]);
+    }, [user, isInitialLoadDone]);
 
     return {
         year, setYear,

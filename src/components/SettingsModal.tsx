@@ -112,7 +112,7 @@ const SettingsModal: FC<SettingsModalProps> = ({
                                 {user?.photoURL ? (
                                     <img src={user.photoURL} alt="" className="account-avatar" />
                                 ) : (
-                                    <div className="account-avatar" style={{ backgroundColor: '#e0e0e0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <div className="account-avatar account-avatar-placeholder">
                                         {isGuest ? 'G' : 'U'}
                                     </div>
                                 )}
