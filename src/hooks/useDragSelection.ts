@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { RangeDate, EventRange } from '../utils/calendarUtils';
 
+const TOUCH_MOVE_THRESHOLD = 10;
+
 const useDragSelection = (year: number) => {
     const [isDragging, setIsDragging] = useState(false);
     const [dragStart, setDragStart] = useState<RangeDate | null>(null);
@@ -94,7 +96,7 @@ const useDragSelection = (year: number) => {
             if (touchStartPos.current) {
                 const dx = e.touches[0].clientX - touchStartPos.current.x;
                 const dy = e.touches[0].clientY - touchStartPos.current.y;
-                if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+                if (Math.abs(dx) > TOUCH_MOVE_THRESHOLD || Math.abs(dy) > TOUCH_MOVE_THRESHOLD) {
                     if (longPressTimer.current) clearTimeout(longPressTimer.current);
                 }
             }
@@ -110,6 +112,13 @@ const useDragSelection = (year: number) => {
             finaliseDrag(callback);
         }
         touchStartPos.current = null;
+    };
+
+    const onContextMenu = (e: React.MouseEvent) => {
+        // Prevent system menu if we are in selection mode or just finished it
+        if (selectionMode || isDragging) {
+            e.preventDefault();
+        }
     };
 
     const isHighlighted = (m: number, d: number) => {
@@ -138,7 +147,8 @@ const useDragSelection = (year: number) => {
         isHighlighted,
         onTouchStart,
         onTouchMove,
-        onTouchEnd
+        onTouchEnd,
+        onContextMenu
     };
 };
 

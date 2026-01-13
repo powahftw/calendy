@@ -49,6 +49,7 @@ function App() {
     onTouchStart,
     onTouchMove,
     onTouchEnd: onTouchEndHook,
+    onContextMenu,
     selectionMode
   } = useDragSelection(year);
 
@@ -57,6 +58,9 @@ function App() {
   const [weekdayAlign, setWeekdayAlign] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [modalType, setModalType] = useState<'create' | 'list' | null>(null);
+
+  // Visibility State
+  const [todayInView, setTodayInView] = useState(true);
 
   // Selection State
   const [selectedDateEvents, setSelectedDateEvents] = useState<PlannerEvent[]>([]);
@@ -71,6 +75,21 @@ function App() {
   useEffect(() => {
     document.body.setAttribute('data-theme', theme);
   }, [theme]);
+
+  // Today Visibility Observer
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setTodayInView(entry.isIntersecting);
+      },
+      { threshold: 0.1 }
+    );
+
+    const todayEl = document.querySelector('.day-cell.today');
+    if (todayEl) observer.observe(todayEl);
+
+    return () => observer.disconnect();
+  }, [year, monthsToShow, highlightToday, events]); // Re-run if calendar structure changes
 
   // Handlers
   const handleRangeComplete = (range: EventRange) => {
@@ -207,7 +226,7 @@ function App() {
 
   if (authLoading) {
     return (
-      <div className="app-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div className="loading-container">
         <p style={{ color: 'var(--text-secondary)' }}>Loading...</p>
       </div>
     );
@@ -223,41 +242,34 @@ function App() {
   if (!user && !isGuest) return <LoginScreen onGuestLogin={() => setIsGuest(true)} />;
 
   return (
-    <div className={`app-container ${selectionMode ? 'selection-mode' : ''}`} onMouseUp={handleMouseUp}>
+    <div
+      className={`app-container ${selectionMode ? 'selection-mode' : ''}`}
+      onMouseUp={handleMouseUp}
+      onContextMenu={onContextMenu}
+    >
       <div className="app-header">
-        <div className="header-spacer">
-          <button
-            className="header-settings-btn"
-            onClick={handleBackToToday}
-            title="Back to Today"
-            style={{ marginRight: '10px' }}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="10"></circle>
-              <circle cx="12" cy="12" r="3"></circle>
-            </svg>
-          </button>
-
-          <button
-            className="header-settings-btn"
-            onClick={handleExport}
-            title="Export Events"
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-              <polyline points="7 10 12 15 17 10"></polyline>
-              <line x1="12" y1="15" x2="12" y2="3"></line>
-            </svg>
-          </button>
-
+        <div className="header-spacer left">
           {showDayProgress && (
-            <span className="day-progress" style={{ marginLeft: '15px' }}>
+            <span className="day-progress">
               {dayProgressStr}
             </span>
           )}
         </div>
         <h1 className="app-year">{year}</h1>
-        <div className="header-spacer header-spacer--right">
+        <div className="header-spacer right">
+          {!todayInView && (
+            <button
+              className="header-settings-btn"
+              onClick={handleBackToToday}
+              title="Back to Today"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
+            </button>
+          )}
+
           <button
             className="header-settings-btn"
             onClick={() => setShowSettings(true)}
@@ -340,6 +352,7 @@ function App() {
           showDayProgress={showDayProgress} setShowDayProgress={setShowDayProgress}
           clearAll={clearAll}
           onClose={() => setShowSettings(false)}
+          onExport={handleExport}
           user={user}
           onSignOut={() => {
             if (isGuest) setIsGuest(false);
