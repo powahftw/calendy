@@ -47,15 +47,6 @@ const usePlannerPersistence = (user: User | null) => {
             if (saved) {
                 rawEvents = JSON.parse(saved);
                 found = true;
-            } else if (currentUser) {
-                // Try legacy migration
-                const legacySaved = localStorage.getItem('planner_events');
-                if (legacySaved) {
-                    rawEvents = JSON.parse(legacySaved);
-                    // Save to new key immediately
-                    localStorage.setItem(storKey, legacySaved);
-                    found = true;
-                }
             }
 
             return { events: rawEvents, found };
