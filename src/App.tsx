@@ -49,6 +49,7 @@ function App() {
   } = useDragSelection(year);
 
   // App UI State
+  const [isGuest, setIsGuest] = useState(false);
   const [weekdayAlign, setWeekdayAlign] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [modalType, setModalType] = useState<'create' | 'list' | null>(null);
@@ -152,7 +153,7 @@ function App() {
     dayProgressStr = `${current} / ${total}`;
   }
 
-  if (!user) return <LoginScreen />;
+  if (!user && !isGuest) return <LoginScreen onGuestLogin={() => setIsGuest(true)} />;
 
   return (
     <div className="app-container" onMouseUp={handleMouseUp}>
@@ -246,7 +247,11 @@ function App() {
           clearAll={clearAll}
           onClose={() => setShowSettings(false)}
           user={user}
-          onSignOut={signOut}
+          onSignOut={() => {
+            if (isGuest) setIsGuest(false);
+            else signOut();
+          }}
+          isGuest={isGuest}
         />
       )}
     </div>

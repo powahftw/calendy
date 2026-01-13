@@ -21,6 +21,7 @@ interface SettingsModalProps {
     onClose: () => void;
     user: User | null;
     onSignOut: () => void;
+    isGuest?: boolean;
 }
 
 const SettingsModal: FC<SettingsModalProps> = ({
@@ -31,7 +32,7 @@ const SettingsModal: FC<SettingsModalProps> = ({
     highlightToday, setHighlightToday,
     showWeekends, setShowWeekends,
     showDayProgress, setShowDayProgress,
-    clearAll, onClose, user, onSignOut
+    clearAll, onClose, user, onSignOut, isGuest
 }) => {
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -108,15 +109,21 @@ const SettingsModal: FC<SettingsModalProps> = ({
                         <h4>Account</h4>
                         <div className="account-info">
                             <div className="account-user">
-                                {user?.photoURL && (
+                                {user?.photoURL ? (
                                     <img src={user.photoURL} alt="" className="account-avatar" />
+                                ) : (
+                                    <div className="account-avatar" style={{ backgroundColor: '#e0e0e0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        {isGuest ? 'G' : 'U'}
+                                    </div>
                                 )}
                                 <div className="account-details">
-                                    <span className="account-name">{user?.displayName || 'User'}</span>
-                                    <span className="account-email">{user?.email}</span>
+                                    <span className="account-name">{isGuest ? 'Guest User' : (user?.displayName || 'User')}</span>
+                                    <span className="account-email">{isGuest ? 'Local Storage Only' : user?.email}</span>
                                 </div>
                             </div>
-                            <button className="btn-text" onClick={onSignOut}>Sign Out</button>
+                            <button className="btn-text" onClick={onSignOut}>
+                                {isGuest ? 'Exit Guest Mode' : 'Sign Out'}
+                            </button>
                         </div>
                     </div>
                 </div>

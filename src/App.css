@@ -591,8 +591,7 @@ body[data-theme='dark'] .day-cell.highlighted {
   padding: 8px 16px;
   border-radius: 6px;
   cursor: pointer;
-  font-weight: 500;
-  transition: background 0.2s;
+  transition: all 0.2s;
 }
 
 .btn-danger-outline:hover {
