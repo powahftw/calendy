@@ -60,7 +60,7 @@ function App() {
   const [modalType, setModalType] = useState<'create' | 'list' | null>(null);
 
   // Visibility State
-  const [todayInView, setTodayInView] = useState(true);
+  const [todayInView, setTodayInView] = useState(false);
 
   // Selection State
   const [selectedDateEvents, setSelectedDateEvents] = useState<PlannerEvent[]>([]);
@@ -76,20 +76,46 @@ function App() {
     document.body.setAttribute('data-theme', theme);
   }, [theme]);
 
-  // Today Visibility Observer
+  // Today Visibility Logic
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        setTodayInView(entry.isIntersecting);
-      },
-      { threshold: 0.1 }
-    );
+    const scrollArea = document.querySelector('.planner-scroll-area');
+    if (!scrollArea) return;
 
-    const todayEl = document.querySelector('.day-cell.today');
-    if (todayEl) observer.observe(todayEl);
+    const checkVisibility = () => {
+      const todayEl = document.querySelector('.today-marker');
+      if (!todayEl) {
+        setTodayInView(true); // Default to true if not found to avoid ghost button (safest)
+        return;
+      }
 
-    return () => observer.disconnect();
-  }, [year, monthsToShow, highlightToday, events]); // Re-run if calendar structure changes
+      const rect = todayEl.getBoundingClientRect();
+      const containerRect = scrollArea.getBoundingClientRect();
+
+      // Buffer for responsiveness
+      const buffer = 5;
+
+      const isInView = (
+        rect.bottom > containerRect.top + buffer &&
+        rect.top < containerRect.bottom - buffer &&
+        rect.right > containerRect.left + buffer &&
+        rect.left < containerRect.right - buffer
+      );
+
+      setTodayInView(isInView);
+    };
+
+    scrollArea.addEventListener('scroll', checkVisibility, { passive: true });
+    window.addEventListener('resize', checkVisibility);
+
+    // Check multiple times as the layout settles (vital for mobile/fonts)
+    const timers = [100, 500, 1000, 2000].map(ms => setTimeout(checkVisibility, ms));
+
+    return () => {
+      scrollArea.removeEventListener('scroll', checkVisibility);
+      window.removeEventListener('resize', checkVisibility);
+      timers.forEach(clearTimeout);
+    };
+  }, [year, monthsToShow, highlightToday, events]);
 
   // Handlers
   const handleRangeComplete = (range: EventRange) => {
@@ -108,9 +134,9 @@ function App() {
 
   const handleBackToToday = () => {
     // Find the today cell
-    const todayEl = document.querySelector('.day-cell.today');
+    const todayEl = document.querySelector('.today-marker');
     if (todayEl) {
-      todayEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      todayEl.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
     }
   };
 

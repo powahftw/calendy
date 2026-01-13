@@ -940,6 +940,57 @@ body[data-theme='dark'] .day-cell.highlighted {
   margin: 0;
 }
 
+.or-divider {
+  display: flex;
+  align-items: center;
+  margin: 0 40px 24px;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.or-divider::before,
+.or-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line-color);
+}
+
+.or-divider span {
+  padding: 0 16px;
+}
+
+.login-guest-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: calc(100% - 80px);
+  margin: 0 40px 32px;
+  padding: 14px 24px;
+  background: transparent;
+  border: 1px solid var(--line-color);
+  border-radius: 12px;
+  font-family: 'Inter', sans-serif;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.login-guest-btn:hover {
+  background: var(--weekend-bg);
+  color: var(--text-primary);
+  border-color: var(--text-secondary);
+  transform: translateY(-1px);
+}
+
+
 /* --- Touch Selection Mode --- */
 .app-container.selection-mode {
   user-select: none;

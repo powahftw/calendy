@@ -83,7 +83,7 @@ const MonthColumn: FC<MonthColumnProps> = ({
                 return (
                     <div
                         key={day}
-                        className={`day-cell ${isWeekend && showWeekends ? 'weekend' : ''} ${highlighted ? 'highlighted' : ''} ${isToday ? 'today' : ''}`}
+                        className={`day-cell ${isWeekend && showWeekends ? 'weekend' : ''} ${highlighted ? 'highlighted' : ''} ${isToday ? 'today' : ''} ${isToday ? 'today-marker' : ''}`}
                         data-month={monthIndex}
                         data-day={day}
                         onMouseDown={() => onMouseDown(monthIndex, day)}
