@@ -1,4 +1,5 @@
-import React, { FC, useEffect } from 'react';
+import React, { FC, useEffect, useState } from 'react';
+import CalendarImportModal from './CalendarImportModal';
 import { themes } from '../utils/calendarUtils';
 import { User } from 'firebase/auth';
 import { usePlanner } from '../context/PlannerContext';
@@ -14,6 +15,8 @@ interface SettingsModalProps {
 const SettingsModal: FC<SettingsModalProps> = ({
     onClose, user, onSignOut, isGuest
 }) => {
+    const [showImportModal, setShowImportModal] = useState(false);
+
     const {
         year, setYear,
         monthsToShow, setMonthsToShow,
@@ -164,6 +167,7 @@ const SettingsModal: FC<SettingsModalProps> = ({
                         </div>
                     </div>
 
+
                     {/* Account Section */}
                     <div className="settings-section">
                         <h4>Account</h4>
@@ -186,8 +190,34 @@ const SettingsModal: FC<SettingsModalProps> = ({
                             </button>
                         </div>
                     </div>
+
+                    <div className="settings-section">
+                        <h4>Integrations</h4>
+                        <button
+                            className="btn-secondary btn-icon-with-text"
+                            onClick={() => setShowImportModal(true)}
+                            style={{
+                                width: '100%',
+                                justifyContent: 'center',
+                                background: '#f5f5f5',
+                                border: '1px solid #e0e0e0',
+                                padding: '10px',
+                                color: '#333',
+                                borderRadius: '4px'
+                            }}
+                        >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                                <line x1="16" y1="2" x2="16" y2="6"></line>
+                                <line x1="8" y1="2" x2="8" y2="6"></line>
+                                <line x1="3" y1="10" x2="21" y2="10"></line>
+                            </svg>
+                            Import from Google Calendar
+                        </button>
+                    </div>
                 </div>
             </div>
+            {showImportModal && <CalendarImportModal onClose={() => setShowImportModal(false)} />}
         </div>
     );
 };
