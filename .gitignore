@@ -38,3 +38,12 @@ ui-debug.log
 .env.production
 
 TODO.md
+
+# Playwright
+test-results/
+playwright-report/
+playwright/.cache/
+# IGNORE local Mac/Windows snapshots.
+# We only want the CI (Linux) snapshots in the repo.
+*-darwin.png
+*-win32.png
