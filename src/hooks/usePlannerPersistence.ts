@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { syncEvents, subscribeToEvents, loadEvents, syncSettings, subscribeToSettings, loadSettings } from '../firestoreSync';
-import { defaultBluePalette, PlannerEvent, PlannerSettings } from '../utils/calendarUtils';
+import { defaultBluePalette, PlannerEvent, PlannerSettings, ThemeId } from '../utils/calendarUtils';
 import { User } from 'firebase/auth';
 
 const getStorageKey = (user: User | null, key: string) => {
@@ -18,10 +18,10 @@ const usePlannerPersistence = (user: User | null) => {
     // -- State Definitions --
     const [year, setYear] = useState<number>(2026);
     const [monthsToShow, setMonthsToShow] = useState<number>(12);
-    const [theme, setTheme] = useState<string>('blue');
+    const [theme, setTheme] = useState<ThemeId>('blue');
     const [highlightToday, setHighlightToday] = useState<boolean>(true);
     const [showWeekends, setShowWeekends] = useState<boolean>(true);
-    const [showDayProgress, setShowDayProgress] = useState<boolean>(false);
+    const [showDayProgress, setShowDayProgress] = useState<boolean>(true);
     const [events, setEvents] = useState<PlannerEvent[]>([]);
 
     const [isInitialLoadDone, setIsInitialLoadDone] = useState(false);
@@ -54,10 +54,10 @@ const usePlannerPersistence = (user: User | null) => {
 
         setYear(getVal('year', 2026));
         setMonthsToShow(getVal('months_to_show', 12));
-        setTheme(localStorage.getItem(getStorageKey(currentUser, 'theme')) || 'blue');
+        setTheme((localStorage.getItem(getStorageKey(currentUser, 'theme')) as ThemeId) || 'blue');
         setHighlightToday(getVal('highlight_today', true));
         setShowWeekends(getVal('show_weekends', true));
-        setShowDayProgress(getVal('show_day_progress', false));
+        setShowDayProgress(getVal('show_day_progress', true));
 
         const { events: loadedEvents, found: foundLocalEvents } = getEvents();
 

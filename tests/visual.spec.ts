@@ -93,5 +93,45 @@ test.describe('Visual Regression Tests', () => {
                 fullPage: true,
             });
         });
+
+        test('drag creation and overlap', async ({ page }) => {
+            // 0. Create Single Event on Jan 14
+            const middleCell = page.locator('.day-cell').filter({ hasText: '14' }).first();
+            await middleCell.click();
+            await page.waitForSelector('.modal-overlay .modal');
+            await page.fill('.modal-overlay .modal input[type="text"]', 'Overlap Target');
+            await page.click('.modal-overlay .modal button:has-text("Save")');
+            await page.waitForSelector('.modal-overlay', { state: 'hidden' });
+
+            // 1. Drag from Jan 13 to Jan 18
+            const startCell = page.locator('.day-cell').filter({ hasText: '13' }).first();
+            const endCell = page.locator('.day-cell').filter({ hasText: '18' }).first();
+
+            // Perform drag
+            await startCell.hover();
+            await page.mouse.down();
+            await endCell.hover();
+            await page.mouse.up();
+
+            // 2. Add Name "Long Vacation"
+            await page.waitForSelector('.modal-overlay .modal');
+            const titleInput = page.locator('.modal-overlay .modal input[type="text"]');
+            await titleInput.fill('Long Vacation');
+
+            // 3. Select non-default color (e.g., index 2 - Pink/Red depending on palette)
+            const colorOptions = page.locator('.color-circle');
+            await colorOptions.nth(2).click();
+
+            // 4. Click Save
+            await page.click('.modal-overlay .modal button:has-text("Save")');
+
+            // 5. Wait for modal to close
+            await page.waitForSelector('.modal-overlay', { state: 'hidden' });
+
+            // 6. Screenshot
+            await expect(page).toHaveScreenshot('planner-drag-overlap.png', {
+                fullPage: true,
+            });
+        });
     });
 });
