@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { syncEvents, subscribeToEvents, loadEvents, syncSettings, subscribeToSettings, loadSettings } from '../firestoreSync';
-import { defaultBluePalette, PlannerEvent, PlannerSettings } from '../utils/calendarUtils';
+import { defaultBluePalette, PlannerEvent, PlannerSettings, ThemeId } from '../utils/calendarUtils';
 import { User } from 'firebase/auth';
 
 const getStorageKey = (user: User | null, key: string) => {
@@ -18,10 +18,11 @@ const usePlannerPersistence = (user: User | null) => {
     // -- State Definitions --
     const [year, setYear] = useState<number>(2026);
     const [monthsToShow, setMonthsToShow] = useState<number>(12);
-    const [theme, setTheme] = useState<string>('blue');
+    const [theme, setTheme] = useState<ThemeId>('blue');
     const [highlightToday, setHighlightToday] = useState<boolean>(true);
     const [showWeekends, setShowWeekends] = useState<boolean>(true);
-    const [showDayProgress, setShowDayProgress] = useState<boolean>(false);
+    const [showDayProgress, setShowDayProgress] = useState<boolean>(true);
+    const [weekdayAlign, setWeekdayAlign] = useState<boolean>(true);
     const [events, setEvents] = useState<PlannerEvent[]>([]);
 
     const [isInitialLoadDone, setIsInitialLoadDone] = useState(false);
@@ -54,10 +55,11 @@ const usePlannerPersistence = (user: User | null) => {
 
         setYear(getVal('year', 2026));
         setMonthsToShow(getVal('months_to_show', 12));
-        setTheme(localStorage.getItem(getStorageKey(currentUser, 'theme')) || 'blue');
+        setTheme((localStorage.getItem(getStorageKey(currentUser, 'theme')) as ThemeId) || 'blue');
         setHighlightToday(getVal('highlight_today', true));
         setShowWeekends(getVal('show_weekends', true));
-        setShowDayProgress(getVal('show_day_progress', false));
+        setShowDayProgress(getVal('show_day_progress', true));
+        setWeekdayAlign(getVal('weekday_align', true));
 
         const { events: loadedEvents, found: foundLocalEvents } = getEvents();
 
@@ -105,19 +107,20 @@ const usePlannerPersistence = (user: User | null) => {
         save('highlight_today', highlightToday);
         save('show_weekends', showWeekends);
         save('show_day_progress', showDayProgress);
+        save('weekday_align', weekdayAlign);
         save('year', year);
         save('months_to_show', monthsToShow);
 
-    }, [events, theme, highlightToday, showWeekends, showDayProgress, year, monthsToShow, user]);
+    }, [events, theme, highlightToday, showWeekends, showDayProgress, weekdayAlign, year, monthsToShow, user]);
 
     // 3. Sync to Firestore (Upstream)
     useEffect(() => {
         // Guard: Only sync if we are explicitly allowed to (prevents wiping remote with empty local init)
         if (user && isInitialLoadDone && shouldSyncUpstream && !isRemoteUpdate.current) {
             syncEvents(user.uid, events);
-            syncSettings(user.uid, { theme, highlightToday, showWeekends, showDayProgress, year, monthsToShow });
+            syncSettings(user.uid, { theme, highlightToday, showWeekends, showDayProgress, weekdayAlign, year, monthsToShow });
         }
-    }, [events, theme, highlightToday, showWeekends, showDayProgress, year, monthsToShow, user, isInitialLoadDone, shouldSyncUpstream]);
+    }, [events, theme, highlightToday, showWeekends, showDayProgress, weekdayAlign, year, monthsToShow, user, isInitialLoadDone, shouldSyncUpstream]);
 
     // 4. Subscribe to Firestore (Downstream) & Initial Remote Load
     useEffect(() => {
@@ -166,6 +169,7 @@ const usePlannerPersistence = (user: User | null) => {
                     updateIfChanged(highlightToday, remoteSettings.highlightToday, setHighlightToday);
                     updateIfChanged(showWeekends, remoteSettings.showWeekends, setShowWeekends);
                     updateIfChanged(showDayProgress, remoteSettings.showDayProgress, setShowDayProgress);
+                    updateIfChanged(weekdayAlign, remoteSettings.weekdayAlign, setWeekdayAlign);
                     updateIfChanged(year, remoteSettings.year, setYear);
                     updateIfChanged(monthsToShow, remoteSettings.monthsToShow, setMonthsToShow);
 
@@ -214,6 +218,7 @@ const usePlannerPersistence = (user: User | null) => {
             updateIfChanged(highlightToday, remoteSettings.highlightToday, setHighlightToday);
             updateIfChanged(showWeekends, remoteSettings.showWeekends, setShowWeekends);
             updateIfChanged(showDayProgress, remoteSettings.showDayProgress, setShowDayProgress);
+            updateIfChanged(weekdayAlign, remoteSettings.weekdayAlign, setWeekdayAlign);
             updateIfChanged(year, remoteSettings.year, setYear);
             updateIfChanged(monthsToShow, remoteSettings.monthsToShow, setMonthsToShow);
 
@@ -237,22 +242,22 @@ const usePlannerPersistence = (user: User | null) => {
             }, 100); // 100ms grace period
             return () => clearTimeout(timer);
         }
-    }, [events, theme, highlightToday, showWeekends, showDayProgress, year, monthsToShow]);
+    }, [events, theme, highlightToday, showWeekends, showDayProgress, weekdayAlign, year, monthsToShow]);
 
     // 6. Offline Support (Sync on reconnect) - Optimized with useRef
-    const stateRef = useRef({ events, theme, highlightToday, showWeekends, showDayProgress, year, monthsToShow });
+    const stateRef = useRef({ events, theme, highlightToday, showWeekends, showDayProgress, weekdayAlign, year, monthsToShow });
 
     useEffect(() => {
-        stateRef.current = { events, theme, highlightToday, showWeekends, showDayProgress, year, monthsToShow };
-    }, [events, theme, highlightToday, showWeekends, showDayProgress, year, monthsToShow]);
+        stateRef.current = { events, theme, highlightToday, showWeekends, showDayProgress, weekdayAlign, year, monthsToShow };
+    }, [events, theme, highlightToday, showWeekends, showDayProgress, weekdayAlign, year, monthsToShow]);
 
     useEffect(() => {
         const handleOnline = () => {
             if (user && isInitialLoadDone) {
                 console.log("Back online! Force syncing...");
-                const { events, theme, highlightToday, showWeekends, showDayProgress, year, monthsToShow } = stateRef.current;
+                const { events, theme, highlightToday, showWeekends, showDayProgress, weekdayAlign, year, monthsToShow } = stateRef.current;
                 syncEvents(user.uid, events);
-                syncSettings(user.uid, { theme, highlightToday, showWeekends, showDayProgress, year, monthsToShow });
+                syncSettings(user.uid, { theme, highlightToday, showWeekends, showDayProgress, weekdayAlign, year, monthsToShow });
             }
         };
 
@@ -267,6 +272,7 @@ const usePlannerPersistence = (user: User | null) => {
         highlightToday, setHighlightToday,
         showWeekends, setShowWeekends,
         showDayProgress, setShowDayProgress,
+        weekdayAlign, setWeekdayAlign,
         events, setEvents,
         isInitialLoadDone
     };

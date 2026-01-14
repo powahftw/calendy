@@ -1,5 +1,7 @@
+export type ThemeId = 'blue' | 'forest' | 'pastel' | 'dark';
+
 export interface Theme {
-    id: string;
+    id: ThemeId;
     name: string;
     primary: string;
 }
@@ -24,10 +26,11 @@ export interface PlannerEvent {
 }
 
 export interface PlannerSettings {
-    theme: string;
+    theme: ThemeId;
     highlightToday: boolean;
     showWeekends: boolean;
     showDayProgress: boolean;
+    weekdayAlign: boolean;
     year: number;
     monthsToShow: number;
 }
@@ -45,7 +48,7 @@ export const themes: Theme[] = [
 
 export const defaultBluePalette = ["#3b82f6", "#10b981", "#db2777", "#f59e0b", "#8b5cf6", "#6366f1", "#ef4444"];
 
-export const getThemeColors = (themeId: string): string[] => {
+export const getThemeColors = (themeId: ThemeId): string[] => {
     if (themeId === 'forest') {
         // Earthy / Sepia Tones
         return ["#5C7886", "#627264", "#8B5E5E", "#BC9663", "#7A728A", "#646E82", "#A65D57"];

@@ -1,40 +1,31 @@
 import React, { FC, useEffect } from 'react';
 import { themes } from '../utils/calendarUtils';
 import { User } from 'firebase/auth';
+import { usePlanner } from '../context/PlannerContext';
+import { PlannerEvent } from '../utils/calendarUtils';
 
 interface SettingsModalProps {
-    year: number;
-    setYear: (y: number) => void;
-    monthsToShow: number;
-    setMonthsToShow: (m: number) => void;
-    theme: string;
-    setTheme: (t: string) => void;
-    weekdayAlign: boolean;
-    setWeekdayAlign: (a: boolean) => void;
-    highlightToday: boolean;
-    setHighlightToday: (h: boolean) => void;
-    showWeekends: boolean;
-    setShowWeekends: (s: boolean) => void;
-    showDayProgress: boolean;
-    setShowDayProgress: (s: boolean) => void;
-    clearAll: () => void;
     onClose: () => void;
-    onExport: () => void;
     user: User | null;
     onSignOut: () => void;
     isGuest?: boolean;
 }
 
 const SettingsModal: FC<SettingsModalProps> = ({
-    year, setYear,
-    monthsToShow, setMonthsToShow,
-    theme, setTheme,
-    weekdayAlign, setWeekdayAlign,
-    highlightToday, setHighlightToday,
-    showWeekends, setShowWeekends,
-    showDayProgress, setShowDayProgress,
-    clearAll, onClose, onExport, user, onSignOut, isGuest
+    onClose, user, onSignOut, isGuest
 }) => {
+    const {
+        year, setYear,
+        monthsToShow, setMonthsToShow,
+        theme, setTheme,
+        highlightToday, setHighlightToday,
+        showWeekends, setShowWeekends,
+        showDayProgress, setShowDayProgress,
+        weekdayAlign, setWeekdayAlign,
+        setEvents,
+        events
+    } = usePlanner();
+
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Escape') onClose();
@@ -42,6 +33,58 @@ const SettingsModal: FC<SettingsModalProps> = ({
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [onClose]);
+
+    const clearAll = () => {
+        if (window.confirm("Clear all events?")) setEvents([]);
+    };
+
+    const handleExport = () => {
+        if (events.length === 0) {
+            alert("No events to export.");
+            return;
+        }
+
+        // Group by Month Year
+        const groups: { [key: string]: PlannerEvent[] } = {};
+        const sortedEvents = [...events].sort((a, b) => {
+            const da = new Date(a.start);
+            const db = new Date(b.start);
+            return da.getTime() - db.getTime();
+        });
+
+        sortedEvents.forEach(ev => {
+            const [y, m, dstr] = ev.start.split('-').map(Number);
+            // Create date using local time constructor to avoid timezone offsets causing month shifts
+            const dateObj = new Date(y, m - 1, dstr);
+            const key = dateObj.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+            if (!groups[key]) groups[key] = [];
+            groups[key].push(ev);
+        });
+
+        let exportText = "";
+        for (const [groupName, groupEvents] of Object.entries(groups)) {
+            exportText += `${groupName}:\n`;
+            groupEvents.forEach(ev => {
+                // Format: [DD-MM - DD-MM] Title
+                // Assuming start and end are YYYY-MM-DD
+                const startParts = ev.start.split('-');
+                const endParts = ev.end.split('-');
+                const startStr = `${startParts[2]}-${startParts[1]}`;
+                const endStr = `${endParts[2]}-${endParts[1]}`;
+
+                exportText += `[${startStr} - ${endStr}] ${ev.title}\n`;
+            });
+            exportText += "\n";
+        }
+
+        navigator.clipboard.writeText(exportText).then(() => {
+            alert("Events exported to clipboard!");
+        }).catch(err => {
+            console.error('Failed to copy: ', err);
+            alert("Failed to copy events.");
+        });
+    };
 
     return (
         <div className="modal-overlay" onMouseDown={(e: React.MouseEvent) => e.target === e.currentTarget && onClose()}>
@@ -104,7 +147,7 @@ const SettingsModal: FC<SettingsModalProps> = ({
                     <div className="settings-section">
                         <h4>Data</h4>
                         <div className="settings-actions-grid">
-                            <button className="btn-primary-outline btn-icon-with-text" onClick={onExport}>
+                            <button className="btn-primary-outline btn-icon-with-text" onClick={handleExport}>
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                                     <polyline points="17 8 12 3 7 8"></polyline>
