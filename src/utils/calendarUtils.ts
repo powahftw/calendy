@@ -30,6 +30,7 @@ export interface PlannerSettings {
     highlightToday: boolean;
     showWeekends: boolean;
     showDayProgress: boolean;
+    weekdayAlign: boolean;
     year: number;
     monthsToShow: number;
 }

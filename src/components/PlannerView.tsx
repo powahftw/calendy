@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { usePlanner } from '../context/PlannerContext';
 import { PlannerEvent, EventRange, RangeDate, toDateStr, uid, getThemeColors } from '../utils/calendarUtils';
 import PlannerGrid from './PlannerGrid';
@@ -23,11 +23,12 @@ const PlannerView: React.FC<PlannerViewProps> = ({ user, signOut, isGuest, setIs
         onContextMenu,
         events,
         setEvents,
-        theme
+        theme,
+        weekdayAlign,
+        setWeekdayAlign
     } = usePlanner();
 
     // App UI State
-    const [weekdayAlign, setWeekdayAlign] = useState(true);
     const [showSettings, setShowSettings] = useState(false);
     const [modalType, setModalType] = useState<'create' | 'list' | null>(null);
 
@@ -38,6 +39,11 @@ const PlannerView: React.FC<PlannerViewProps> = ({ user, signOut, isGuest, setIs
     const [selectedDateEvents, setSelectedDateEvents] = useState<PlannerEvent[]>([]);
     const [tempRange, setTempRange] = useState<EventRange | null>(null);
     const [clickedDate, setClickedDate] = useState<RangeDate | null>(null);
+
+    // Effects
+    useEffect(() => {
+        document.body.setAttribute('data-theme', theme);
+    }, [theme]);
 
     // Handlers
     const handleRangeComplete = (range: EventRange) => {
@@ -144,8 +150,6 @@ const PlannerView: React.FC<PlannerViewProps> = ({ user, signOut, isGuest, setIs
 
             {showSettings && (
                 <SettingsModal
-                    weekdayAlign={weekdayAlign}
-                    setWeekdayAlign={setWeekdayAlign}
                     onClose={() => setShowSettings(false)}
                     user={user}
                     onSignOut={() => {

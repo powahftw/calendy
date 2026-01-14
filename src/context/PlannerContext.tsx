@@ -18,6 +18,8 @@ interface PlannerContextType {
     setShowWeekends: (s: boolean) => void;
     showDayProgress: boolean;
     setShowDayProgress: (s: boolean) => void;
+    weekdayAlign: boolean;
+    setWeekdayAlign: (s: boolean) => void;
     events: PlannerEvent[];
     setEvents: (e: PlannerEvent[]) => void;
     isInitialLoadDone: boolean;

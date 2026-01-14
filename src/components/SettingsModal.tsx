@@ -5,8 +5,6 @@ import { usePlanner } from '../context/PlannerContext';
 import { PlannerEvent } from '../utils/calendarUtils';
 
 interface SettingsModalProps {
-    weekdayAlign: boolean;
-    setWeekdayAlign: (a: boolean) => void;
     onClose: () => void;
     user: User | null;
     onSignOut: () => void;
@@ -14,7 +12,6 @@ interface SettingsModalProps {
 }
 
 const SettingsModal: FC<SettingsModalProps> = ({
-    weekdayAlign, setWeekdayAlign,
     onClose, user, onSignOut, isGuest
 }) => {
     const {
@@ -24,6 +21,7 @@ const SettingsModal: FC<SettingsModalProps> = ({
         highlightToday, setHighlightToday,
         showWeekends, setShowWeekends,
         showDayProgress, setShowDayProgress,
+        weekdayAlign, setWeekdayAlign,
         setEvents,
         events
     } = usePlanner();
