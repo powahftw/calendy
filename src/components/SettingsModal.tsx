@@ -4,6 +4,7 @@ import { themes } from '../utils/calendarUtils';
 import { User } from 'firebase/auth';
 import { usePlanner } from '../context/PlannerContext';
 import { PlannerEvent } from '../utils/calendarUtils';
+import toast from 'react-hot-toast';
 
 interface SettingsModalProps {
     onClose: () => void;
@@ -43,7 +44,7 @@ const SettingsModal: FC<SettingsModalProps> = ({
 
     const handleExport = () => {
         if (events.length === 0) {
-            alert("No events to export.");
+            toast.error("No events to export.");
             return;
         }
 
@@ -82,10 +83,10 @@ const SettingsModal: FC<SettingsModalProps> = ({
         }
 
         navigator.clipboard.writeText(exportText).then(() => {
-            alert("Events exported to clipboard!");
+            toast.success("Events exported to clipboard!");
         }).catch(err => {
             console.error('Failed to copy: ', err);
-            alert("Failed to copy events.");
+            toast.error("Failed to copy events.");
         });
     };
 

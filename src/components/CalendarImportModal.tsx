@@ -2,6 +2,7 @@ import React, { FC, useState } from 'react';
 import { calendarService, CalendarService, GoogleCalendar, GoogleEvent } from '../services/CalendarService';
 import { usePlanner } from '../context/PlannerContext';
 import { PlannerEvent, toDateStr, uid } from '../utils/calendarUtils';
+import toast from 'react-hot-toast';
 
 interface CalendarImportModalProps {
     onClose: () => void;
@@ -30,6 +31,7 @@ const CalendarImportModal: FC<CalendarImportModalProps> = ({ onClose }) => {
         } catch (err) {
             console.error(err);
             setError("Failed to connect to Google Calendar. Please try again.");
+            toast.error("Failed to connect to Google Calendar.");
         } finally {
             setLoading(false);
         }
@@ -50,6 +52,7 @@ const CalendarImportModal: FC<CalendarImportModalProps> = ({ onClose }) => {
 
             if (filtered.length === 0) {
                 setError("No events longer than 12 hours found in the next 12 months.");
+                toast.error("No suitable events found.");
                 setLoading(false);
                 return;
             }
@@ -61,6 +64,7 @@ const CalendarImportModal: FC<CalendarImportModalProps> = ({ onClose }) => {
         } catch (err) {
             console.error(err);
             setError("Failed to fetch events.");
+            toast.error("Failed to fetch events.");
         } finally {
             setLoading(false);
         }
@@ -118,10 +122,12 @@ const CalendarImportModal: FC<CalendarImportModalProps> = ({ onClose }) => {
             });
 
             setEvents([...plannerEvents, ...newEvents]);
+            toast.success(`Imported ${newEvents.length} events successfully!`);
             onClose();
         } catch (err) {
             console.error(err);
             setError("Failed to import events.");
+            toast.error("Failed to import events.");
             setStep('SELECT_EVENTS');
         }
     };
