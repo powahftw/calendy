@@ -25,6 +25,7 @@ interface MonthColumnProps {
     onTouchMove: (e: React.TouchEvent) => void;
     onTouchEnd: () => void;
     dragPreviewEvent?: PlannerEvent | null;
+    activeEventId?: string | null;
 }
 
 const DraggableEventChip: FC<{
@@ -35,7 +36,8 @@ const DraggableEventChip: FC<{
     day: number;
     month: number;
     year: number;
-}> = ({ event, children, style, onClick, day, month, year }) => {
+    className?: string; // Add className prop
+}> = ({ event, children, style, onClick, day, month, year, className }) => { // Destructure it
     const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
         id: `${event.id}-${year}-${month}-${day}`,
         data: {
@@ -67,6 +69,7 @@ const DraggableEventChip: FC<{
                 if (listeners?.onTouchStart) listeners.onTouchStart(e);
             }}
             onClick={onClick}
+            className={className} // Apply className
         >
             {children}
         </div>
@@ -79,7 +82,7 @@ const DroppableDayCell: FC<{
     day: number;
     children: React.ReactNode;
     className: string;
-    onMouseDown?: () => void;
+    onMouseDown?: (e: React.MouseEvent) => void;
     onMouseEnter?: () => void;
     onTouchStart?: (e: React.TouchEvent) => void;
     onTouchMove?: (e: React.TouchEvent) => void;
@@ -130,7 +133,8 @@ const MonthColumn: FC<MonthColumnProps> = ({
     onTouchStart,
     onTouchMove,
     onTouchEnd,
-    dragPreviewEvent
+    dragPreviewEvent,
+    activeEventId
 }) => {
     const daysInMonth = getDaysInMonth(year, monthIndex);
 
@@ -176,7 +180,9 @@ const MonthColumn: FC<MonthColumnProps> = ({
                         month={monthIndex}
                         day={day}
                         className={`day-cell ${isWeekend && showWeekends ? 'weekend' : ''} ${highlighted ? 'highlighted' : ''} ${isToday ? 'today' : ''} ${isToday ? 'today-marker' : ''}`}
-                        onMouseDown={() => onMouseDown(monthIndex, day)}
+                        onMouseDown={(e) => {
+                            if (e.button === 0) onMouseDown(monthIndex, day);
+                        }}
                         onMouseEnter={() => onMouseEnter(monthIndex, day)}
                         onTouchStart={(e) => onTouchStart(e, monthIndex, day)}
                         onTouchMove={onTouchMove}
@@ -201,27 +207,10 @@ const MonthColumn: FC<MonthColumnProps> = ({
                                 </div>
                             ) : (
                                 <div
+                                    className="event-chip-common preview-chip-style"
                                     style={{
-                                        position: 'absolute',
-                                        left: '24px',
-                                        right: '2px',
-                                        top: '50%',
-                                        marginTop: '-11px',
-                                        height: '22px',
-                                        borderRadius: '3px',
-                                        paddingRight: '4px',
-                                        paddingLeft: '4px',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        fontSize: '0.75rem',
-                                        fontWeight: 500,
-                                        whiteSpace: 'nowrap',
-                                        overflow: 'hidden',
                                         backgroundColor: (currentColors[dragPreviewEvent.color] || currentColors[0]) + '45',
                                         borderLeft: `2px solid ${currentColors[dragPreviewEvent.color] || currentColors[0]}`,
-                                        zIndex: 4,
-                                        pointerEvents: 'none',
-                                        boxShadow: '0 0 0 1px rgba(0,0,0,0.05)'
                                     }}
                                 >
                                     <span style={{ color: 'var(--text-primary)', opacity: 0.8 }}>{dragPreviewEvent.title}</span>
@@ -230,43 +219,57 @@ const MonthColumn: FC<MonthColumnProps> = ({
                         )}
 
                         {hasEvents && (
-                            <DraggableEventChip
-                                event={dayEvents[0]}
-                                day={day}
-                                month={monthIndex}
-                                year={year}
-                                style={{
-                                    position: 'absolute',
-                                    left: '24px',
-                                    right: hasOverflow ? '6px' : '2px',
-                                    top: '50%',
-                                    marginTop: '-11px',
-                                    height: '22px',
-                                    borderRadius: '3px',
-                                    paddingRight: hasOverflow ? '12px' : '4px',
-                                    paddingLeft: '4px',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    fontSize: '0.75rem',
-                                    fontWeight: 500,
-                                    whiteSpace: 'nowrap',
-                                    overflow: 'hidden',
-                                    cursor: 'grab',
-                                    boxShadow: '0 1px 1px rgba(0, 0, 0, 0.05)',
-                                    backgroundColor: `${mainEventColor}15`,
-                                    borderLeft: `2px solid ${mainEventColor}`,
-                                    zIndex: 5
-                                }}
-                                onClick={(e) => onEventClick(e, dayEvents, monthIndex, day)}
-                            >
-                                <span style={{
-                                    color: 'var(--text-primary)',
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                    width: '100%',
-                                    userSelect: 'none'
-                                }}>{dayEvents[0].title}</span>
-                            </DraggableEventChip>
+                            <>
+                                {/* Static shadow that stays behind if any part of this event is being dragged */}
+                                {activeEventId === dayEvents[0].id && (
+                                    <div
+                                        className="event-chip-common"
+                                        style={{
+                                            right: hasOverflow ? '6px' : '2px',
+                                            paddingRight: hasOverflow ? '12px' : '4px',
+                                            paddingLeft: '4px',
+                                            backgroundColor: `${mainEventColor}15`,
+                                            borderLeft: `2px solid ${mainEventColor}`,
+                                            opacity: 0.25,
+                                            zIndex: 2,
+                                            pointerEvents: 'none'
+                                        }}
+                                    >
+                                        <span style={{
+                                            color: 'var(--text-primary)',
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis',
+                                            width: '100%',
+                                            userSelect: 'none'
+                                        }}>{dayEvents[0].title}</span>
+                                    </div>
+                                )}
+
+                                <DraggableEventChip
+                                    event={dayEvents[0]}
+                                    day={day}
+                                    month={monthIndex}
+                                    year={year}
+                                    className="event-chip-common draggable-chip-style"
+                                    style={{
+                                        right: hasOverflow ? '6px' : '2px',
+                                        paddingRight: hasOverflow ? '12px' : '4px',
+                                        paddingLeft: '4px',
+                                        backgroundColor: `${mainEventColor}15`,
+                                        borderLeft: `2px solid ${mainEventColor}`,
+                                        opacity: activeEventId === dayEvents[0].id ? 0.6 : 1,
+                                    }}
+                                    onClick={(e) => onEventClick(e, dayEvents, monthIndex, day)}
+                                >
+                                    <span style={{
+                                        color: 'var(--text-primary)',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        width: '100%',
+                                        userSelect: 'none'
+                                    }}>{dayEvents[0].title}</span>
+                                </DraggableEventChip>
+                            </>
                         )}
 
                         {hasOverflow && (

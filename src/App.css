@@ -346,6 +346,42 @@ body[data-theme='dark'] .header-settings-btn:hover {
   user-select: none;
 }
 
+/* Common shared event chip styles for alignment */
+.event-chip-common {
+  position: absolute;
+  left: 24px;
+  top: 50%;
+  margin-top: -11px;
+  /* Half of height 22px */
+  height: 22px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.preview-chip-style {
+  right: 2px;
+  padding: 0 4px;
+  z-index: 4;
+  pointer-events: none;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.05);
+}
+
+.draggable-chip-style {
+  cursor: grab;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.05);
+  z-index: 5;
+}
+
+.draggable-chip-style:active {
+  cursor: grabbing;
+}
+
 /* Overflow Indicator */
 .event-overflow {
   position: absolute;
