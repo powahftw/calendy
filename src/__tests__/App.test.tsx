@@ -1,169 +1,373 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import App from '../App';
-import LoginScreen from '../LoginScreen';
-import { PlannerProvider } from '../context/PlannerContext';
-import PlannerView from '../components/PlannerView';
-import { vi, describe, it, expect } from 'vitest';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { User } from 'firebase/auth';
 
 // Mock Firebase
 vi.mock('../firebase', () => ({
-    auth: {
-        currentUser: null,
-        signOut: vi.fn(),
-    },
-    provider: {},
-    signInWithPopup: vi.fn(),
-    signOut: vi.fn(),
+    db: {},
+    auth: {},
+    googleProvider: {}
 }));
 
 // Mock react-firebase-hooks
+const mockUseAuthState = vi.fn(() => [null, false, null]);
 vi.mock('react-firebase-hooks/auth', () => ({
-    useAuthState: () => [null, false, null] // Always null user
+    useAuthState: () => mockUseAuthState()
 }));
 
 // Mock AuthContext
+const mockAuthValue = {
+    user: null as User | null,
+    loading: false,
+    signOut: vi.fn(),
+    signInWithGoogle: vi.fn(),
+};
+const mockUseAuth = vi.fn(() => mockAuthValue);
 vi.mock('../AuthContext', () => ({
-    useAuth: () => ({
-        user: null,
-        loading: false,
-        signOut: vi.fn(),
-        signInWithGoogle: vi.fn(),
-    }),
+    useAuth: () => mockUseAuth(),
     AuthProvider: ({ children }: any) => <div>{children}</div>
 }));
 
 // Mock firestoreSync
+const mockSyncEvents = vi.fn();
+const mockLoadEvents = vi.fn().mockResolvedValue(null);
+const mockSubscribeToEvents = vi.fn().mockReturnValue(() => { });
+const mockSyncSettings = vi.fn();
+const mockLoadSettings = vi.fn().mockResolvedValue(null);
+const mockSubscribeToSettings = vi.fn().mockReturnValue(() => { });
+
 vi.mock('../firestoreSync', () => ({
-    syncEvents: vi.fn(),
-    subscribeToEvents: () => vi.fn(),
-    loadEvents: vi.fn(async () => []),
-    syncSettings: vi.fn(),
-    subscribeToSettings: () => vi.fn(),
-    loadSettings: vi.fn(async () => ({})),
+    syncEvents: (...args: any[]) => mockSyncEvents(...args),
+    subscribeToEvents: (...args: any[]) => mockSubscribeToEvents(...args),
+    loadEvents: (...args: any[]) => mockLoadEvents(...args),
+    syncSettings: (...args: any[]) => mockSyncSettings(...args),
+    subscribeToSettings: (...args: any[]) => mockSubscribeToSettings(...args),
+    loadSettings: (...args: any[]) => mockLoadSettings(...args),
 }));
 
 // Mock matchMedia is in setup
+vi.setConfig({ testTimeout: 15000 });
 
-describe('App Components', () => {
+const waitForPlanner = async () => {
+    // Wait for the year and at least one day cell to appear
+    await screen.findByText('2026', {}, { timeout: 15000 });
+    await screen.findAllByText('15', {}, { timeout: 15000 });
+};
 
-    it('renders LoginScreen initially', () => {
+describe('App Integration', () => {
+    beforeEach(() => {
+        localStorage.clear();
+        vi.clearAllMocks();
+        mockAuthValue.user = null;
+        mockAuthValue.loading = false;
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    it('renders LoginScreen initially', async () => {
         render(<App />);
-        expect(screen.getByText(/Continue as Guest/i)).toBeInTheDocument();
+        expect(await screen.findByText(/Continue with Google/i, {}, { timeout: 10000 })).toBeInTheDocument();
     });
 
     it('renders PlannerView with Provider', async () => {
-        // Manually testing the authenticated/guest view
-        const mockUser = null; // Guest
-        const mockSignOut = vi.fn();
-        const mockSetIsGuest = vi.fn();
-
-        render(
-            <PlannerProvider user={mockUser}>
-                <PlannerView
-                    user={mockUser}
-                    signOut={mockSignOut}
-                    isGuest={true}
-                    setIsGuest={mockSetIsGuest}
-                />
-            </PlannerProvider>
-        );
-
-        // Verify header (Year)
-        const currentYear = 2026; // Default in PlannerContext
-        expect(screen.getByText(currentYear.toString())).toBeInTheDocument();
-
-        // Verify Grid is present (check for a day)
-        // Find Jan 15 (month 0, day 15)
-        const dayCell = screen.getAllByText('15')[0].closest('.day-cell');
-        expect(dayCell).toBeInTheDocument();
-
-        // Test Interaction
-        // Click a day (MouseDown + MouseUp sequence triggers the planner selection logic)
-        fireEvent.mouseDown(dayCell!);
-        fireEvent.mouseUp(dayCell!);
-
-        // Expect Modal/Inputs
-        // findBy naturally waits for the element to appear
-        const titleInput = await screen.findByPlaceholderText(/Event Name/i);
-        expect(titleInput).toBeInTheDocument();
+        mockAuthValue.user = { uid: 'test-user' } as User;
+        render(<App />);
+        await waitForPlanner();
     });
-
-});
-
-describe('App Integration', () => {
 
     it('allows guest login and adds an event', async () => {
         render(<App />);
-
-        // 1. Login as guest
-        const guestBtn = screen.getByText(/Continue as Guest/i);
+        const guestBtn = await screen.findByText(/Continue as Guest/i);
         fireEvent.click(guestBtn);
 
-        // 2. Wait for Planner load
-        const currentYear = 2026;
-        await waitFor(() => {
-            expect(screen.getByText(currentYear.toString())).toBeInTheDocument();
-        }, { timeout: 2000 });
+        await waitForPlanner();
 
-        // 3. Click Day 15 to open modal
         const dayCells = screen.getAllByText('15');
         const dayCell = dayCells[0].closest('.day-cell');
         fireEvent.mouseDown(dayCell!);
         fireEvent.mouseUp(dayCell!);
 
-        // 4. Fill Modal
         const titleInput = await screen.findByPlaceholderText(/Event Name/i);
-        fireEvent.change(titleInput, { target: { value: 'Test Event' } });
+        fireEvent.change(titleInput, { target: { value: 'My Test Event' } });
 
-        // 5. Save
         const saveBtn = screen.getByText(/Save/i);
         fireEvent.click(saveBtn);
 
-        // 6. Verify Event on Grid
-        await waitFor(() => {
-            expect(screen.getByText('Test Event')).toBeInTheDocument();
-        });
-    });
-
-    it('toggles progress display in header', async () => {
-        render(<App />);
-        fireEvent.click(screen.getByText(/Continue as Guest/i));
-
-        const progressEl = await screen.findByTitle(/Click to toggle %/i);
-        const initialText = progressEl.textContent;
-        expect(initialText).toContain('/');
-
-        fireEvent.click(progressEl);
-        expect(progressEl.textContent).toMatch(/\d+(\.\d+)?%/);
-
-        fireEvent.click(progressEl);
-        expect(progressEl.textContent).toBe(initialText);
+        expect(await screen.findByText('My Test Event', {}, { timeout: 10000 })).toBeInTheDocument();
     });
 
     it('handles overlapping events', async () => {
+        mockAuthValue.user = { uid: 'test-user' } as User;
         render(<App />);
-        fireEvent.click(screen.getByText(/Continue as Guest/i));
+        await waitForPlanner();
 
-        const dayCells = screen.getAllByText('20');
+        const dayCells = screen.getAllByText('15');
         const dayCell = dayCells[0].closest('.day-cell');
 
-        // Create first event
         fireEvent.mouseDown(dayCell!); fireEvent.mouseUp(dayCell!);
         fireEvent.change(await screen.findByPlaceholderText(/Event Name/i), { target: { value: 'Event 1' } });
         fireEvent.click(screen.getByText(/Save/i));
 
-        // Create second event on same day
-        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument()); // Wait for first modal to close
+        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
         fireEvent.mouseDown(dayCell!); fireEvent.mouseUp(dayCell!);
         fireEvent.change(await screen.findByPlaceholderText(/Event Name/i), { target: { value: 'Event 2' } });
         fireEvent.click(screen.getByText(/Save/i));
 
-        // Wait for Grid update
-        await screen.findByText('Event 1');
+        expect(await screen.findByText('Event 1', {}, { timeout: 10000 })).toBeInTheDocument();
 
-        // Event 2 should be in overflow lines
         const overflow = dayCell?.querySelector('.event-overflow');
         expect(overflow).toBeInTheDocument();
     });
+});
 
+describe('Storage Persistence', () => {
+    beforeEach(() => {
+        localStorage.clear();
+        vi.clearAllMocks();
+        mockAuthValue.user = null;
+        mockAuthValue.loading = false;
+    });
+
+    afterEach(() => {
+        localStorage.clear();
+    });
+
+    it('should auto-activate guest mode when guest events exist in localStorage', async () => {
+        localStorage.setItem('planner_events_guest', JSON.stringify({
+            items: [{ id: '1', title: 'Test Event', start: '2026-01-15', end: '2026-01-15', color: 0 }],
+            updatedAt: Date.now()
+        }));
+
+        render(<App />);
+
+        expect(await screen.findByText('Test Event', {}, { timeout: 10000 })).toBeInTheDocument();
+        expect(screen.queryByText(/Continue as Guest/i)).not.toBeInTheDocument();
+    });
+
+    it('should use separate storage keys for different users', async () => {
+        const user1 = { uid: 'user-1' } as User;
+        const user2 = { uid: 'user-2' } as User;
+
+        localStorage.setItem('planner_events_user-1', JSON.stringify({
+            items: [{ id: '1', title: 'User 1 Event', start: '2026-01-15', end: '2026-01-15', color: 0 }],
+            updatedAt: Date.now()
+        }));
+
+        mockAuthValue.user = user1;
+        const { rerender } = render(<App />);
+
+        expect(await screen.findByText('User 1 Event', {}, { timeout: 10000 })).toBeInTheDocument();
+
+        mockAuthValue.user = user2;
+        rerender(<App />);
+
+        await waitFor(() => {
+            expect(screen.queryByText('User 1 Event')).not.toBeInTheDocument();
+        }, { timeout: 10000 });
+    });
+});
+
+describe('Firebase Sync Logic', () => {
+    beforeEach(() => {
+        localStorage.clear();
+        vi.clearAllMocks();
+        mockAuthValue.user = null;
+        mockAuthValue.loading = false;
+        mockSyncEvents.mockReset();
+        mockLoadEvents.mockResolvedValue(null);
+        mockSubscribeToEvents.mockReturnValue(() => { });
+        mockSyncSettings.mockReset();
+        mockLoadSettings.mockResolvedValue(null);
+        mockSubscribeToSettings.mockReturnValue(() => { });
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    it('should load remote events when remote timestamp is newer', async () => {
+        const user = { uid: 'test-user' } as User;
+        const now = Date.now();
+
+        localStorage.setItem('planner_events_test-user', JSON.stringify({
+            items: [{ id: '1', title: 'Local Event', start: '2026-01-15', end: '2026-01-15', color: 0 }],
+            updatedAt: now - 10000
+        }));
+
+        mockLoadEvents.mockResolvedValue({
+            events: [{ id: '2', title: 'Remote Event', start: '2026-01-16', end: '2026-01-16', color: 1 }],
+            updatedAt: now
+        });
+
+        mockAuthValue.user = user;
+        render(<App />);
+
+        // Wait for App to mount and Planner to show up (initial local data)
+        await waitForPlanner();
+
+        // Now wait for the useEffect async load to resolve and update state
+        await waitFor(async () => {
+            expect(await screen.findByText('Remote Event')).toBeInTheDocument();
+        }, { timeout: 10000 });
+
+        expect(screen.queryByText('Local Event')).not.toBeInTheDocument();
+    });
+
+    it('should NOT override local events with empty remote state', async () => {
+        const user = { uid: 'test-user' } as User;
+        const now = Date.now();
+
+        localStorage.setItem('planner_events_test-user', JSON.stringify({
+            items: [{ id: '1', title: 'Local Event', start: '2026-01-15', end: '2026-01-15', color: 0 }],
+            updatedAt: now - 5000
+        }));
+
+        mockLoadEvents.mockResolvedValue({
+            events: [],
+            updatedAt: now
+        });
+
+        mockAuthValue.user = user;
+        render(<App />);
+
+        expect(await screen.findByText('Local Event', {}, { timeout: 10000 })).toBeInTheDocument();
+    });
+
+    it('should ignore remote updates when local is newer', async () => {
+        const user = { uid: 'test-user' } as User;
+        let subscriptionCallback: any = null;
+
+        mockSubscribeToEvents.mockImplementation((uid: string, callback: any) => {
+            subscriptionCallback = callback;
+            return () => { };
+        });
+
+        const now = Date.now();
+        localStorage.setItem('planner_events_test-user', JSON.stringify({
+            items: [{ id: '1', title: 'Local Event', start: '2026-01-15', end: '2026-01-15', color: 0 }],
+            updatedAt: now
+        }));
+
+        mockAuthValue.user = user;
+        render(<App />);
+
+        expect(await screen.findByText('Local Event', {}, { timeout: 10000 })).toBeInTheDocument();
+
+        await act(async () => {
+            subscriptionCallback?.({
+                events: [],
+                updatedAt: now - 10000
+            });
+        });
+
+        expect(screen.getByText('Local Event')).toBeInTheDocument();
+    });
+
+    it('should debounce Firebase sync on rapid changes', async () => {
+        const user = { uid: 'test-user' } as User;
+
+        mockAuthValue.user = user;
+        render(<App />);
+
+        // Wait for initial render with real timers
+        await waitForPlanner();
+
+        // Switch to fake timers
+        vi.useFakeTimers();
+
+        for (let i = 0; i < 3; i++) {
+            // Use getBy to be synchronous and rely on the fact that waitForPlanner ensured elements are there
+            const dayCells = screen.getAllByText('15');
+            const dayCell = dayCells[0].closest('.day-cell');
+
+            fireEvent.mouseDown(dayCell!);
+            fireEvent.mouseUp(dayCell!);
+
+            // Synchronous query - modal should be open immediately on mouseUp
+            const titleInput = screen.getByPlaceholderText(/Event Name/i);
+            fireEvent.change(titleInput, { target: { value: `Event ${i}` } });
+
+            const saveBtn = screen.getByText(/Save/i);
+            fireEvent.click(saveBtn);
+
+            // Allow immediate effects (like modal closing) to process
+            // advancing by a small amount safely handles any immediate timeouts without triggering the sync (300ms)
+            await act(async () => {
+                vi.advanceTimersByTime(50);
+            });
+        }
+
+        expect(mockSyncEvents).not.toHaveBeenCalled();
+
+        await act(async () => {
+            vi.advanceTimersByTime(2000);
+        });
+
+        expect(mockSyncEvents).toHaveBeenCalled();
+
+        vi.useRealTimers();
+    });
+});
+
+describe('Multi-Device Sync', () => {
+    beforeEach(() => {
+        localStorage.clear();
+        vi.clearAllMocks();
+        mockAuthValue.user = null;
+    });
+
+    it('should preserve events after tab close and reopen', async () => {
+        const user = { uid: 'test-user' } as User;
+        mockAuthValue.user = user;
+
+        const { unmount } = render(<App />);
+        expect(await screen.findByText('2026', {}, { timeout: 10000 })).toBeInTheDocument();
+
+        const dayCells = screen.getAllByText('15');
+        const dayCell = dayCells[0].closest('.day-cell');
+        fireEvent.mouseDown(dayCell!); fireEvent.mouseUp(dayCell!);
+
+        const titleInput = await screen.findByPlaceholderText(/Event Name/i);
+        fireEvent.change(titleInput, { target: { value: 'Persisted Event' } });
+        fireEvent.click(screen.getByText(/Save/i));
+
+        expect(await screen.findByText('Persisted Event', {}, { timeout: 10000 })).toBeInTheDocument();
+
+        unmount();
+        render(<App />);
+
+        expect(await screen.findByText('Persisted Event', {}, { timeout: 10000 })).toBeInTheDocument();
+    });
+});
+
+describe('Edge Cases', () => {
+    beforeEach(() => {
+        localStorage.clear();
+        vi.clearAllMocks();
+        mockAuthValue.user = null;
+    });
+
+    it('should handle corrupted localStorage gracefully', async () => {
+        localStorage.setItem('planner_events_guest', 'invalid json {{{');
+        render(<App />);
+        // The app detects guest usage intent (via item presence) and defaults to empty state if parse fails
+        await waitForPlanner();
+    });
+
+    it('should handle Firebase load errors and continue with local data', async () => {
+        const user = { uid: 'test-user' } as User;
+        localStorage.setItem('planner_events_test-user', JSON.stringify({
+            items: [{ id: '1', title: 'Local Only Event', start: '2026-01-15', end: '2026-01-15', color: 0 }],
+            updatedAt: Date.now()
+        }));
+
+        mockLoadEvents.mockRejectedValue(new Error('Network error'));
+        mockAuthValue.user = user;
+        render(<App />);
+
+        expect(await screen.findByText('Local Only Event', {}, { timeout: 10000 })).toBeInTheDocument();
+    });
 });

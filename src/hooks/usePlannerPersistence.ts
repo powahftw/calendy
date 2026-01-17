@@ -28,6 +28,7 @@ const usePlannerPersistence = (user: User | null) => {
     const [isInitialLoadDone, setIsInitialLoadDone] = useState(false);
     const [shouldSyncUpstream, setShouldSyncUpstream] = useState(false); // Safety guard
     const isRemoteUpdate = useRef(false);
+    const isLocalLoad = useRef(false);
     const localEventsUpdatedAtRef = useRef<number | null>(null);
 
     // Initialize/Load Data helper
@@ -87,6 +88,7 @@ const usePlannerPersistence = (user: User | null) => {
 
         setEvents(migratedEvents);
         localEventsUpdatedAtRef.current = updatedAt;
+        isLocalLoad.current = true;
 
         // Update the ref to match what we just loaded
         currentUserIdRef.current = currentUser ? currentUser.uid : 'guest';
@@ -116,10 +118,10 @@ const usePlannerPersistence = (user: User | null) => {
 
         const save = (key: string, val: any) => localStorage.setItem(getStorageKey(user, key), JSON.stringify(val));
 
-        const updatedAt = isRemoteUpdate.current
+        const updatedAt = isRemoteUpdate.current || isLocalLoad.current
             ? localEventsUpdatedAtRef.current
             : Date.now();
-        if (!isRemoteUpdate.current) {
+        if (!isRemoteUpdate.current && !isLocalLoad.current) {
             localEventsUpdatedAtRef.current = updatedAt;
         }
         localStorage.setItem(
@@ -136,13 +138,31 @@ const usePlannerPersistence = (user: User | null) => {
 
     }, [events, theme, highlightToday, showWeekends, showDayProgress, weekdayAlign, year, monthsToShow, user]);
 
-    // 3. Sync to Firestore (Upstream)
+    // 3. Sync to Firestore (Upstream) - DEBOUNCED
+    const syncEventsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const syncSettingsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
     useEffect(() => {
         // Guard: Only sync if we are explicitly allowed to (prevents wiping remote with empty local init)
         if (user && isInitialLoadDone && shouldSyncUpstream && !isRemoteUpdate.current) {
-            syncEvents(user.uid, events);
-            syncSettings(user.uid, { theme, highlightToday, showWeekends, showDayProgress, weekdayAlign, year, monthsToShow });
+
+            // Debounce Events Sync
+            if (syncEventsTimeoutRef.current) clearTimeout(syncEventsTimeoutRef.current);
+            syncEventsTimeoutRef.current = setTimeout(() => {
+                syncEvents(user.uid, events);
+            }, 300);
+
+            // Debounce Settings Sync
+            if (syncSettingsTimeoutRef.current) clearTimeout(syncSettingsTimeoutRef.current);
+            syncSettingsTimeoutRef.current = setTimeout(() => {
+                syncSettings(user.uid, { theme, highlightToday, showWeekends, showDayProgress, weekdayAlign, year, monthsToShow });
+            }, 300);
         }
+
+        return () => {
+            if (syncEventsTimeoutRef.current) clearTimeout(syncEventsTimeoutRef.current);
+            if (syncSettingsTimeoutRef.current) clearTimeout(syncSettingsTimeoutRef.current);
+        };
     }, [events, theme, highlightToday, showWeekends, showDayProgress, weekdayAlign, year, monthsToShow, user, isInitialLoadDone, shouldSyncUpstream]);
 
     // 4. Subscribe to Firestore (Downstream) & Initial Remote Load
@@ -171,6 +191,16 @@ const usePlannerPersistence = (user: User | null) => {
                         const remoteWins =
                             remoteHasData &&
                             (remoteUpdatedAt >= localUpdatedAt || !localHasData);
+
+                        console.log('[DEBUG] initRemoteData', {
+                            localUpdatedAt,
+                            remoteUpdatedAt,
+                            remoteHasData,
+                            localHasData,
+                            remoteWins,
+                            prevLength: prev.length,
+                            remoteLength: remoteEvents.events.length
+                        });
 
                         if (remoteWins && JSON.stringify(prev) !== JSON.stringify(remoteEvents.events)) {
                             isRemoteUpdate.current = true;
@@ -271,10 +301,11 @@ const usePlannerPersistence = (user: User | null) => {
 
     // 5. Reset Remote Update Flag
     useEffect(() => {
-        if (isRemoteUpdate.current) {
-            // Unblock upstream sync after a short delay
+        if (isRemoteUpdate.current || isLocalLoad.current) {
+            // Unblock upstream sync or local timestamp updates after a short delay
             const timer = setTimeout(() => {
                 isRemoteUpdate.current = false;
+                isLocalLoad.current = false;
             }, 100); // 100ms grace period
             return () => clearTimeout(timer);
         }
