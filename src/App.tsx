@@ -1,39 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Toaster } from 'react-hot-toast';
 import './App.css';
 import { useAuth } from './AuthContext';
 import LoginScreen from './LoginScreen';
 import { PlannerProvider } from './context/PlannerContext';
 import PlannerView from './components/PlannerView';
-
-const GUEST_MODE_KEY = 'planner_guest_mode';
-const GUEST_EVENTS_KEY = 'planner_events_guest';
+import { useGuestMode } from './hooks/useGuestMode';
 
 function App() {
   const { user, loading: authLoading, signOut } = useAuth();
-  const [isGuest, setIsGuest] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return localStorage.getItem(GUEST_MODE_KEY) === 'true';
-  });
-
-  useEffect(() => {
-    if (authLoading) return;
-    if (user) {
-      setIsGuest(false);
-      return;
-    }
-
-    const storedGuestMode = localStorage.getItem(GUEST_MODE_KEY);
-    const hasGuestEvents = !!localStorage.getItem(GUEST_EVENTS_KEY);
-    if (storedGuestMode === 'true' || (storedGuestMode === null && hasGuestEvents)) {
-      setIsGuest(true);
-    }
-  }, [authLoading, user]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    localStorage.setItem(GUEST_MODE_KEY, isGuest ? 'true' : 'false');
-  }, [isGuest]);
+  const { isGuest, setIsGuest, enableGuest } = useGuestMode(user, authLoading);
 
   if (authLoading) {
     return (
@@ -44,7 +20,7 @@ function App() {
   }
 
   if (!user && !isGuest) {
-    return <LoginScreen onGuestLogin={() => setIsGuest(true)} />;
+    return <LoginScreen onGuestLogin={enableGuest} />;
   }
 
   return (

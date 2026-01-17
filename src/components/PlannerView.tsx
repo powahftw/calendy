@@ -63,47 +63,60 @@ const PlannerView: React.FC<PlannerViewProps> = ({ user, signOut, isGuest, setIs
         setModalType('list');
     };
 
+    type EventDraft = {
+        title?: string;
+        start: string;
+        end: string;
+        color: number;
+    };
+
+    const createEvent = ({ title, start, end, color }: EventDraft): PlannerEvent => ({
+        id: uid(),
+        title: title?.trim() ? title : 'New Event',
+        start,
+        end,
+        color
+    });
+
     const saveNewEvent = (title: string, colorIndex: number) => {
         if (!tempRange) return;
-        if (!title.trim()) title = "New Event";
         const startStr = toDateStr(tempRange.start.year, tempRange.start.month, tempRange.start.day);
         const endStr = toDateStr(tempRange.end.year, tempRange.end.month, tempRange.end.day);
 
-        const newEvent: PlannerEvent = {
-            id: uid(),
+        const newEvent = createEvent({
             title,
             start: startStr,
             end: endStr,
             color: colorIndex
-        };
-        setEvents([...events, newEvent]);
+        });
+        setEvents(prevEvents => [...prevEvents, newEvent]);
         setModalType(null);
     };
 
     const handleUpdateEvent = (updatedEvent: PlannerEvent) => {
-        setEvents(events.map(ev => ev.id === updatedEvent.id ? updatedEvent : ev));
-        setSelectedDateEvents(selectedDateEvents.map(ev => ev.id === updatedEvent.id ? updatedEvent : ev));
+        setEvents(prevEvents => prevEvents.map(ev => ev.id === updatedEvent.id ? updatedEvent : ev));
+        setSelectedDateEvents(prevEvents => prevEvents.map(ev => ev.id === updatedEvent.id ? updatedEvent : ev));
     };
 
     const handleDeleteEvent = (id: string) => {
-        setEvents(events.filter(ev => ev.id !== id));
-        const newSelected = selectedDateEvents.filter(ev => ev.id !== id);
-        setSelectedDateEvents(newSelected);
-        if (newSelected.length === 0) setModalType(null);
+        setEvents(prevEvents => prevEvents.filter(ev => ev.id !== id));
+        setSelectedDateEvents(prevEvents => {
+            const nextSelected = prevEvents.filter(ev => ev.id !== id);
+            if (nextSelected.length === 0) setModalType(null);
+            return nextSelected;
+        });
     };
 
     const handleAddFromList = () => {
         if (!clickedDate) return;
         const dateStr = toDateStr(clickedDate.year, clickedDate.month, clickedDate.day);
-        const newEvent: PlannerEvent = {
-            id: uid(),
-            title: "New Event",
+        const newEvent = createEvent({
             start: dateStr,
             end: dateStr,
             color: 0
-        };
-        setEvents([...events, newEvent]);
-        setSelectedDateEvents([...selectedDateEvents, newEvent]);
+        });
+        setEvents(prevEvents => [...prevEvents, newEvent]);
+        setSelectedDateEvents(prevEvents => [...prevEvents, newEvent]);
     };
 
     // Derived
