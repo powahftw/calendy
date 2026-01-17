@@ -19,7 +19,6 @@ function App() {
     if (authLoading) return;
     if (user) {
       setIsGuest(false);
-      localStorage.setItem(GUEST_MODE_KEY, 'false');
       return;
     }
 
@@ -27,7 +26,6 @@ function App() {
     const hasGuestEvents = !!localStorage.getItem(GUEST_EVENTS_KEY);
     if (storedGuestMode === 'true' || (storedGuestMode === null && hasGuestEvents)) {
       setIsGuest(true);
-      localStorage.setItem(GUEST_MODE_KEY, 'true');
     }
   }, [authLoading, user]);
 

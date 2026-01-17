@@ -48,14 +48,18 @@ const usePlannerPersistence = (user: User | null) => {
             let updatedAt: number | null = null;
 
             if (saved) {
-                const parsed = JSON.parse(saved);
-                if (Array.isArray(parsed)) {
-                    rawEvents = parsed;
-                    found = true;
-                } else if (parsed && typeof parsed === 'object') {
-                    rawEvents = Array.isArray(parsed.items) ? parsed.items : [];
-                    updatedAt = typeof parsed.updatedAt === 'number' ? parsed.updatedAt : null;
-                    found = true;
+                try {
+                    const parsed = JSON.parse(saved);
+                    if (Array.isArray(parsed)) {
+                        rawEvents = parsed;
+                        found = true;
+                    } else if (parsed && typeof parsed === 'object') {
+                        rawEvents = Array.isArray(parsed.items) ? parsed.items : [];
+                        updatedAt = typeof parsed.updatedAt === 'number' ? parsed.updatedAt : null;
+                        found = true;
+                    }
+                } catch (error) {
+                    console.error(`Failed to parse events from localStorage for key ${storKey}:`, error);
                 }
             }
 
@@ -113,7 +117,7 @@ const usePlannerPersistence = (user: User | null) => {
         const save = (key: string, val: any) => localStorage.setItem(getStorageKey(user, key), JSON.stringify(val));
 
         const updatedAt = isRemoteUpdate.current
-            ? localEventsUpdatedAtRef.current ?? Date.now()
+            ? localEventsUpdatedAtRef.current
             : Date.now();
         if (!isRemoteUpdate.current) {
             localEventsUpdatedAtRef.current = updatedAt;
