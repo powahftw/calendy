@@ -23,7 +23,6 @@ export class CalendarService {
 
     async authenticate(): Promise<string> {
         const provider = new GoogleAuthProvider();
-        provider.addScope(CALENDAR_SCOPE);
         provider.addScope(CALENDAR_READ_SCOPE);
 
         try {
@@ -82,7 +81,10 @@ export class CalendarService {
             headers: { Authorization: `Bearer ${this.token}` }
         });
 
-        if (!response.ok) throw new Error("Failed to list events");
+        if (!response.ok) {
+            const errorBody = await response.text();
+            throw new Error(`Failed to list events: ${response.status} ${errorBody}`);
+        }
 
         const data = await response.json();
         return data.items || [];

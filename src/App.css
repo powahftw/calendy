@@ -1013,3 +1013,180 @@ body[data-theme='dark'] .day-cell.highlighted {
   border-radius: 4px;
   transition: box-shadow 0.3s ease;
 }
+
+/* --- Calendar Import & List Items --- */
+.list-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.list-item-btn {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid var(--line-color);
+  border-radius: 12px;
+  background: var(--bg-color);
+  cursor: pointer;
+  gap: 12px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  text-align: left;
+}
+
+.list-item-btn:hover {
+  border-color: var(--accent-color);
+  background: var(--accent-light);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.list-item-btn:active {
+  transform: translateY(0);
+}
+
+.list-item-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.list-item-label {
+  font-family: 'Inter', sans-serif;
+  font-weight: 500;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.list-item-meta {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  opacity: 0.7;
+}
+
+/* --- Event Selection Scroller --- */
+.event-selection-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 350px;
+  overflow-y: auto;
+  border: 1px solid var(--line-color);
+  border-radius: 12px;
+  background: var(--bg-color);
+}
+
+.event-selection-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line-color);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.event-selection-item:last-child {
+  border-bottom: none;
+}
+
+.event-selection-item:hover {
+  background: var(--weekend-bg);
+}
+
+.event-selection-item.selected {
+  background: var(--accent-light);
+}
+
+.event-selection-checkbox {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: var(--accent-color);
+}
+
+.event-selection-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.event-selection-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+}
+
+.event-selection-details {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+/* --- Import Integration Button --- */
+.import-integration-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 14px;
+  background: var(--weekend-bg);
+  border: 1px solid var(--line-color);
+  border-radius: 12px;
+  color: var(--text-primary);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.import-integration-btn:hover {
+  background: var(--bg-color);
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  transform: translateY(-1px);
+}
+
+.import-integration-btn:active {
+  transform: translateY(0);
+}
+
+/* Custom Scrollbar for Event List */
+.event-selection-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.event-selection-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.event-selection-list::-webkit-scrollbar-thumb {
+  background: var(--line-color);
+  border-radius: 10px;
+}
+
+.event-selection-list::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
+/* Loading Spinner */
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid var(--accent-light);
+  border-top-color: var(--accent-color);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
