@@ -36,7 +36,7 @@ export interface PlannerSettings {
 }
 
 export const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-export const daysOfWeek = ["M", "T", "W", "R", "F", "S", "S"];
+export const daysOfWeek = ["M", "T", "W", "T", "F", "S", "S"];
 
 // Theme Definitions
 export const themes: Theme[] = [
