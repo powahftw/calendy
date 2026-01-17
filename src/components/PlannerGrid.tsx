@@ -2,7 +2,7 @@ import React, { useRef, useEffect } from 'react';
 import { DndContext, DragEndEvent, DragStartEvent, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { usePlanner } from '../context/PlannerContext';
 import MonthColumn from './MonthColumn';
-import { daysOfWeek, getThemeColors, PlannerEvent, EventRange, toDateStr } from '../utils/calendarUtils';
+import { daysOfWeek, getThemeColors, PlannerEvent, EventRange, toDateStr, toLocalDate } from '../utils/calendarUtils';
 
 interface PlannerGridProps {
     weekdayAlign: boolean;
@@ -89,13 +89,8 @@ const PlannerGrid: React.FC<PlannerGridProps> = ({ weekdayAlign, onEventClick, s
         const eventToMove = events.find(e => e.id === eventId);
         if (!eventToMove) return null;
 
-        const parseDate = (str: string) => {
-            const [y, m, d] = str.split('-').map(Number);
-            return new Date(y, m - 1, d);
-        };
-
-        const s = parseDate(eventToMove.start);
-        const e = parseDate(eventToMove.end);
+        const s = toLocalDate(eventToMove.start);
+        const e = toLocalDate(eventToMove.end);
 
         s.setDate(s.getDate() + dayDiff);
         e.setDate(e.getDate() + dayDiff);

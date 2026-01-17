@@ -1,5 +1,5 @@
 import React, { FC, useEffect } from 'react';
-import { monthNames, PlannerEvent, RangeDate } from '../utils/calendarUtils';
+import { formatDateRange, monthNames, PlannerEvent, RangeDate } from '../utils/calendarUtils';
 
 interface EventListModalProps {
     events: PlannerEvent[];
@@ -61,7 +61,7 @@ const EventListModal: FC<EventListModalProps> = ({ events, date, onClose, onDele
                                     />
                                     {isMultiDay && (
                                         <span className="event-date-hint">
-                                            {ev.start.split('-').slice(1).join('/')} - {ev.end.split('-').slice(1).join('/')}
+                                            {formatDateRange(ev.start, ev.end, 'monthDay')}
                                         </span>
                                     )}
                                 </div>

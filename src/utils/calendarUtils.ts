@@ -80,6 +80,33 @@ export const toDateStr = (year: number, month: number, day: number): string => {
     return `${year}-${mm}-${dd}`;
 };
 
+export const parseDateStr = (dateStr: string): { year: number; month: number; day: number } => {
+    const [year, month, day] = dateStr.split('-').map(Number);
+    return { year, month, day };
+};
+
+export const toLocalDate = (dateStr: string): Date => {
+    const { year, month, day } = parseDateStr(dateStr);
+    return new Date(year, month - 1, day);
+};
+
+export const formatMonthDay = (dateStr: string): string => {
+    const { month, day } = parseDateStr(dateStr);
+    return `${String(month).padStart(2, '0')}/${String(day).padStart(2, '0')}`;
+};
+
+export const formatDayMonth = (dateStr: string): string => {
+    const { month, day } = parseDateStr(dateStr);
+    return `${String(day).padStart(2, '0')}-${String(month).padStart(2, '0')}`;
+};
+
+export type DateRangeFormat = 'monthDay' | 'dayMonth';
+
+export const formatDateRange = (startStr: string, endStr: string, format: DateRangeFormat): string => {
+    const formatter = format === 'monthDay' ? formatMonthDay : formatDayMonth;
+    return `${formatter(startStr)} - ${formatter(endStr)}`;
+};
+
 export const isDateInRange = (year: number, month: number, day: number, startStr: string, endStr: string): boolean => {
     const currentStr = toDateStr(year, month, day);
     return currentStr >= startStr && currentStr <= endStr;

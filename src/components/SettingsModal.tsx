@@ -1,9 +1,8 @@
 import React, { FC, useEffect, useState } from 'react';
 import CalendarImportModal from './CalendarImportModal';
-import { themes } from '../utils/calendarUtils';
+import { formatDateRange, PlannerEvent, themes, toLocalDate } from '../utils/calendarUtils';
 import { User } from 'firebase/auth';
 import { usePlanner } from '../context/PlannerContext';
-import { PlannerEvent } from '../utils/calendarUtils';
 import toast from 'react-hot-toast';
 
 interface SettingsModalProps {
@@ -50,16 +49,11 @@ const SettingsModal: FC<SettingsModalProps> = ({
 
         // Group by Month Year
         const groups: { [key: string]: PlannerEvent[] } = {};
-        const sortedEvents = [...events].sort((a, b) => {
-            const da = new Date(a.start);
-            const db = new Date(b.start);
-            return da.getTime() - db.getTime();
-        });
+        const sortedEvents = [...events].sort((a, b) => toLocalDate(a.start).getTime() - toLocalDate(b.start).getTime());
 
         sortedEvents.forEach(ev => {
-            const [y, m, dstr] = ev.start.split('-').map(Number);
             // Create date using local time constructor to avoid timezone offsets causing month shifts
-            const dateObj = new Date(y, m - 1, dstr);
+            const dateObj = toLocalDate(ev.start);
             const key = dateObj.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
             if (!groups[key]) groups[key] = [];
@@ -72,12 +66,7 @@ const SettingsModal: FC<SettingsModalProps> = ({
             groupEvents.forEach(ev => {
                 // Format: [DD-MM - DD-MM] Title
                 // Assuming start and end are YYYY-MM-DD
-                const startParts = ev.start.split('-');
-                const endParts = ev.end.split('-');
-                const startStr = `${startParts[2]}-${startParts[1]}`;
-                const endStr = `${endParts[2]}-${endParts[1]}`;
-
-                exportText += `[${startStr} - ${endStr}] ${ev.title}\n`;
+                exportText += `[${formatDateRange(ev.start, ev.end, 'dayMonth')}] ${ev.title}\n`;
             });
             exportText += "\n";
         }
@@ -89,6 +78,33 @@ const SettingsModal: FC<SettingsModalProps> = ({
             toast.error("Failed to copy events.");
         });
     };
+
+    const checkboxSettings = [
+        {
+            id: 'alignWs',
+            label: 'Align Weekdays',
+            checked: weekdayAlign,
+            onChange: (checked: boolean) => setWeekdayAlign(checked)
+        },
+        {
+            id: 'hlToday',
+            label: 'Highlight Current Day',
+            checked: highlightToday,
+            onChange: (checked: boolean) => setHighlightToday(checked)
+        },
+        {
+            id: 'shwWeekends',
+            label: 'Highlight Weekends',
+            checked: showWeekends,
+            onChange: (checked: boolean) => setShowWeekends(checked)
+        },
+        {
+            id: 'shwDayProg',
+            label: 'Show Day Progress (Day X / 365)',
+            checked: showDayProgress,
+            onChange: (checked: boolean) => setShowDayProgress(checked)
+        }
+    ];
 
     return (
         <div className="modal-overlay" onMouseDown={(e: React.MouseEvent) => e.target === e.currentTarget && onClose()}>
@@ -130,22 +146,18 @@ const SettingsModal: FC<SettingsModalProps> = ({
                                 <option value={12}>Full Year</option>
                             </select>
                         </div>
-                        <div className="setting-row checkbox">
-                            <input className="checkbox-input" type="checkbox" id="alignWs" checked={weekdayAlign} onChange={e => setWeekdayAlign(e.target.checked)} />
-                            <label htmlFor="alignWs">Align Weekdays</label>
-                        </div>
-                        <div className="setting-row checkbox">
-                            <input className="checkbox-input" type="checkbox" id="hlToday" checked={highlightToday} onChange={e => setHighlightToday(e.target.checked)} />
-                            <label htmlFor="hlToday">Highlight Current Day</label>
-                        </div>
-                        <div className="setting-row checkbox">
-                            <input className="checkbox-input" type="checkbox" id="shwWeekends" checked={showWeekends} onChange={e => setShowWeekends(e.target.checked)} />
-                            <label htmlFor="shwWeekends">Highlight Weekends</label>
-                        </div>
-                        <div className="setting-row checkbox">
-                            <input className="checkbox-input" type="checkbox" id="shwDayProg" checked={showDayProgress} onChange={e => setShowDayProgress(e.target.checked)} />
-                            <label htmlFor="shwDayProg">Show Day Progress (Day X / 365)</label>
-                        </div>
+                        {checkboxSettings.map(setting => (
+                            <div className="setting-row checkbox" key={setting.id}>
+                                <input
+                                    className="checkbox-input"
+                                    type="checkbox"
+                                    id={setting.id}
+                                    checked={setting.checked}
+                                    onChange={e => setting.onChange(e.target.checked)}
+                                />
+                                <label htmlFor={setting.id}>{setting.label}</label>
+                            </div>
+                        ))}
                     </div>
 
                     <div className="settings-section">
