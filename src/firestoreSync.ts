@@ -9,6 +9,11 @@ import {
 } from 'firebase/firestore';
 import { PlannerEvent, PlannerSettings } from './utils/calendarUtils';
 
+export interface RemoteEventsPayload {
+    events: PlannerEvent[];
+    updatedAt: number | null;
+}
+
 // Debounce helper to avoid excessive writes
 let saveTimeout: ReturnType<typeof setTimeout> | null = null;
 const DEBOUNCE_MS = 1000;
@@ -41,7 +46,7 @@ export const syncEvents = (uid: string, events: PlannerEvent[]) => {
  * Subscribe to events changes from Firestore
  * Returns an unsubscribe function
  */
-export const subscribeToEvents = (uid: string, callback: (events: PlannerEvent[]) => void) => {
+export const subscribeToEvents = (uid: string, callback: (payload: RemoteEventsPayload) => void) => {
     if (!uid) return () => { };
 
     const ref = doc(db, 'users', uid, 'data', 'events');
@@ -49,7 +54,8 @@ export const subscribeToEvents = (uid: string, callback: (events: PlannerEvent[]
     return onSnapshot(ref, (snapshot) => {
         if (snapshot.exists()) {
             const data = snapshot.data();
-            callback(data.events || []);
+            const updatedAt = data.updatedAt?.toMillis?.() ?? null;
+            callback({ events: data.events || [], updatedAt });
         }
     }, (error) => {
         console.error('Error subscribing to events:', error);
@@ -59,7 +65,7 @@ export const subscribeToEvents = (uid: string, callback: (events: PlannerEvent[]
 /**
  * Load initial events from Firestore
  */
-export const loadEvents = async (uid: string): Promise<PlannerEvent[] | null> => {
+export const loadEvents = async (uid: string): Promise<RemoteEventsPayload | null> => {
     if (!uid) return null;
 
     try {
@@ -67,7 +73,9 @@ export const loadEvents = async (uid: string): Promise<PlannerEvent[] | null> =>
         const snapshot = await getDoc(ref);
 
         if (snapshot.exists()) {
-            return snapshot.data().events || [];
+            const data = snapshot.data();
+            const updatedAt = data.updatedAt?.toMillis?.() ?? null;
+            return { events: data.events || [], updatedAt };
         }
         return null;
     } catch (error) {
