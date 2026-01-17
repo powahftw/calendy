@@ -39,7 +39,6 @@ const AppHeader: React.FC<AppHeaderProps> = ({ todayInView, onSettingsClick }) =
                     <span
                         className="day-progress"
                         onClick={() => setShowPercentage(!showPercentage)}
-                        style={{ cursor: 'pointer', minWidth: '80px', display: 'inline-block', textAlign: 'center' }}
                         title="Click to toggle %"
                     >
                         {dayProgressStr}

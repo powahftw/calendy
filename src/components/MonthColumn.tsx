@@ -24,24 +24,31 @@ interface MonthColumnProps {
     onTouchStart: (e: React.TouchEvent, m: number, d: number) => void;
     onTouchMove: (e: React.TouchEvent) => void;
     onTouchEnd: () => void;
+    dragPreviewEvent?: PlannerEvent | null;
 }
 
 const DraggableEventChip: FC<{
     event: PlannerEvent;
     children: React.ReactNode;
-    style?: React.CSSProperties
+    style?: React.CSSProperties;
     onClick: (e: React.MouseEvent) => void;
-}> = ({ event, children, style, onClick }) => {
+    day: number;
+    month: number;
+    year: number;
+}> = ({ event, children, style, onClick, day, month, year }) => {
     const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-        id: event.id,
-        data: { event }
+        id: `${event.id}-${year}-${month}-${day}`,
+        data: {
+            event,
+            current: { day, month, year } // Current date of THIS chip
+        }
     });
 
     const dndStyle: React.CSSProperties = {
         transform: CSS.Translate.toString(transform),
         opacity: isDragging ? 0.5 : 1,
-        zIndex: isDragging ? 100 : undefined,
-        touchAction: 'none', // Critical for dragging on mobile
+        zIndex: isDragging ? 200 : undefined, // Higher z-index while dragging
+        touchAction: 'none',
         ...style
     };
 
@@ -51,6 +58,14 @@ const DraggableEventChip: FC<{
             style={dndStyle}
             {...listeners}
             {...attributes}
+            onMouseDown={(e) => {
+                e.stopPropagation();
+                if (listeners?.onMouseDown) listeners.onMouseDown(e);
+            }}
+            onTouchStart={(e) => {
+                e.stopPropagation();
+                if (listeners?.onTouchStart) listeners.onTouchStart(e);
+            }}
             onClick={onClick}
         >
             {children}
@@ -114,7 +129,8 @@ const MonthColumn: FC<MonthColumnProps> = ({
     showWeekends,
     onTouchStart,
     onTouchMove,
-    onTouchEnd
+    onTouchEnd,
+    dragPreviewEvent
 }) => {
     const daysInMonth = getDaysInMonth(year, monthIndex);
 
@@ -151,61 +167,7 @@ const MonthColumn: FC<MonthColumnProps> = ({
 
                 const isToday = highlightToday && year === today.todayYear && monthIndex === today.todayMonth && day === today.todayDay;
 
-                // Resolve Color
                 const mainEventColor = hasEvents ? currentColors[dayEvents[0].color] || currentColors[0] : null;
-
-                const dayCellContent = (
-                    <>
-                        <span className="day-num">{day}</span>
-
-                        {hasEvents && (
-                            <DraggableEventChip
-                                event={dayEvents[0]}
-                                style={{
-                                    backgroundColor: `${mainEventColor}15`, // Low opacity bg
-                                    borderLeft: `2px solid ${mainEventColor}`
-                                }}
-                                onClick={(e) => onEventClick(e, dayEvents, monthIndex, day)}
-                            >
-                                <div
-                                    className={`event-chip ${hasOverflow ? 'has-overflow' : ''}`}
-                                    style={{
-                                        position: 'relative', // Reset absolute from class because Draggable wrapper handles position layout? 
-                                        // Actually event-chip has absolute positioning. 
-                                        // DraggableEventChip wraps it. We need to be careful with layout.
-                                        left: 0, right: 0, top: 0, transform: 'none'
-                                        // Wait, event-chip CSS is very specific:
-                                        // position: absolute; left: 24px; right: 2px; top: 50%; transform: translateY(-50%);
-                                        // If we wrap it, the wrapper needs to be positioned or the child needs to keep it.
-                                        // Let's pass the class and style to DraggableEventChip's container instead.
-                                    }}
-                                    title={dayEvents[0].title}
-                                >
-                                    <span style={{ color: 'var(--text-primary)' }}>{dayEvents[0].title}</span>
-                                </div>
-                            </DraggableEventChip>
-                        )}
-
-                        {/* Overflow Indicator with Lines ONLY - Not draggable */}
-                        {hasOverflow && (
-                            <div
-                                className="event-overflow"
-                                onClick={(e) => onEventClick(e, dayEvents, monthIndex, day)}
-                                onMouseDown={(e) => e.stopPropagation()}
-                            >
-                                <div className="overflow-lines">
-                                    {hiddenEvents.map((ev, i) => (
-                                        <div key={i} className="overflow-line" style={{ backgroundColor: currentColors[ev.color] || currentColors[0] }} />
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                    </>
-                );
-
-                // Fix styling update: event-chip in CSS is absolute positioned.
-                // We should make DraggableEventChip the absolute positioned element.
-                // Let's adjust the DraggableEventChip usage above.
 
                 return (
                     <DroppableDayCell
@@ -222,18 +184,63 @@ const MonthColumn: FC<MonthColumnProps> = ({
                     >
                         <span className="day-num">{day}</span>
 
+                        {dragPreviewEvent && isDateInRange(year, monthIndex, day, dragPreviewEvent.start, dragPreviewEvent.end) && (
+                            hasEvents ? (
+                                <div className="event-overflow preview-overflow" style={{ pointerEvents: 'none', zIndex: 11 }}>
+                                    <div className="overflow-lines">
+                                        <div
+                                            className="overflow-line"
+                                            style={{
+                                                backgroundColor: currentColors[dragPreviewEvent.color] || currentColors[0],
+                                                opacity: 0.6,
+                                                border: '1px dashed rgba(255,255,255,0.4)',
+                                                boxSizing: 'border-box'
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+                            ) : (
+                                <div
+                                    style={{
+                                        position: 'absolute',
+                                        left: '24px',
+                                        right: '2px',
+                                        top: '50%',
+                                        marginTop: '-11px',
+                                        height: '22px',
+                                        borderRadius: '3px',
+                                        paddingRight: '4px',
+                                        paddingLeft: '4px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        fontSize: '0.75rem',
+                                        fontWeight: 500,
+                                        whiteSpace: 'nowrap',
+                                        overflow: 'hidden',
+                                        backgroundColor: (currentColors[dragPreviewEvent.color] || currentColors[0]) + '45',
+                                        borderLeft: `2px solid ${currentColors[dragPreviewEvent.color] || currentColors[0]}`,
+                                        zIndex: 4,
+                                        pointerEvents: 'none',
+                                        boxShadow: '0 0 0 1px rgba(0,0,0,0.05)'
+                                    }}
+                                >
+                                    <span style={{ color: 'var(--text-primary)', opacity: 0.8 }}>{dragPreviewEvent.title}</span>
+                                </div>
+                            )
+                        )}
+
                         {hasEvents && (
                             <DraggableEventChip
                                 event={dayEvents[0]}
+                                day={day}
+                                month={monthIndex}
+                                year={year}
                                 style={{
-                                    // Match event-chip CSS
                                     position: 'absolute',
                                     left: '24px',
                                     right: hasOverflow ? '6px' : '2px',
                                     top: '50%',
-                                    // transform: 'translateY(-50%)' -> This conflicts with dnd transform.
-                                    // We need to combine them or use top/margin.
-                                    marginTop: '-11px', // Half of height 22px
+                                    marginTop: '-11px',
                                     height: '22px',
                                     borderRadius: '3px',
                                     paddingRight: hasOverflow ? '12px' : '4px',
@@ -248,7 +255,7 @@ const MonthColumn: FC<MonthColumnProps> = ({
                                     boxShadow: '0 1px 1px rgba(0, 0, 0, 0.05)',
                                     backgroundColor: `${mainEventColor}15`,
                                     borderLeft: `2px solid ${mainEventColor}`,
-                                    zIndex: 5 // Ensure it's above day num but below dragging
+                                    zIndex: 5
                                 }}
                                 onClick={(e) => onEventClick(e, dayEvents, monthIndex, day)}
                             >

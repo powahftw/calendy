@@ -25,13 +25,10 @@ function App() {
   return (
     <PlannerProvider user={user}>
       <Toaster
-        position="bottom-right"
+        position="top-center"
         toastOptions={{
-          style: {
-            background: 'var(--bg-card)',
-            color: 'var(--text-primary)',
-            border: '1px solid var(--line-color)',
-          },
+          className: 'custom-toast',
+          duration: 3000,
         }}
       />
       <PlannerView

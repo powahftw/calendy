@@ -48,9 +48,81 @@ const PlannerGrid: React.FC<PlannerGridProps> = ({ weekdayAlign, onEventClick, s
         })
     );
 
+    // State to suppress click after drag
+    const isDragJustFinishedRef = useRef(false);
+    const [dragPreviewEvent, setDragPreviewEvent] = React.useState<PlannerEvent | null>(null);
+
+    const handleDragStart = (event: DragStartEvent) => {
+        isDragJustFinishedRef.current = false;
+    };
+
+    // Calculate potentially new event position
+    const calculateNewEvent = (active: any, over: any) => {
+        const overId = over.id as string;
+        const parts = overId.split('-');
+        if (parts.length < 4) return null;
+
+        const targetYear = parseInt(parts[1]);
+        const targetMonth = parseInt(parts[2]);
+        const targetDay = parseInt(parts[3]);
+
+        // Get Drag Source Date from active.data.current
+        const activeData = active.data.current as any;
+        if (!activeData || !activeData.current) return null;
+
+        const { day: sourceDay, month: sourceMonth, year: sourceYear } = activeData.current;
+
+        // UTC Calc to avoid DST shifts
+        const utcTarget = Date.UTC(targetYear, targetMonth, targetDay);
+        const utcSource = Date.UTC(sourceYear, sourceMonth, sourceDay);
+        const msPerDay = 1000 * 60 * 60 * 24;
+        const dayDiff = Math.round((utcTarget - utcSource) / msPerDay);
+
+        if (dayDiff === 0) return null;
+
+        const eventId = activeData.event.id;
+        const eventToMove = events.find(e => e.id === eventId);
+        if (!eventToMove) return null;
+
+        const parseDate = (str: string) => {
+            const [y, m, d] = str.split('-').map(Number);
+            return new Date(y, m - 1, d);
+        };
+
+        const s = parseDate(eventToMove.start);
+        const e = parseDate(eventToMove.end);
+
+        s.setDate(s.getDate() + dayDiff);
+        e.setDate(e.getDate() + dayDiff);
+
+        return {
+            ...eventToMove,
+            start: toDateStr(s.getFullYear(), s.getMonth(), s.getDate()),
+            end: toDateStr(e.getFullYear(), e.getMonth(), e.getDate())
+        };
+    };
+
+    const handleDragOver = (event: any) => {
+        const { active, over } = event;
+        if (!over) {
+            setDragPreviewEvent(null);
+            return;
+        }
+        const preview = calculateNewEvent(active, over);
+        setDragPreviewEvent(preview);
+    };
+
     const handleDragEnd = (event: DragEndEvent) => {
+        setDragPreviewEvent(null);
+        setTimeout(() => {
+            isDragJustFinishedRef.current = false;
+        }, 100);
+
         const { active, over } = event;
         if (!over) return;
+
+        // Mark drag as finished to prevent click
+        isDragJustFinishedRef.current = true;
 
         const overId = over.id as string;
         // Expected format: day-YYYY-M-D
@@ -60,17 +132,26 @@ const PlannerGrid: React.FC<PlannerGridProps> = ({ weekdayAlign, onEventClick, s
         const targetYear = parseInt(parts[1]);
         const targetMonth = parseInt(parts[2]);
         const targetDay = parseInt(parts[3]);
-
         const targetDate = new Date(targetYear, targetMonth, targetDay);
-        const eventId = active.id;
 
+        // Get Drag Source Date from active.data.current
+        const activeData = active.data.current as any;
+        if (!activeData || !activeData.current) return;
+
+        const { day: sourceDay, month: sourceMonth, year: sourceYear } = activeData.current;
+        const sourceDate = new Date(sourceYear, sourceMonth, sourceDay);
+
+        const eventId = activeData.event.id;
         const eventToMove = events.find(e => e.id === eventId);
         if (!eventToMove) return;
 
-        // Calculate diff
-        const currentStartDate = new Date(eventToMove.start);
-        const dayDiffTime = targetDate.getTime() - currentStartDate.getTime();
-        const dayDiff = Math.round(dayDiffTime / (1000 * 3600 * 24));
+        // Calculate diff based on SOURCE Drag Date vs TARGET Drop Date
+        // Use UTC to avoid daylight saving issues affecting the day difference
+        const utcTarget = Date.UTC(targetYear, targetMonth, targetDay);
+        const utcSource = Date.UTC(sourceYear, sourceMonth, sourceDay);
+
+        const msPerDay = 1000 * 60 * 60 * 24;
+        const dayDiff = Math.round((utcTarget - utcSource) / msPerDay);
 
         if (dayDiff === 0) return;
 
@@ -79,16 +160,28 @@ const PlannerGrid: React.FC<PlannerGridProps> = ({ weekdayAlign, onEventClick, s
                 const oldStart = new Date(ev.start);
                 const oldEnd = new Date(ev.end);
 
-                const newStart = new Date(oldStart);
-                newStart.setDate(newStart.getDate() + dayDiff);
+                // Add days using UTC to prevent shifts
+                // Actually, standard setDate() handles month overflow correctly.
+                // But let's ensure we parse "YYYY-MM-DD" as local midnight consistently.
+                // Our toDateStr produces "YYYY-MM-DD". new Date("YYYY-MM-DD") is usually UTC. 
+                // Wait, new Date(2022, 0, 1) is local.
+                // We should parse using our helpers or numeric parts.
 
-                const newEnd = new Date(oldEnd);
-                newEnd.setDate(newEnd.getDate() + dayDiff);
+                const parseDate = (str: string) => {
+                    const [y, m, d] = str.split('-').map(Number);
+                    return new Date(y, m - 1, d); // Month is 0-indexed in Date
+                };
+
+                const s = parseDate(ev.start);
+                const e = parseDate(ev.end);
+
+                s.setDate(s.getDate() + dayDiff);
+                e.setDate(e.getDate() + dayDiff);
 
                 return {
                     ...ev,
-                    start: toDateStr(newStart.getFullYear(), newStart.getMonth(), newStart.getDate()),
-                    end: toDateStr(newEnd.getFullYear(), newEnd.getMonth(), newEnd.getDate())
+                    start: toDateStr(s.getFullYear(), s.getMonth(), s.getDate()),
+                    end: toDateStr(e.getFullYear(), e.getMonth(), e.getDate())
                 };
             }
             return ev;
@@ -140,8 +233,21 @@ const PlannerGrid: React.FC<PlannerGridProps> = ({ weekdayAlign, onEventClick, s
         };
     }, [year, monthsToShow, highlightToday, events, setTodayInView]);
 
+    const handleEventClickWrapped = (e: React.MouseEvent, allEventsOnDay: PlannerEvent[], m: number, d: number) => {
+        if (isDragJustFinishedRef.current) {
+            e.stopPropagation();
+            return;
+        }
+        onEventClick(e, allEventsOnDay, m, d);
+    };
+
     return (
-        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+        <DndContext
+            sensors={sensors}
+            onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
+            onDragEnd={handleDragEnd}
+        >
             <div className="planner-scroll-area" ref={scrollAreaRef}>
                 <div className="planner-grid">
                     {weekdayAlign && (
@@ -161,11 +267,12 @@ const PlannerGrid: React.FC<PlannerGridProps> = ({ weekdayAlign, onEventClick, s
                             year={year}
                             monthIndex={monthIndex}
                             events={events}
+                            dragPreviewEvent={dragPreviewEvent}
                             currentColors={currentColors}
                             onMouseDown={startDrag}
                             onMouseEnter={updateDrag}
                             isHighlighted={isHighlighted}
-                            onEventClick={onEventClick}
+                            onEventClick={handleEventClickWrapped}
                             weekdayAlign={weekdayAlign}
                             maxRows={maxRows}
                             today={todayData}
