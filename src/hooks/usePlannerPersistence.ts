@@ -28,6 +28,7 @@ const usePlannerPersistence = (user: User | null) => {
     const [isInitialLoadDone, setIsInitialLoadDone] = useState(false);
     const [shouldSyncUpstream, setShouldSyncUpstream] = useState(false); // Safety guard
     const isRemoteUpdate = useRef(false);
+    const localEventsUpdatedAtRef = useRef<number | null>(null);
 
     // Initialize/Load Data helper
     const loadFromLocalStorage = useCallback((currentUser: User | null) => {
@@ -44,13 +45,25 @@ const usePlannerPersistence = (user: User | null) => {
 
             let rawEvents: any[] = [];
             let found = false;
+            let updatedAt: number | null = null;
 
             if (saved) {
-                rawEvents = JSON.parse(saved);
-                found = true;
+                try {
+                    const parsed = JSON.parse(saved);
+                    if (Array.isArray(parsed)) {
+                        rawEvents = parsed;
+                        found = true;
+                    } else if (parsed && typeof parsed === 'object') {
+                        rawEvents = Array.isArray(parsed.items) ? parsed.items : [];
+                        updatedAt = typeof parsed.updatedAt === 'number' ? parsed.updatedAt : null;
+                        found = true;
+                    }
+                } catch (error) {
+                    console.error(`Failed to parse events from localStorage for key ${storKey}:`, error);
+                }
             }
 
-            return { events: rawEvents, found };
+            return { events: rawEvents, found, updatedAt };
         };
 
         setYear(getVal('year', 2026));
@@ -61,7 +74,7 @@ const usePlannerPersistence = (user: User | null) => {
         setShowDayProgress(getVal('show_day_progress', true));
         setWeekdayAlign(getVal('weekday_align', true));
 
-        const { events: loadedEvents, found: foundLocalEvents } = getEvents();
+        const { events: loadedEvents, found: foundLocalEvents, updatedAt } = getEvents();
 
         // Migration: Convert Hex colors to Indices (Legacy check)
         const migratedEvents = loadedEvents.map((ev: any) => {
@@ -73,6 +86,7 @@ const usePlannerPersistence = (user: User | null) => {
         });
 
         setEvents(migratedEvents);
+        localEventsUpdatedAtRef.current = updatedAt;
 
         // Update the ref to match what we just loaded
         currentUserIdRef.current = currentUser ? currentUser.uid : 'guest';
@@ -102,7 +116,16 @@ const usePlannerPersistence = (user: User | null) => {
 
         const save = (key: string, val: any) => localStorage.setItem(getStorageKey(user, key), JSON.stringify(val));
 
-        save('events', events);
+        const updatedAt = isRemoteUpdate.current
+            ? localEventsUpdatedAtRef.current
+            : Date.now();
+        if (!isRemoteUpdate.current) {
+            localEventsUpdatedAtRef.current = updatedAt;
+        }
+        localStorage.setItem(
+            getStorageKey(user, 'events'),
+            JSON.stringify({ items: events, updatedAt })
+        );
         localStorage.setItem(getStorageKey(user, 'theme'), theme); // String, no JSON
         save('highlight_today', highlightToday);
         save('show_weekends', showWeekends);
@@ -140,15 +163,19 @@ const usePlannerPersistence = (user: User | null) => {
                 // If remote exists, it wins (or merges). For now, it wins.
                 if (remoteEvents) {
                     setEvents(prev => {
-                        // Simple check: if we have local data but remote is different, we take remote?
-                        // User asked for "Firebase is source of truth".
-                        // However, if we just migrated legacy local data, we likely want to keep it
-                        // UNLESS remote is also populated.
-                        // Edge case: User has data on BOTH.
-                        // Current logic: Remote wins.
-                        if (JSON.stringify(prev) !== JSON.stringify(remoteEvents)) {
+                        const localUpdatedAt = localEventsUpdatedAtRef.current ?? 0;
+                        const remoteUpdatedAt = remoteEvents.updatedAt ?? 0;
+                        const remoteHasData = remoteEvents.events.length > 0;
+                        const localHasData = prev.length > 0;
+
+                        const remoteWins =
+                            remoteHasData &&
+                            (remoteUpdatedAt >= localUpdatedAt || !localHasData);
+
+                        if (remoteWins && JSON.stringify(prev) !== JSON.stringify(remoteEvents.events)) {
                             isRemoteUpdate.current = true;
-                            return remoteEvents;
+                            localEventsUpdatedAtRef.current = remoteEvents.updatedAt ?? null;
+                            return remoteEvents.events;
                         }
                         return prev;
                     });
@@ -191,14 +218,23 @@ const usePlannerPersistence = (user: User | null) => {
 
         initRemoteData();
 
-        const unsubEvents = subscribeToEvents(user.uid, (remoteEvents) => {
+        const unsubEvents = subscribeToEvents(user.uid, (remotePayload) => {
             setEvents(prev => {
                 const prevStr = JSON.stringify(prev);
-                const remoteStr = JSON.stringify(remoteEvents);
+                const remoteStr = JSON.stringify(remotePayload.events);
                 if (prevStr === remoteStr) return prev;
 
+                const localUpdatedAt = localEventsUpdatedAtRef.current ?? 0;
+                const remoteUpdatedAt = remotePayload.updatedAt ?? 0;
+                const remoteHasData = remotePayload.events.length > 0;
+
+                if (!remoteHasData && localUpdatedAt > remoteUpdatedAt) {
+                    return prev;
+                }
+
                 isRemoteUpdate.current = true;
-                return remoteEvents;
+                localEventsUpdatedAtRef.current = remotePayload.updatedAt ?? null;
+                return remotePayload.events;
             });
         });
 
