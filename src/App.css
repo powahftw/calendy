@@ -114,6 +114,22 @@ body {
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  cursor: pointer;
+  min-width: 80px;
+  display: inline-block;
+  text-align: center;
+  user-select: none;
+}
+
+.custom-toast {
+  background: var(--bg-color) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--line-color) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+  padding: 8px 12px !important;
+  font-size: 0.9rem !important;
+  font-weight: 500 !important;
 }
 
 .app-year {
@@ -328,6 +344,42 @@ body[data-theme='dark'] .header-settings-btn:hover {
   text-overflow: ellipsis;
   width: 100%;
   user-select: none;
+}
+
+/* Common shared event chip styles for alignment */
+.event-chip-common {
+  position: absolute;
+  left: 24px;
+  top: 50%;
+  margin-top: -11px;
+  /* Half of height 22px */
+  height: 22px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.preview-chip-style {
+  right: 2px;
+  padding: 0 4px;
+  z-index: 4;
+  pointer-events: none;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.05);
+}
+
+.draggable-chip-style {
+  cursor: grab;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.05);
+  z-index: 5;
+}
+
+.draggable-chip-style:active {
+  cursor: grabbing;
 }
 
 /* Overflow Indicator */

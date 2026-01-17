@@ -9,6 +9,7 @@ interface AppHeaderProps {
 
 const AppHeader: React.FC<AppHeaderProps> = ({ todayInView, onSettingsClick }) => {
     const { year, showDayProgress, monthsToShow } = usePlanner();
+    const [showPercentage, setShowPercentage] = React.useState(false);
 
     const handleBackToToday = () => {
         // Find the today cell
@@ -22,14 +23,24 @@ const AppHeader: React.FC<AppHeaderProps> = ({ todayInView, onSettingsClick }) =
     if (showDayProgress) {
         const todayObj = new Date();
         const { current, total } = calculateViewProgress(year, monthsToShow, todayObj);
-        dayProgressStr = `${current} / ${total}`;
+
+        if (showPercentage) {
+            const pct = ((current / total) * 100).toFixed(1);
+            dayProgressStr = `${pct}%`;
+        } else {
+            dayProgressStr = `${current} / ${total}`;
+        }
     }
 
     return (
         <div className="app-header">
             <div className="header-spacer left">
                 {showDayProgress && (
-                    <span className="day-progress">
+                    <span
+                        className="day-progress"
+                        onClick={() => setShowPercentage(!showPercentage)}
+                        title="Click to toggle %"
+                    >
                         {dayProgressStr}
                     </span>
                 )}
