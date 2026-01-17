@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Toaster } from 'react-hot-toast';
 import './App.css';
 import { useAuth } from './AuthContext';
 import LoginScreen from './LoginScreen';
@@ -48,6 +49,13 @@ function App() {
 
   return (
     <PlannerProvider user={user}>
+      <Toaster
+        position="top-center"
+        toastOptions={{
+          className: 'custom-toast',
+          duration: 3000,
+        }}
+      />
       <PlannerView
         user={user}
         signOut={signOut}
