@@ -1,7 +1,7 @@
 import React, { FC, useEffect, useState, useRef } from 'react';
 import CalendarImportModal from './CalendarImportModal';
 import { formatDateRange, PlannerEvent, themes, toLocalDate } from '../utils/calendarUtils';
-import { serializeEvents, parseEvents } from '../utils/calendar/importExportUtils';
+import { serializeEvents, parseEvents, isDuplicate } from '../utils/calendar/importExportUtils';
 import { User } from 'firebase/auth';
 import { usePlanner } from '../context/PlannerContext';
 import toast from 'react-hot-toast';
@@ -17,6 +17,9 @@ const SettingsModal: FC<SettingsModalProps> = ({
     onClose, user, onSignOut, isGuest
 }) => {
     const [showImportModal, setShowImportModal] = useState(false);
+    const [holdProgress, setHoldProgress] = useState(0);
+    const holdTimerRef = useRef<number | null>(null);
+    const holdIntervalRef = useRef<number | null>(null);
 
     const {
         year, setYear,
@@ -35,11 +38,35 @@ const SettingsModal: FC<SettingsModalProps> = ({
             if (e.key === 'Escape') onClose();
         };
         window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+            if (holdTimerRef.current) window.clearTimeout(holdTimerRef.current);
+            if (holdIntervalRef.current) window.clearInterval(holdIntervalRef.current);
+        };
     }, [onClose]);
 
-    const clearAll = () => {
-        if (window.confirm("Clear all events?")) setEvents([]);
+    const startHold = () => {
+        setHoldProgress(0);
+        const startTime = Date.now();
+        const duration = 3000;
+
+        holdIntervalRef.current = window.setInterval(() => {
+            const elapsed = Date.now() - startTime;
+            const progress = Math.min((elapsed / duration) * 100, 100);
+            setHoldProgress(progress);
+        }, 30);
+
+        holdTimerRef.current = window.setTimeout(() => {
+            setEvents([]);
+            toast.success("All events cleared.");
+            cancelHold();
+        }, duration);
+    };
+
+    const cancelHold = () => {
+        if (holdTimerRef.current) window.clearTimeout(holdTimerRef.current);
+        if (holdIntervalRef.current) window.clearInterval(holdIntervalRef.current);
+        setHoldProgress(0);
     };
 
     const handleExport = () => {
@@ -56,7 +83,7 @@ const SettingsModal: FC<SettingsModalProps> = ({
         a.download = 'calendy_export.txt';
         a.click();
         URL.revokeObjectURL(url);
-        toast.success("Events exported to calendy_export.txt");
+        toast.success(`Exported ${events.length} events to calendy_export.txt`);
     };
 
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -67,16 +94,28 @@ const SettingsModal: FC<SettingsModalProps> = ({
         reader.onload = (e) => {
             const text = e.target?.result as string;
             if (text) {
-                const newEvents = parseEvents(text);
-                if (newEvents.length > 0) {
-                    if (window.confirm(`Found ${newEvents.length} events. Import and append them?`)) {
-                        setEvents(prev => [...prev, ...newEvents]);
-                        toast.success(`Imported ${newEvents.length} events!`);
+                const importedEvents = parseEvents(text);
+                if (importedEvents.length > 0) {
+                    const uniques = importedEvents.filter(ev => !isDuplicate(ev, events));
+                    const duplicates = importedEvents.length - uniques.length;
+
+                    if (uniques.length > 0) {
+                        setEvents(prev => [...prev, ...uniques]);
+                        if (duplicates > 0) {
+                            toast.success(`Imported ${uniques.length} events. Skipped ${duplicates} duplicates.`);
+                        } else {
+                            toast.success(`Imported ${uniques.length} events!`);
+                        }
+                    } else {
+                        toast.error(`No new events found. ${duplicates} duplicates skipped.`);
                     }
                 } else {
                     toast.error("No valid events found in file.");
                 }
             }
+        };
+        reader.onerror = () => {
+            toast.error("Failed to read the file.");
         };
         reader.readAsText(file);
     };
@@ -185,14 +224,14 @@ const SettingsModal: FC<SettingsModalProps> = ({
 
                     <div className="settings-section">
                         <h4>Data</h4>
-                        <div className="settings-actions-grid">
+                        <div className="settings-actions-row">
                             <button className="btn-primary-outline btn-icon-with-text" onClick={handleExport}>
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                                     <polyline points="17 8 12 3 7 8"></polyline>
                                     <line x1="12" y1="3" x2="12" y2="15"></line>
                                 </svg>
-                                Export as .txt
+                                Export
                             </button>
 
                             <div
@@ -214,14 +253,27 @@ const SettingsModal: FC<SettingsModalProps> = ({
                                         <polyline points="7 10 12 15 17 10"></polyline>
                                         <line x1="12" y1="15" x2="12" y2="3"></line>
                                     </svg>
-                                    Import from .txt
+                                    Import
                                 </button>
                             </div>
-                            <button className="btn-danger-outline btn-icon-with-text" onClick={clearAll}>
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+
+                            <button
+                                className="btn-danger-outline btn-icon-with-text btn-hold"
+                                onMouseDown={startHold}
+                                onMouseUp={cancelHold}
+                                onMouseLeave={cancelHold}
+                                onTouchStart={startHold}
+                                onTouchEnd={cancelHold}
+                                style={{ position: 'relative', overflow: 'hidden' }}
+                            >
+                                <div
+                                    className="hold-progress-bar"
+                                    style={{ width: `${holdProgress}%` }}
+                                />
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ position: 'relative', zIndex: 1 }}>
                                     <path d="M3 6h18m-2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
                                 </svg>
-                                Clear All Events
+                                <span style={{ position: 'relative', zIndex: 1 }}>Clear All (Hold 3s)</span>
                             </button>
                         </div>
                     </div>
