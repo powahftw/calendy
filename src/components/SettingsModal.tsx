@@ -1,6 +1,7 @@
-import React, { FC, useEffect, useState } from 'react';
+import React, { FC, useEffect, useState, useRef } from 'react';
 import CalendarImportModal from './CalendarImportModal';
 import { formatDateRange, PlannerEvent, themes, toLocalDate } from '../utils/calendarUtils';
+import { serializeEvents, parseEvents } from '../utils/calendar/importExportUtils';
 import { User } from 'firebase/auth';
 import { usePlanner } from '../context/PlannerContext';
 import toast from 'react-hot-toast';
@@ -47,36 +48,54 @@ const SettingsModal: FC<SettingsModalProps> = ({
             return;
         }
 
-        // Group by Month Year
-        const groups: { [key: string]: PlannerEvent[] } = {};
-        const sortedEvents = [...events].sort((a, b) => toLocalDate(a.start).getTime() - toLocalDate(b.start).getTime());
+        const exportText = serializeEvents(events);
+        const blob = new Blob([exportText], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'calendy_export.txt';
+        a.click();
+        URL.revokeObjectURL(url);
+        toast.success("Events exported to calendy_export.txt");
+    };
 
-        sortedEvents.forEach(ev => {
-            // Create date using local time constructor to avoid timezone offsets causing month shifts
-            const dateObj = toLocalDate(ev.start);
-            const key = dateObj.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [isDragOver, setIsDragOver] = useState(false);
 
-            if (!groups[key]) groups[key] = [];
-            groups[key].push(ev);
-        });
+    const handleImportFile = (file: File) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const text = e.target?.result as string;
+            if (text) {
+                const newEvents = parseEvents(text);
+                if (newEvents.length > 0) {
+                    if (window.confirm(`Found ${newEvents.length} events. Import and append them?`)) {
+                        setEvents(prev => [...prev, ...newEvents]);
+                        toast.success(`Imported ${newEvents.length} events!`);
+                    }
+                } else {
+                    toast.error("No valid events found in file.");
+                }
+            }
+        };
+        reader.readAsText(file);
+    };
 
-        let exportText = "";
-        for (const [groupName, groupEvents] of Object.entries(groups)) {
-            exportText += `${groupName}:\n`;
-            groupEvents.forEach(ev => {
-                // Format: [DD-MM - DD-MM] Title
-                // Assuming start and end are YYYY-MM-DD
-                exportText += `[${formatDateRange(ev.start, ev.end, 'dayMonth')}] ${ev.title}\n`;
-            });
-            exportText += "\n";
+    const onDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragOver(false);
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+            handleImportFile(e.dataTransfer.files[0]);
         }
+    };
 
-        navigator.clipboard.writeText(exportText).then(() => {
-            toast.success("Events exported to clipboard!");
-        }).catch(err => {
-            console.error('Failed to copy: ', err);
-            toast.error("Failed to copy events.");
-        });
+    const onDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragOver(true);
+    };
+
+    const onDragLeave = () => {
+        setIsDragOver(false);
     };
 
     const checkboxSettings = [
@@ -175,6 +194,29 @@ const SettingsModal: FC<SettingsModalProps> = ({
                                 </svg>
                                 Export as .txt
                             </button>
+
+                            <div
+                                className={`import-dropzone ${isDragOver ? 'drag-over' : ''}`}
+                                onDrop={onDrop}
+                                onDragOver={onDragOver}
+                                onDragLeave={onDragLeave}
+                            >
+                                <input
+                                    type="file"
+                                    ref={fileInputRef}
+                                    style={{ display: 'none' }}
+                                    accept=".txt"
+                                    onChange={(e) => e.target.files?.[0] && handleImportFile(e.target.files[0])}
+                                />
+                                <button className="btn-primary-outline btn-icon-with-text" onClick={() => fileInputRef.current?.click()}>
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                        <polyline points="7 10 12 15 17 10"></polyline>
+                                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                                    </svg>
+                                    Import from .txt
+                                </button>
+                            </div>
                             <button className="btn-danger-outline btn-icon-with-text" onClick={clearAll}>
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                     <path d="M3 6h18m-2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
