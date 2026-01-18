@@ -695,6 +695,16 @@ body[data-theme='dark'] .day-cell.highlighted {
 }
 
 @media (max-width: 480px) {
+  .modal.settings-modal {
+    width: 94vw;
+    max-height: 90vh;
+  }
+
+  .settings-content {
+    max-height: calc(90vh - 72px);
+    overflow-y: auto;
+  }
+
   .settings-actions-grid {
     grid-template-columns: 1fr;
   }

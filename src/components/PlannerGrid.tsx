@@ -44,7 +44,7 @@ const PlannerGrid: React.FC<PlannerGridProps> = ({ onEventClick, setTodayInView,
         }),
         useSensor(TouchSensor, {
             activationConstraint: {
-                delay: 250,
+                delay: 300,
                 tolerance: 5,
             },
         })
