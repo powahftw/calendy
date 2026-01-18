@@ -134,7 +134,6 @@ const PlannerView: React.FC<PlannerViewProps> = ({ user, signOut, isGuest, setIs
             />
 
             <PlannerGrid
-                weekdayAlign={weekdayAlign}
                 onEventClick={handleEventClickWithDate}
                 setTodayInView={setTodayInView}
                 onRangeSelection={handleRangeComplete}

@@ -16,6 +16,9 @@ jobs:
       
       - run: npm ci
       
+      - name: Run unit tests
+        run: npm run test:unit
+      
       - name: Build
         run: npm run build
         env:
