@@ -107,7 +107,11 @@ const SettingsModal: FC<SettingsModalProps> = ({
     ];
 
     return (
-        <div className="modal-overlay" onMouseDown={(e: React.MouseEvent) => e.target === e.currentTarget && onClose()}>
+        <div
+            className="modal-overlay"
+            onMouseDown={(e: React.MouseEvent) => e.target === e.currentTarget && onClose()}
+            onTouchStart={(e: React.TouchEvent) => e.target === e.currentTarget && onClose()}
+        >
             <div className="modal bounce-in settings-modal">
                 <div className="modal-header">
                     <h3>Settings</h3>
