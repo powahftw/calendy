@@ -34,10 +34,8 @@ interface PlannerInteractionProviderProps {
 }
 
 export const PlannerInteractionProvider: React.FC<PlannerInteractionProviderProps> = ({ value, children }) => {
-    const memoizedValue = useMemo(() => value, [value]);
-
     return (
-        <PlannerInteractionContext.Provider value={memoizedValue}>
+        <PlannerInteractionContext.Provider value={value}>
             {children}
         </PlannerInteractionContext.Provider>
     );

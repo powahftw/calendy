@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { PlannerEvent, toLocalDate, toDateStr } from '../utils/calendarUtils';
+import { Active, Over } from '@dnd-kit/core';
 
 interface DragDataPayload {
     event: PlannerEvent;
@@ -14,8 +15,8 @@ interface DropTargetData {
 
 export function useEventDragCalculations(events: PlannerEvent[]) {
     const calculateNewEventPosition = useCallback((
-        active: any,
-        over: any
+        active: Active,
+        over: Over
     ): PlannerEvent | null => {
         const activeData = active.data.current as DragDataPayload;
         const overData = over.data.current as DropTargetData;

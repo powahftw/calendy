@@ -1,11 +1,12 @@
 import React from 'react';
+import { PlannerEvent } from '../../utils/calendarUtils';
 
 export const DayNumber: React.FC<{ value: number }> = ({ value }) => (
     <span className="day-num">{value}</span>
 );
 
 export const EventPreview: React.FC<{
-    event: any;
+    event: PlannerEvent;
     hasConflict: boolean;
     currentColors: string[];
 }> = ({ event, hasConflict, currentColors }) => {
@@ -43,7 +44,7 @@ export const EventPreview: React.FC<{
 };
 
 export const EventShadow: React.FC<{
-    event: any;
+    event: PlannerEvent;
     hasOverflow: boolean;
     color: string;
 }> = ({ event, hasOverflow, color }) => (
@@ -71,7 +72,7 @@ export const EventShadow: React.FC<{
 );
 
 export const OverflowIndicator: React.FC<{
-    events: any[];
+    events: PlannerEvent[];
     onClick: (e: React.MouseEvent) => void;
     currentColors: string[];
 }> = ({ events, onClick, currentColors }) => (
@@ -81,9 +82,9 @@ export const OverflowIndicator: React.FC<{
         onMouseDown={(e) => e.stopPropagation()}
     >
         <div className="overflow-lines">
-            {events.map((ev, i) => (
+            {events.map((ev) => (
                 <div
-                    key={i}
+                    key={ev.id}
                     className="overflow-line"
                     style={{ backgroundColor: currentColors[ev.color] || currentColors[0] }}
                 />

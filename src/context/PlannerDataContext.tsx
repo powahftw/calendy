@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useMemo, ReactNode } from 'react';
-import { PlannerEvent, ThemeId, isDateInRange } from '../utils/calendarUtils';
+import { PlannerEvent, ThemeId, isDateInRange, toLocalDate } from '../utils/calendarUtils';
 
 interface PlannerDataContextValue {
     events: PlannerEvent[];
@@ -34,15 +34,28 @@ export const PlannerDataProvider: React.FC<PlannerDataProviderProps> = ({ value,
         const map: Record<string, PlannerEvent[]> = {};
         const { events, year, monthsToShow } = value;
 
-        // We only need to map events for the visible months
-        for (let m = 0; m < monthsToShow; m++) {
-            const daysInMonth = new Date(year, m + 1, 0).getDate();
-            for (let d = 1; d <= daysInMonth; d++) {
-                const dateKey = `${year}-${m}-${d}`;
-                const dayEvents = events.filter(ev => isDateInRange(year, m, d, ev.start, ev.end));
-                if (dayEvents.length > 0) {
-                    map[dateKey] = dayEvents;
+        for (const event of events) {
+            const startDate = toLocalDate(event.start);
+            const endDate = toLocalDate(event.end);
+
+            // Iterate day by day from start to end (inclusive)
+            for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+                // Check if this day is within our current view (rough check by year/month)
+                // Note: d is mutable in the loop, we must be careful.
+
+                const dYear = d.getFullYear();
+                if (dYear !== year) continue;
+
+                const dMonth = d.getMonth();
+                if (dMonth >= monthsToShow) continue;
+
+                const day = d.getDate();
+                const dateKey = `${year}-${dMonth}-${day}`;
+
+                if (!map[dateKey]) {
+                    map[dateKey] = [];
                 }
+                map[dateKey].push(event);
             }
         }
         return map;

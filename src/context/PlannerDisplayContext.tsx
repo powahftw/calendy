@@ -27,10 +27,8 @@ interface PlannerDisplayProviderProps {
 }
 
 export const PlannerDisplayProvider: React.FC<PlannerDisplayProviderProps> = ({ value, children }) => {
-    const memoizedValue = useMemo(() => value, [value]);
-
     return (
-        <PlannerDisplayContext.Provider value={memoizedValue}>
+        <PlannerDisplayContext.Provider value={value}>
             {children}
         </PlannerDisplayContext.Provider>
     );
