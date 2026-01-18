@@ -1,0 +1,94 @@
+import React from 'react';
+import { PlannerEvent } from '../../utils/calendarUtils';
+
+export const DayNumber: React.FC<{ value: number }> = ({ value }) => (
+    <span className="day-num">{value}</span>
+);
+
+export const EventPreview: React.FC<{
+    event: PlannerEvent;
+    hasConflict: boolean;
+    currentColors: string[];
+}> = ({ event, hasConflict, currentColors }) => {
+    const color = currentColors[event.color] || currentColors[0];
+
+    if (hasConflict) {
+        return (
+            <div className="event-overflow preview-overflow" style={{ pointerEvents: 'none', zIndex: 11 }}>
+                <div className="overflow-lines">
+                    <div
+                        className="overflow-line"
+                        style={{
+                            backgroundColor: color,
+                            opacity: 0.6,
+                            border: '1px dashed rgba(255,255,255,0.4)',
+                            boxSizing: 'border-box'
+                        }}
+                    />
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div
+            className="event-chip-common preview-chip-style"
+            style={{
+                backgroundColor: color + '45',
+                borderLeft: `2px solid ${color}`,
+            }}
+        >
+            <span style={{ color: 'var(--text-primary)', opacity: 0.8 }}>{event.title}</span>
+        </div>
+    );
+};
+
+export const EventShadow: React.FC<{
+    event: PlannerEvent;
+    hasOverflow: boolean;
+    color: string;
+}> = ({ event, hasOverflow, color }) => (
+    <div
+        className="event-chip-common"
+        style={{
+            right: hasOverflow ? '6px' : '2px',
+            paddingRight: hasOverflow ? '12px' : '4px',
+            paddingLeft: '4px',
+            backgroundColor: `${color}15`,
+            borderLeft: `2px solid ${color}`,
+            opacity: 0.25,
+            zIndex: 2,
+            pointerEvents: 'none'
+        }}
+    >
+        <span style={{
+            color: 'var(--text-primary)',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            width: '100%',
+            userSelect: 'none'
+        }}>{event.title}</span>
+    </div>
+);
+
+export const OverflowIndicator: React.FC<{
+    events: PlannerEvent[];
+    onClick: (e: React.MouseEvent) => void;
+    currentColors: string[];
+}> = ({ events, onClick, currentColors }) => (
+    <div
+        className="event-overflow"
+        onClick={onClick}
+        onMouseDown={(e) => e.stopPropagation()}
+    >
+        <div className="overflow-lines">
+            {events.map((ev) => (
+                <div
+                    key={ev.id}
+                    className="overflow-line"
+                    style={{ backgroundColor: currentColors[ev.color] || currentColors[0] }}
+                />
+            ))}
+        </div>
+    </div>
+);

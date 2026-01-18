@@ -140,6 +140,8 @@ const useDragSelection = (year: number) => {
 
     return {
         isDragging: isDragging || selectionMode,
+        dragStart,
+        dragCurrent,
         selectionMode,
         startDrag,
         updateDrag,
