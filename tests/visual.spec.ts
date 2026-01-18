@@ -133,5 +133,84 @@ test.describe('Visual Regression Tests', () => {
                 fullPage: true,
             });
         });
+
+        test('drag event to next month with overlap preview', async ({ page }) => {
+            // Helper to find a day cell by number within a specific month column to avoid text overlap issues
+            const findDay = (monthIdx: number, day: number) =>
+                page.locator('.month-col').nth(monthIdx)
+                    .locator('.day-cell')
+                    .filter({ has: page.locator('.day-num').filter({ hasText: new RegExp(`^${day}$`) }) })
+                    .first();
+
+            // 1. Create Source Event (5 days): Jan 18 - Jan 22
+            const jan18 = findDay(0, 18);
+            const jan22 = findDay(0, 22);
+
+            await jan18.hover();
+            await page.mouse.down();
+            await jan22.hover();
+            await page.mouse.up();
+
+            await page.waitForSelector('.modal-overlay .modal');
+            await page.fill('.modal-overlay .modal input[type="text"]', 'To Drag');
+            // Select pink color (index 2)
+            await page.locator('.color-circle').nth(2).click();
+            await page.click('.modal-overlay .modal button:has-text("Save")');
+            await page.waitForSelector('.modal-overlay', { state: 'hidden' });
+
+            // 2. Create Target Event (3 days): Feb 16 - Feb 18
+            const feb16 = findDay(1, 16);
+            const feb18 = findDay(1, 18);
+
+            await feb16.hover();
+            await page.mouse.down();
+            await feb18.hover();
+            await page.mouse.up();
+
+            await page.waitForSelector('.modal-overlay .modal');
+            await page.fill('.modal-overlay .modal input[type="text"]', 'Test1');
+            await page.locator('.color-circle').nth(0).click(); // Blue
+            await page.click('.modal-overlay .modal button:has-text("Save")');
+            await page.waitForSelector('.modal-overlay', { state: 'hidden' });
+
+            // 3. Grab Middle of Source (Jan 20)
+            const sourceChip = page.locator('.draggable-chip-style').filter({ hasText: 'To Drag' }).first();
+
+            // 4. Drag to Feb 13
+            const feb13 = findDay(1, 13);
+
+            await sourceChip.scrollIntoViewIfNeeded();
+            const box = await sourceChip.boundingBox();
+            if (!box) throw new Error('Source chip not found');
+
+            // Move to center of chip and press down
+            await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+            await page.mouse.down();
+
+            // Move slightly to trigger drag sensor
+            await page.mouse.move(box.x + box.width / 2 + 15, box.y + box.height / 2);
+            await page.waitForTimeout(200);
+
+            // Ensure target is visible
+            await feb13.scrollIntoViewIfNeeded({ timeout: 5000 });
+            const targetBox = await feb13.boundingBox();
+            if (!targetBox) throw new Error('Target cell not found');
+
+            // Move to target center
+            await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
+            // Extra small move to ensure drag-over detection
+            await page.mouse.move(targetBox.x + targetBox.width / 2 + 5, targetBox.y + targetBox.height / 2);
+
+            // Wait for preview to render and settle
+            await page.waitForTimeout(1000);
+
+            // 5. Screenshot the PREVIEW state
+            await expect(page).toHaveScreenshot('planner-drag-preview-next-month.png', {
+                fullPage: true,
+            });
+
+            // Cleanup: Drop it
+            await page.mouse.up();
+        });
     });
 });
