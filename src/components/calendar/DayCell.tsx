@@ -46,7 +46,7 @@ const DraggableEventChip: FC<{
         transform: CSS.Translate.toString(transform),
         opacity: isDragging ? 0.5 : (isActive ? 0.6 : 1),
         zIndex: isDragging ? 200 : undefined,
-        touchAction: 'none',
+        touchAction: 'manipulation',
         right: hasOverflow ? '6px' : '2px',
         paddingRight: hasOverflow ? '12px' : '4px',
         paddingLeft: '4px',

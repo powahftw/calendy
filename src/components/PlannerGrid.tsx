@@ -1,5 +1,5 @@
 import React, { useRef, useMemo } from 'react';
-import { DndContext, DragEndEvent, DragStartEvent, DragOverEvent, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { DndContext, DragEndEvent, DragStartEvent, DragOverEvent, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { usePlannerData, usePlannerInteraction, usePlannerDisplay } from '../context/PlannerContext';
 import MonthColumn from './MonthColumn';
 import { daysOfWeek, PlannerEvent, EventRange } from '../utils/calendarUtils';
@@ -37,7 +37,7 @@ const PlannerGrid: React.FC<PlannerGridProps> = ({ onEventClick, setTodayInView,
 
     // Dnd Sensors
     const sensors = useSensors(
-        useSensor(PointerSensor, {
+        useSensor(MouseSensor, {
             activationConstraint: {
                 distance: 8,
             },
