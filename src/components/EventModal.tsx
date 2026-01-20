@@ -1,17 +1,18 @@
 import React, { FC, useState, useEffect, useRef } from 'react';
 import { monthNames, EventRange } from '../utils/calendarUtils';
+import { useTheme } from '../hooks/useTheme';
 
 interface EventModalProps {
     range: EventRange;
     onClose: () => void;
     onSave: (title: string, colorIndex: number) => void;
-    palette: string[];
 }
 
-const EventModal: FC<EventModalProps> = ({ range, onClose, onSave, palette }) => {
+const EventModal: FC<EventModalProps> = ({ range, onClose, onSave }) => {
     const [title, setTitle] = useState('');
     const [selectedIndex, setSelectedIndex] = useState(0);
     const inputRef = useRef<HTMLInputElement>(null);
+    const palette = useTheme();
 
     useEffect(() => {
         if (inputRef.current) inputRef.current.focus();

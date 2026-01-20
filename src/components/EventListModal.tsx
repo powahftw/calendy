@@ -1,5 +1,6 @@
 import React, { FC, useEffect } from 'react';
 import { formatDateRange, monthNames, PlannerEvent, RangeDate } from '../utils/calendarUtils';
+import { useTheme } from '../hooks/useTheme';
 
 interface EventListModalProps {
     events: PlannerEvent[];
@@ -8,10 +9,10 @@ interface EventListModalProps {
     onDelete: (id: string) => void;
     onUpdate: (event: PlannerEvent) => void;
     onAdd: () => void;
-    palette: string[];
 }
 
-const EventListModal: FC<EventListModalProps> = ({ events, date, onClose, onDelete, onUpdate, onAdd, palette }) => {
+const EventListModal: FC<EventListModalProps> = ({ events, date, onClose, onDelete, onUpdate, onAdd }) => {
+    const palette = useTheme();
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Escape') onClose();

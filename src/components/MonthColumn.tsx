@@ -1,9 +1,8 @@
 import React, { FC, useMemo } from 'react';
-import { monthNames, getDayOfWeekIndex, PlannerEvent, isDateInRange } from '../utils/calendarUtils';
+import { monthNames, getDayOfWeekIndex, PlannerEvent, isDateInRange, getDateKey } from '../utils/calendarUtils';
 import { usePlannerData, usePlannerInteraction, usePlannerDisplay } from '../context/PlannerContext';
 import { generateMonthLayout } from '../utils/calendar/layoutCalculations';
 import DayCell from './calendar/DayCell';
-import { getThemeColors } from '../utils/calendarUtils';
 
 interface MonthColumnProps {
     monthIndex: number;
@@ -26,13 +25,11 @@ const MonthColumn: FC<MonthColumnProps> = ({
     onTouchEnd,
     dragPreviewEvent,
 }) => {
-    const { year, theme, eventMap } = usePlannerData();
+    const { year, eventMap } = usePlannerData();
     const {
         startDrag, updateDrag, isHighlighted, onTouchStart, onTouchMove, activeEventId
     } = usePlannerInteraction();
     const { weekdayAlign, showWeekends, highlightToday } = usePlannerDisplay();
-
-    const currentColors = useMemo(() => getThemeColors(theme), [theme]);
 
     const layout = useMemo(() => generateMonthLayout({
         year,
@@ -47,12 +44,17 @@ const MonthColumn: FC<MonthColumnProps> = ({
 
             {layout.map((cell) => {
                 if (cell.type === 'spacer' || cell.type === 'filler') {
-                    return <div key={cell.id} className="day-cell empty"></div>;
+                    return (
+                        <DayCell
+                            key={cell.id}
+                            type={cell.type}
+                        />
+                    );
                 }
 
                 const day = cell.day!;
-                const dateKey = `${year}-${monthIndex}-${day}`;
-                const eventsOnDay = eventMap[dateKey] || [];
+                const dateKey = getDateKey(year, monthIndex, day);
+                const eventsOnDay = eventMap.get(dateKey) ?? [];
 
                 const dayIdx = getDayOfWeekIndex(year, monthIndex, day);
                 const isWeekend = dayIdx === 5 || dayIdx === 6;
@@ -63,6 +65,7 @@ const MonthColumn: FC<MonthColumnProps> = ({
                 return (
                     <DayCell
                         key={cell.id}
+                        type="day"
                         year={year}
                         month={monthIndex}
                         day={day}
@@ -72,7 +75,6 @@ const MonthColumn: FC<MonthColumnProps> = ({
                         isHighlighted={isHighlighted(monthIndex, day)}
                         dragPreviewEvent={showPreview ? dragPreviewEvent : null}
                         activeEventId={activeEventId}
-                        currentColors={currentColors}
                         showWeekends={showWeekends}
                         onEventClick={onEventClick}
                         onMouseDown={startDrag}
