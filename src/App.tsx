@@ -1,6 +1,7 @@
 import React from 'react';
 import { Toaster } from 'react-hot-toast';
 import './App.css';
+import './utils/logger';
 import { useAuth } from './AuthContext';
 import LoginScreen from './LoginScreen';
 import { PlannerProvider } from './context/PlannerContext';
