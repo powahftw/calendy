@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { syncEvents, subscribeToEvents, loadEvents, syncSettings, subscribeToSettings, loadSettings } from '../firestoreSync';
-import { defaultBluePalette, PlannerEvent, PlannerSettings, ThemeId } from '../utils/calendarUtils';
+import { PlannerEvent, PlannerSettings, ThemeId } from '../utils/calendarUtils';
 import { User } from 'firebase/auth';
 
 const getStorageKey = (user: User | null, key: string) => {
@@ -132,16 +132,7 @@ const usePlannerPersistence = (user: User | null) => {
 
         const { events: loadedEvents, found: foundLocalEvents, updatedAt } = getEvents();
 
-        // Migration: Convert Hex colors to Indices (Legacy check)
-        const migratedEvents = loadedEvents.map((ev: any) => {
-            if (typeof ev.color === 'string') {
-                const idx = defaultBluePalette.indexOf(ev.color);
-                return { ...ev, color: idx >= 0 ? idx : 0 };
-            }
-            return ev;
-        });
-
-        setEvents(migratedEvents);
+        setEvents(loadedEvents);
         localEventsUpdatedAtRef.current = updatedAt;
         isLocalLoad.current = true;
 
@@ -245,15 +236,6 @@ const usePlannerPersistence = (user: User | null) => {
                             remoteHasData &&
                             (remoteUpdatedAt >= localUpdatedAt || !localHasData);
 
-                        console.log('[DEBUG] initRemoteData', {
-                            localUpdatedAt,
-                            remoteUpdatedAt,
-                            remoteHasData,
-                            localHasData,
-                            remoteWins,
-                            prevLength: prev.length,
-                            remoteLength: remoteEvents.events.length
-                        });
 
                         if (remoteWins && JSON.stringify(prev) !== JSON.stringify(remoteEvents.events)) {
                             isRemoteUpdate.current = true;

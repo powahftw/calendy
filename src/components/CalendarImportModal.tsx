@@ -1,8 +1,9 @@
 import React, { FC, useState } from 'react';
-import { calendarService, CalendarService, GoogleCalendar, GoogleEvent } from '../services/CalendarService';
+import { CalendarService } from '../services/CalendarService';
 import { usePlanner } from '../context/PlannerContext';
 import { PlannerEvent, toDateStr, uid } from '../utils/calendarUtils';
 import toast from 'react-hot-toast';
+import { useGoogleCalendar } from '../hooks/useGoogleCalendar';
 
 interface CalendarImportModalProps {
     onClose: () => void;
@@ -13,60 +14,21 @@ type Step = 'AUTH' | 'SELECT_CALENDAR' | 'SELECT_EVENTS' | 'IMPORTING';
 const CalendarImportModal: FC<CalendarImportModalProps> = ({ onClose }) => {
     const { events: plannerEvents, setEvents } = usePlanner();
     const [step, setStep] = useState<Step>('AUTH');
-    const [calendars, setCalendars] = useState<GoogleCalendar[]>([]);
-    const [selectedCalendarId, setSelectedCalendarId] = useState<string | null>(null);
-    const [eligibleEvents, setEligibleEvents] = useState<GoogleEvent[]>([]);
     const [selectedEventIds, setSelectedEventIds] = useState<Set<string>>(new Set());
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const { calendars, eligibleEvents, loading, error, signIn, fetchEvents } = useGoogleCalendar();
 
     const handleAuth = async () => {
-        setLoading(true);
-        setError(null);
-        try {
-            await calendarService.authenticate();
-            const cals = await calendarService.listCalendars();
-            setCalendars(cals);
+        const cals = await signIn();
+        if (cals) {
             setStep('SELECT_CALENDAR');
-        } catch (err) {
-            console.error(err);
-            setError("Failed to connect to Google Calendar. Please try again.");
-            toast.error("Failed to connect to Google Calendar.");
-        } finally {
-            setLoading(false);
         }
     };
 
     const handleCalendarSelect = async (calId: string) => {
-        setSelectedCalendarId(calId);
-        setLoading(true);
-        setError(null);
-        try {
-            const allEvents = await calendarService.listEvents(calId);
-
-            // Filter events longer than 12 hours
-            const filtered = allEvents.filter(ev => {
-                const duration = CalendarService.getDurationInHours(ev);
-                return duration >= 12;
-            });
-
-            if (filtered.length === 0) {
-                setError("No events longer than 12 hours found in the next 12 months.");
-                toast.error("No suitable events found.");
-                setLoading(false);
-                return;
-            }
-
-            setEligibleEvents(filtered);
-            // Select all by default
+        const filtered = await fetchEvents(calId);
+        if (filtered) {
             setSelectedEventIds(new Set(filtered.map(e => e.id)));
             setStep('SELECT_EVENTS');
-        } catch (err) {
-            console.error(err);
-            setError("Failed to fetch events.");
-            toast.error("Failed to fetch events.");
-        } finally {
-            setLoading(false);
         }
     };
 
@@ -126,7 +88,6 @@ const CalendarImportModal: FC<CalendarImportModalProps> = ({ onClose }) => {
             onClose();
         } catch (err) {
             console.error(err);
-            setError("Failed to import events.");
             toast.error("Failed to import events.");
             setStep('SELECT_EVENTS');
         }

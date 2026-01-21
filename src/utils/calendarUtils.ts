@@ -80,6 +80,8 @@ export const toDateStr = (year: number, month: number, day: number): string => {
     return `${year}-${mm}-${dd}`;
 };
 
+export const getDateKey = (year: number, month: number, day: number): string => `${year}-${month}-${day}`;
+
 export const parseDateStr = (dateStr: string): { year: number; month: number; day: number } => {
     const [year, month, day] = dateStr.split('-').map(Number);
     return { year, month, day };
@@ -88,6 +90,22 @@ export const parseDateStr = (dateStr: string): { year: number; month: number; da
 export const toLocalDate = (dateStr: string): Date => {
     const { year, month, day } = parseDateStr(dateStr);
     return new Date(year, month - 1, day);
+};
+
+export const getDatesInRange = (startStr: string, endStr: string): RangeDate[] => {
+    const start = toLocalDate(startStr);
+    const end = toLocalDate(endStr);
+    const dates: RangeDate[] = [];
+
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        dates.push({
+            year: d.getFullYear(),
+            month: d.getMonth(),
+            day: d.getDate()
+        });
+    }
+
+    return dates;
 };
 
 export const formatMonthDay = (dateStr: string): string => {

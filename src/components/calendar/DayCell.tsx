@@ -2,27 +2,32 @@ import React, { FC } from 'react';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { PlannerEvent } from '../../utils/calendarUtils';
+import { useTheme } from '../../hooks/useTheme';
 import { DayNumber, EventPreview, EventShadow, OverflowIndicator } from './DayCellSubComponents';
 
-interface DayCellProps {
-    year: number;
-    month: number;
-    day: number;
-    isWeekend: boolean;
-    isToday: boolean;
-    eventsOnDay: PlannerEvent[];
-    isHighlighted: boolean;
-    dragPreviewEvent: PlannerEvent | null;
-    activeEventId: string | null;
-    currentColors: string[];
-    showWeekends: boolean;
-    onEventClick: (e: React.MouseEvent, allEventsOnDay: PlannerEvent[], m: number, d: number) => void;
-    onMouseDown: (m: number, d: number) => void;
-    onMouseEnter: (m: number, d: number) => void;
-    onTouchStart: (e: React.TouchEvent, m: number, d: number) => void;
-    onTouchMove: (e: React.TouchEvent) => void;
-    onTouchEnd: () => void;
-}
+type DayCellProps =
+    | {
+        type: 'spacer' | 'filler';
+    }
+    | {
+        type: 'day';
+        year: number;
+        month: number;
+        day: number;
+        isWeekend: boolean;
+        isToday: boolean;
+        eventsOnDay: PlannerEvent[];
+        isHighlighted: boolean;
+        dragPreviewEvent: PlannerEvent | null;
+        activeEventId: string | null;
+        showWeekends: boolean;
+        onEventClick: (e: React.MouseEvent, allEventsOnDay: PlannerEvent[], m: number, d: number) => void;
+        onMouseDown: (m: number, d: number) => void;
+        onMouseEnter: (m: number, d: number) => void;
+        onTouchStart: (e: React.TouchEvent, m: number, d: number) => void;
+        onTouchMove: (e: React.TouchEvent) => void;
+        onTouchEnd: () => void;
+    };
 
 const DraggableEventChip: FC<{
     event: PlannerEvent;
@@ -82,11 +87,17 @@ const DraggableEventChip: FC<{
     );
 };
 
-const DayCell: FC<DayCellProps> = React.memo(({
-    year, month, day, isWeekend, isToday, eventsOnDay, isHighlighted,
-    dragPreviewEvent, activeEventId, currentColors, showWeekends,
-    onEventClick, onMouseDown, onMouseEnter, onTouchStart, onTouchMove, onTouchEnd
-}) => {
+const DayCell: FC<DayCellProps> = React.memo((props) => {
+    if (props.type !== 'day') {
+        return <div className="day-cell empty"></div>;
+    }
+
+    const {
+        year, month, day, isWeekend, isToday, eventsOnDay, isHighlighted,
+        dragPreviewEvent, activeEventId, showWeekends,
+        onEventClick, onMouseDown, onMouseEnter, onTouchStart, onTouchMove, onTouchEnd
+    } = props;
+    const currentColors = useTheme();
     const { isOver, setNodeRef } = useDroppable({
         id: `day-${year}-${month}-${day}`,
         data: { year, month, day }

@@ -1,5 +1,6 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { RangeDate, EventRange } from '../utils/calendarUtils';
+import { isTouchDevice, MouseSelectionStrategy, SelectionStrategy, TouchSelectionStrategy } from '../utils/selectionStrategies';
 
 const TOUCH_MOVE_THRESHOLD = 10;
 
@@ -10,22 +11,35 @@ const useDragSelection = (year: number) => {
 
     // Mobile / Touch State
     const [selectionMode, setSelectionMode] = useState(false);
-    const longPressTimer = useRef<NodeJS.Timeout | null>(null);
-    const touchStartPos = useRef<{ x: number, y: number } | null>(null);
+    const stateRef = useRef({
+        isDragging: false,
+        selectionMode: false,
+        dragStart: null as RangeDate | null,
+        dragCurrent: null as RangeDate | null
+    });
 
-    const startDrag = (m: number, d: number) => {
+    useEffect(() => {
+        stateRef.current = { isDragging, selectionMode, dragStart, dragCurrent };
+    }, [isDragging, selectionMode, dragStart, dragCurrent]);
+
+    const startDrag = useCallback((m: number, d: number) => {
         setIsDragging(true);
         setDragStart({ year, month: m, day: d });
         setDragCurrent({ year, month: m, day: d });
-    };
+        stateRef.current.isDragging = true;
+        stateRef.current.dragStart = { year, month: m, day: d };
+        stateRef.current.dragCurrent = { year, month: m, day: d };
+    }, [year]);
 
-    const updateDrag = (m: number, d: number) => {
-        if (isDragging) {
+    const updateDrag = useCallback((m: number, d: number) => {
+        if (stateRef.current.isDragging) {
             setDragCurrent({ year, month: m, day: d });
+            stateRef.current.dragCurrent = { year, month: m, day: d };
         }
-    };
+    }, [year]);
 
-    const finaliseDrag = (callback: (range: EventRange) => void) => {
+    const finaliseDrag = useCallback((callback: (range: EventRange) => void) => {
+        const { dragStart, dragCurrent } = stateRef.current;
         if (dragStart && dragCurrent) {
             const d1 = new Date(year, dragStart.month, dragStart.day);
             const d2 = new Date(year, dragCurrent.month, dragCurrent.day);
@@ -42,16 +56,19 @@ const useDragSelection = (year: number) => {
         }
         setDragStart(null);
         setDragCurrent(null);
-    };
+        stateRef.current.dragStart = null;
+        stateRef.current.dragCurrent = null;
+    }, [year]);
 
-    const endDrag = (callback: (range: EventRange) => void) => {
-        if (!isDragging) return;
+    const endDrag = useCallback((callback: (range: EventRange) => void) => {
+        if (!stateRef.current.isDragging) return;
         setIsDragging(false);
+        stateRef.current.isDragging = false;
         finaliseDrag(callback);
-    };
+    }, [finaliseDrag]);
 
     // --- Touch Handlers ---
-    const getCellFromPoint = (x: number, y: number): RangeDate | null => {
+    const getCellFromPoint = useCallback((x: number, y: number): RangeDate | null => {
         const el = document.elementFromPoint(x, y);
         if (!el) return null;
 
@@ -65,61 +82,7 @@ const useDragSelection = (year: number) => {
             };
         }
         return null;
-    };
-
-    const onTouchStart = (e: React.TouchEvent, m: number, d: number) => {
-        touchStartPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-
-        longPressTimer.current = setTimeout(() => {
-            setSelectionMode(true);
-            setIsDragging(true); // Reuse drag logic state
-            setDragStart({ year, month: m, day: d });
-            setDragCurrent({ year, month: m, day: d });
-            // Haptic feedback if available
-            if (navigator.vibrate) navigator.vibrate(50);
-        }, 500);
-    };
-
-    const onTouchMove = (e: React.TouchEvent) => {
-        if (selectionMode) {
-            // Prevent scrolling
-            if (e.cancelable) e.preventDefault();
-
-            const touch = e.touches[0];
-            const cellDate = getCellFromPoint(touch.clientX, touch.clientY);
-
-            if (cellDate) {
-                setDragCurrent(cellDate);
-            }
-        } else {
-            // Check if moved enough to cancel long press
-            if (touchStartPos.current) {
-                const dx = e.touches[0].clientX - touchStartPos.current.x;
-                const dy = e.touches[0].clientY - touchStartPos.current.y;
-                if (Math.abs(dx) > TOUCH_MOVE_THRESHOLD || Math.abs(dy) > TOUCH_MOVE_THRESHOLD) {
-                    if (longPressTimer.current) clearTimeout(longPressTimer.current);
-                }
-            }
-        }
-    };
-
-    const onTouchEnd = (callback: (range: EventRange) => void) => {
-        if (longPressTimer.current) clearTimeout(longPressTimer.current);
-
-        if (selectionMode) {
-            setIsDragging(false);
-            setSelectionMode(false);
-            finaliseDrag(callback);
-        }
-        touchStartPos.current = null;
-    };
-
-    const onContextMenu = (e: React.MouseEvent) => {
-        // Prevent system menu if we are in selection mode or just finished it
-        if (selectionMode || isDragging) {
-            e.preventDefault();
-        }
-    };
+    }, [year]);
 
     const isHighlighted = (m: number, d: number) => {
         if ((!isDragging && !selectionMode) || !dragStart || !dragCurrent) return false;
@@ -131,26 +94,48 @@ const useDragSelection = (year: number) => {
         return val >= minVal && val <= maxVal;
     };
 
-    // Cleanup
-    useEffect(() => {
-        return () => {
-            if (longPressTimer.current) clearTimeout(longPressTimer.current);
-        };
-    }, []);
+    const mouseStrategy = useMemo(() => new MouseSelectionStrategy({
+        start: startDrag,
+        update: updateDrag,
+        end: endDrag
+    }), [startDrag, updateDrag, endDrag]);
+
+    const touchStrategy = useMemo(() => new TouchSelectionStrategy({
+        year,
+        getState: () => stateRef.current,
+        setIsDragging,
+        setSelectionMode,
+        setDragStart,
+        setDragCurrent,
+        finaliseDrag,
+        getCellFromPoint,
+        touchMoveThreshold: TOUCH_MOVE_THRESHOLD
+    }), [year, finaliseDrag, getCellFromPoint]);
+
+    useEffect(() => () => touchStrategy.cleanup?.(), [touchStrategy]);
+
+    const handleTouchStart = touchStrategy.onTouchStart ?? (() => { });
+    const handleTouchMove = touchStrategy.onTouchMove ?? (() => { });
+    const handleTouchEnd = touchStrategy.onTouchEnd ?? ((callback: (range: EventRange) => void) => touchStrategy.end(callback));
+    const handleContextMenu = touchStrategy.onContextMenu ?? ((e: React.MouseEvent) => {
+        if (selectionMode || isDragging) {
+            e.preventDefault();
+        }
+    });
 
     return {
         isDragging: isDragging || selectionMode,
         dragStart,
         dragCurrent,
         selectionMode,
-        startDrag,
-        updateDrag,
-        endDrag,
+        startDrag: mouseStrategy.start,
+        updateDrag: mouseStrategy.update,
+        endDrag: mouseStrategy.end,
         isHighlighted,
-        onTouchStart,
-        onTouchMove,
-        onTouchEnd,
-        onContextMenu
+        onTouchStart: handleTouchStart,
+        onTouchMove: handleTouchMove,
+        onTouchEnd: handleTouchEnd,
+        onContextMenu: handleContextMenu
     };
 };
 

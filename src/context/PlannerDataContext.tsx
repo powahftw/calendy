@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useMemo, ReactNode } from 'react';
-import { PlannerEvent, ThemeId, isDateInRange, toLocalDate } from '../utils/calendarUtils';
+import { PlannerEvent, ThemeId, getDatesInRange, getDateKey } from '../utils/calendarUtils';
 
 interface PlannerDataContextValue {
     events: PlannerEvent[];
@@ -10,7 +10,7 @@ interface PlannerDataContextValue {
     setMonthsToShow: (n: number) => void;
     theme: ThemeId;
     setTheme: (theme: ThemeId) => void;
-    eventMap: Record<string, PlannerEvent[]>;
+    eventMap: Map<string, PlannerEvent[]>;
     isInitialLoadDone: boolean;
 }
 
@@ -31,31 +31,23 @@ interface PlannerDataProviderProps {
 
 export const PlannerDataProvider: React.FC<PlannerDataProviderProps> = ({ value, children }) => {
     const eventMap = useMemo(() => {
-        const map: Record<string, PlannerEvent[]> = {};
+        const map = new Map<string, PlannerEvent[]>();
         const { events, year, monthsToShow } = value;
 
         for (const event of events) {
-            const startDate = toLocalDate(event.start);
-            const endDate = toLocalDate(event.end);
+            const dates = getDatesInRange(event.start, event.end);
 
-            // Iterate day by day from start to end (inclusive)
-            for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-                // Check if this day is within our current view (rough check by year/month)
-                // Note: d is mutable in the loop, we must be careful.
+            for (const date of dates) {
+                if (date.year !== year) continue;
+                if (date.month >= monthsToShow) continue;
 
-                const dYear = d.getFullYear();
-                if (dYear !== year) continue;
-
-                const dMonth = d.getMonth();
-                if (dMonth >= monthsToShow) continue;
-
-                const day = d.getDate();
-                const dateKey = `${year}-${dMonth}-${day}`;
-
-                if (!map[dateKey]) {
-                    map[dateKey] = [];
+                const dateKey = getDateKey(date.year, date.month, date.day);
+                const existing = map.get(dateKey);
+                if (existing) {
+                    existing.push(event);
+                } else {
+                    map.set(dateKey, [event]);
                 }
-                map[dateKey].push(event);
             }
         }
         return map;
