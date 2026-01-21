@@ -5,6 +5,8 @@ import MonthColumn from './MonthColumn';
 import { daysOfWeek, PlannerEvent, EventRange } from '../utils/calendarUtils';
 import { useEventDragCalculations } from '../hooks/useEventDragCalculations';
 import { useTodayVisibility } from '../hooks/useTodayVisibility';
+import { logger } from '../utils/logger';
+
 
 interface PlannerGridProps {
     onEventClick: (e: React.MouseEvent, allEventsOnDay: PlannerEvent[], m: number, d: number) => void;
@@ -58,6 +60,7 @@ const PlannerGrid: React.FC<PlannerGridProps> = ({ onEventClick, setTodayInView,
         isDragJustFinishedRef.current = false;
         const activeData = event.active.data.current as any;
         if (activeData?.event) {
+            logger.info('Drag started for event:', activeData.event);
             setActiveEventId(activeData.event.id);
         }
     };
@@ -84,7 +87,10 @@ const PlannerGrid: React.FC<PlannerGridProps> = ({ onEventClick, setTodayInView,
         }, 100);
 
         const { active, over } = event;
-        if (!over) return;
+        if (!over) {
+            logger.info('Drag ended (cancelled/no target)');
+            return;
+        }
 
         // Mark drag as finished to prevent click
         isDragJustFinishedRef.current = true;
@@ -92,6 +98,7 @@ const PlannerGrid: React.FC<PlannerGridProps> = ({ onEventClick, setTodayInView,
 
         const newEvent = calculateNewEventPosition(active, over);
         if (newEvent) {
+            logger.info('Drag finished, moving event to:', newEvent);
             const newEvents = events.map(ev => (ev.id === newEvent.id ? newEvent : ev));
             setEvents(newEvents);
         }

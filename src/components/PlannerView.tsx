@@ -7,6 +7,8 @@ import SettingsModal from './SettingsModal';
 import EventModal from './EventModal';
 import EventListModal from './EventListModal';
 import { User } from 'firebase/auth';
+import { logger } from '../utils/logger';
+
 
 interface PlannerViewProps {
     user: User | null;
@@ -91,11 +93,13 @@ const PlannerView: React.FC<PlannerViewProps> = ({ user, signOut, isGuest, setIs
             end: endStr,
             color: colorIndex
         });
+        logger.info('Creating new event:', newEvent);
         setEvents(prevEvents => [...prevEvents, newEvent]);
         setModal({ type: 'NONE' });
     };
 
     const handleUpdateEvent = (updatedEvent: PlannerEvent) => {
+        logger.info('Updating event:', updatedEvent);
         setEvents(prevEvents => prevEvents.map(ev => ev.id === updatedEvent.id ? updatedEvent : ev));
         if (modal.type === 'LIST') {
             setModal({
@@ -106,6 +110,7 @@ const PlannerView: React.FC<PlannerViewProps> = ({ user, signOut, isGuest, setIs
     };
 
     const handleDeleteEvent = (id: string) => {
+        logger.info('Deleting event ID:', id);
         setEvents(prevEvents => prevEvents.filter(ev => ev.id !== id));
         if (modal.type === 'LIST') {
             const nextSelected = modal.events.filter(ev => ev.id !== id);

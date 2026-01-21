@@ -8,6 +8,8 @@ import {
     DocumentData
 } from 'firebase/firestore';
 import { PlannerEvent, PlannerSettings } from './utils/calendarUtils';
+import { logger } from './utils/logger';
+
 
 export interface RemoteEventsPayload {
     events: PlannerEvent[];
@@ -21,7 +23,7 @@ const DEBOUNCE_MS = 1000;
 /**
  * Save events to Firestore (debounced)
  */
-export const syncEvents = (uid: string, events: PlannerEvent[]) => {
+export const syncEvents = (uid: string, events: PlannerEvent[], timestamp?: number) => {
     if (!uid) return;
 
     if (saveTimeout) {
@@ -30,14 +32,15 @@ export const syncEvents = (uid: string, events: PlannerEvent[]) => {
 
     saveTimeout = setTimeout(async () => {
         try {
+            logger.info('Syncing Events to Firestore...', { count: events.length });
             const ref = doc(db, 'users', uid, 'data', 'events');
             await setDoc(ref, {
                 events,
-                updatedAt: serverTimestamp()
+                updatedAt: timestamp || serverTimestamp()
             }, { merge: true });
-            console.log('Events synced to Firestore');
+            logger.info('Events synced to Firestore successfully');
         } catch (error) {
-            console.error('Error syncing events:', error);
+            logger.error('Error syncing events:', error);
         }
     }, DEBOUNCE_MS);
 };
@@ -89,7 +92,7 @@ export const loadEvents = async (uid: string): Promise<RemoteEventsPayload | nul
  */
 let settingsSaveTimeout: ReturnType<typeof setTimeout> | null = null;
 
-export const syncSettings = (uid: string, settings: PlannerSettings) => {
+export const syncSettings = (uid: string, settings: PlannerSettings, timestamp?: number) => {
     if (!uid) return;
 
     if (settingsSaveTimeout) {
@@ -98,14 +101,15 @@ export const syncSettings = (uid: string, settings: PlannerSettings) => {
 
     settingsSaveTimeout = setTimeout(async () => {
         try {
+            logger.info('Syncing Settings to Firestore...', settings);
             const ref = doc(db, 'users', uid, 'data', 'settings');
             await setDoc(ref, {
                 ...settings,
-                updatedAt: serverTimestamp()
+                updatedAt: timestamp || serverTimestamp()
             }, { merge: true });
-            console.log('Settings synced to Firestore');
+            logger.info('Settings synced to Firestore successfully');
         } catch (error) {
-            console.error('Error syncing settings:', error);
+            logger.error('Error syncing settings:', error);
         }
     }, DEBOUNCE_MS);
 };
@@ -114,7 +118,7 @@ export const syncSettings = (uid: string, settings: PlannerSettings) => {
  * Subscribe to settings changes from Firestore
  * Returns an unsubscribe function
  */
-export const subscribeToSettings = (uid: string, callback: (settings: Partial<PlannerSettings>) => void) => {
+export const subscribeToSettings = (uid: string, callback: (settings: Partial<PlannerSettings> & { updatedAt?: number }) => void) => {
     if (!uid) return () => { };
 
     const ref = doc(db, 'users', uid, 'data', 'settings');
@@ -122,9 +126,8 @@ export const subscribeToSettings = (uid: string, callback: (settings: Partial<Pl
     return onSnapshot(ref, (snapshot) => {
         if (snapshot.exists()) {
             const data = snapshot.data();
-            // Remove updatedAt from callback data
-            const { updatedAt: _updatedAt, ...settings } = data as DocumentData;
-            callback(settings as Partial<PlannerSettings>);
+            const updatedAt = data.updatedAt?.toMillis?.() || data.updatedAt || null;
+            callback({ ...data, updatedAt } as Partial<PlannerSettings> & { updatedAt: number });
         }
     }, (error) => {
         console.error('Error subscribing to settings:', error);
