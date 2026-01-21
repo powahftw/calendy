@@ -29,7 +29,16 @@ export const loadFromLocalStorage = (userId: string): LocalStorageState => {
         const key = `${STORAGE_PREFIX}${userId}`;
         const raw = localStorage.getItem(key);
         if (raw) {
-            return JSON.parse(raw);
+            try {
+                const parsed = JSON.parse(raw);
+                // Check if it's a valid v2 state object
+                if (parsed && typeof parsed === 'object' && 'data' in parsed && parsed.data.events) {
+                    return parsed as LocalStorageState;
+                }
+                logger.warn('localStorage data missing required "data" or "events" fields');
+            } catch (e) {
+                logger.error('Failed to parse localStorage data:', e);
+            }
         }
 
         // Return default data if no v2 data found
@@ -58,27 +67,3 @@ export const saveToLocalStorage = (userId: string, data: PlannerData, updatedAt:
     }
 };
 
-export const saveToFirestore = async (
-    userId: string,
-    data: PlannerData,
-    timestamp: number
-) => {
-    try {
-        const eventsRef = doc(db, 'users', userId, 'data', 'events');
-        const settingsRef = doc(db, 'users', userId, 'data', 'settings');
-
-        await Promise.all([
-            setDoc(eventsRef, {
-                events: data.events,
-                updatedAt: timestamp
-            }, { merge: true }),
-            setDoc(settingsRef, {
-                ...data.settings,
-                updatedAt: timestamp
-            }, { merge: true })
-        ]);
-        logger.info('Synced to Firestore');
-    } catch (error) {
-        logger.error('Failed to save to Firestore:', error);
-    }
-};

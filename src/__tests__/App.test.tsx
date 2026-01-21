@@ -188,7 +188,11 @@ describe('Storage Persistence', () => {
 });
 
 describe('Firebase Sync Logic', () => {
-    // ... setup ...
+    beforeEach(() => {
+        localStorage.clear();
+        vi.clearAllMocks();
+        mockAuthValue.user = null;
+    });
 
     it('should load remote events when remote timestamp is newer', async () => {
         const user = { uid: 'test-user' } as User;
@@ -225,7 +229,7 @@ describe('Firebase Sync Logic', () => {
         expect(screen.queryByText('Local Event')).not.toBeInTheDocument();
     });
 
-    it('should NOT override local events with empty remote state', async () => {
+    it('should override local events with empty remote state if remote is newer (deletion sync)', async () => {
         const user = { uid: 'test-user' } as User;
         const now = Date.now();
 
@@ -238,15 +242,24 @@ describe('Firebase Sync Logic', () => {
         };
         localStorage.setItem('planner_v2_test-user', JSON.stringify(localState));
 
-        mockLoadEvents.mockResolvedValue({
-            events: [],
-            updatedAt: now
+        mockLoadEvents.mockImplementation(async () => {
+            await new Promise(resolve => setTimeout(resolve, 100));
+            return {
+                events: [],
+                updatedAt: now
+            };
         });
 
         mockAuthValue.user = user;
         render(<App />);
 
-        expect(await screen.findByText('Local Event', {}, { timeout: 10000 })).toBeInTheDocument();
+        // Should initially show local event
+        expect(await screen.findByText('Local Event')).toBeInTheDocument();
+
+        // Then it should be cleared when remote data (which is newer and empty) arrives
+        await waitFor(() => {
+            expect(screen.queryByText('Local Event')).not.toBeInTheDocument();
+        }, { timeout: 10000 });
     });
 
     it('should ignore remote updates when local is newer', async () => {
