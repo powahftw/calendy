@@ -17,6 +17,10 @@ export const useIntersectionObserver = ({
 }: IntersectionObserverOptions) => {
     useEffect(() => {
         if (!target) return;
+        if (typeof IntersectionObserver === 'undefined') {
+            onChange(true);
+            return;
+        }
 
         const observer = new IntersectionObserver(
             (entries) => {
