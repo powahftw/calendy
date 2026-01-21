@@ -688,6 +688,25 @@ body[data-theme='dark'] .day-cell.highlighted {
   margin-right: 8px;
 }
 
+.settings-actions-row {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.settings-actions-row > * {
+  flex: 1;
+}
+
+.import-dropzone {
+  display: flex;
+  flex: 1;
+}
+
+.import-dropzone button {
+  width: 100%;
+}
+
 .settings-actions-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
