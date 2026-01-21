@@ -236,15 +236,6 @@ const usePlannerPersistence = (user: User | null) => {
                             remoteHasData &&
                             (remoteUpdatedAt >= localUpdatedAt || !localHasData);
 
-                        console.log('[DEBUG] initRemoteData', {
-                            localUpdatedAt,
-                            remoteUpdatedAt,
-                            remoteHasData,
-                            localHasData,
-                            remoteWins,
-                            prevLength: prev.length,
-                            remoteLength: remoteEvents.events.length
-                        });
 
                         if (remoteWins && JSON.stringify(prev) !== JSON.stringify(remoteEvents.events)) {
                             isRemoteUpdate.current = true;

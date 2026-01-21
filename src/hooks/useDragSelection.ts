@@ -26,15 +26,20 @@ const useDragSelection = (year: number) => {
         setIsDragging(true);
         setDragStart({ year, month: m, day: d });
         setDragCurrent({ year, month: m, day: d });
+        stateRef.current.isDragging = true;
+        stateRef.current.dragStart = { year, month: m, day: d };
+        stateRef.current.dragCurrent = { year, month: m, day: d };
     }, [year]);
 
     const updateDrag = useCallback((m: number, d: number) => {
-        if (isDragging) {
+        if (stateRef.current.isDragging) {
             setDragCurrent({ year, month: m, day: d });
+            stateRef.current.dragCurrent = { year, month: m, day: d };
         }
-    }, [isDragging, year]);
+    }, [year]);
 
     const finaliseDrag = useCallback((callback: (range: EventRange) => void) => {
+        const { dragStart, dragCurrent } = stateRef.current;
         if (dragStart && dragCurrent) {
             const d1 = new Date(year, dragStart.month, dragStart.day);
             const d2 = new Date(year, dragCurrent.month, dragCurrent.day);
@@ -51,13 +56,16 @@ const useDragSelection = (year: number) => {
         }
         setDragStart(null);
         setDragCurrent(null);
-    }, [dragStart, dragCurrent, year]);
+        stateRef.current.dragStart = null;
+        stateRef.current.dragCurrent = null;
+    }, [year]);
 
     const endDrag = useCallback((callback: (range: EventRange) => void) => {
-        if (!isDragging) return;
+        if (!stateRef.current.isDragging) return;
         setIsDragging(false);
+        stateRef.current.isDragging = false;
         finaliseDrag(callback);
-    }, [finaliseDrag, isDragging]);
+    }, [finaliseDrag]);
 
     // --- Touch Handlers ---
     const getCellFromPoint = useCallback((x: number, y: number): RangeDate | null => {
@@ -86,34 +94,30 @@ const useDragSelection = (year: number) => {
         return val >= minVal && val <= maxVal;
     };
 
-    const selectionStrategy: SelectionStrategy = useMemo(() => {
-        if (isTouchDevice()) {
-            return new TouchSelectionStrategy({
-                year,
-                getState: () => stateRef.current,
-                setIsDragging,
-                setSelectionMode,
-                setDragStart,
-                setDragCurrent,
-                finaliseDrag,
-                getCellFromPoint,
-                touchMoveThreshold: TOUCH_MOVE_THRESHOLD
-            });
-        }
+    const mouseStrategy = useMemo(() => new MouseSelectionStrategy({
+        start: startDrag,
+        update: updateDrag,
+        end: endDrag
+    }), [startDrag, updateDrag, endDrag]);
 
-        return new MouseSelectionStrategy({
-            start: startDrag,
-            update: updateDrag,
-            end: endDrag
-        });
-    }, [endDrag, finaliseDrag, getCellFromPoint, startDrag, updateDrag, year]);
+    const touchStrategy = useMemo(() => new TouchSelectionStrategy({
+        year,
+        getState: () => stateRef.current,
+        setIsDragging,
+        setSelectionMode,
+        setDragStart,
+        setDragCurrent,
+        finaliseDrag,
+        getCellFromPoint,
+        touchMoveThreshold: TOUCH_MOVE_THRESHOLD
+    }), [year, finaliseDrag, getCellFromPoint]);
 
-    useEffect(() => () => selectionStrategy.cleanup?.(), [selectionStrategy]);
+    useEffect(() => () => touchStrategy.cleanup?.(), [touchStrategy]);
 
-    const handleTouchStart = selectionStrategy.onTouchStart ?? (() => { });
-    const handleTouchMove = selectionStrategy.onTouchMove ?? (() => { });
-    const handleTouchEnd = selectionStrategy.onTouchEnd ?? ((callback: (range: EventRange) => void) => selectionStrategy.end(callback));
-    const handleContextMenu = selectionStrategy.onContextMenu ?? ((e: React.MouseEvent) => {
+    const handleTouchStart = touchStrategy.onTouchStart ?? (() => { });
+    const handleTouchMove = touchStrategy.onTouchMove ?? (() => { });
+    const handleTouchEnd = touchStrategy.onTouchEnd ?? ((callback: (range: EventRange) => void) => touchStrategy.end(callback));
+    const handleContextMenu = touchStrategy.onContextMenu ?? ((e: React.MouseEvent) => {
         if (selectionMode || isDragging) {
             e.preventDefault();
         }
@@ -124,9 +128,9 @@ const useDragSelection = (year: number) => {
         dragStart,
         dragCurrent,
         selectionMode,
-        startDrag: selectionStrategy.start,
-        updateDrag: selectionStrategy.update,
-        endDrag: selectionStrategy.end,
+        startDrag: mouseStrategy.start,
+        updateDrag: mouseStrategy.update,
+        endDrag: mouseStrategy.end,
         isHighlighted,
         onTouchStart: handleTouchStart,
         onTouchMove: handleTouchMove,
