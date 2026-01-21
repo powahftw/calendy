@@ -126,11 +126,11 @@ export const subscribeToSettings = (uid: string, callback: (settings: Partial<Pl
     return onSnapshot(ref, (snapshot) => {
         if (snapshot.exists()) {
             const data = snapshot.data();
-            const updatedAt = data.updatedAt?.toMillis?.() || data.updatedAt || null;
-            callback({ ...data, updatedAt } as Partial<PlannerSettings> & { updatedAt: number });
+            const updatedAtMillis = data.updatedAt?.toMillis?.() || data.updatedAt;
+            callback({ ...data, updatedAt: typeof updatedAtMillis === 'number' ? updatedAtMillis : undefined });
         }
     }, (error) => {
-        console.error('Error subscribing to settings:', error);
+        logger.error('Error subscribing to settings:', error);
     });
 };
 
