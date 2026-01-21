@@ -32,7 +32,18 @@ export const PlannerProvider: React.FC<PlannerProviderProps> = ({ user, children
         theme: persistence.theme,
         setTheme: persistence.setTheme,
         isInitialLoadDone: persistence.isInitialLoadDone,
-    }), [persistence.events, persistence.setEvents, persistence.year, persistence.setYear, persistence.monthsToShow, persistence.setMonthsToShow, persistence.theme, persistence.setTheme, persistence.isInitialLoadDone]);
+    }), [
+        persistence.events,
+        persistence.year,
+        persistence.monthsToShow,
+        persistence.theme,
+        persistence.isInitialLoadDone,
+        // Setters omitted - they're stable from useCallback
+        persistence.setEvents,
+        persistence.setYear,
+        persistence.setMonthsToShow,
+        persistence.setTheme
+    ]);
 
     const interactionValue = useMemo(() => ({
         isDragging: dragSelection.isDragging,
@@ -49,7 +60,22 @@ export const PlannerProvider: React.FC<PlannerProviderProps> = ({ user, children
         onTouchMove: dragSelection.onTouchMove,
         onTouchEnd: dragSelection.onTouchEnd,
         onContextMenu: dragSelection.onContextMenu,
-    }), [dragSelection, activeEventId]);
+    }), [
+        dragSelection.isDragging,
+        dragSelection.dragStart,
+        dragSelection.dragCurrent,
+        dragSelection.selectionMode,
+        dragSelection.isHighlighted,
+        activeEventId,
+        // Stable callbacks omitted
+        dragSelection.startDrag,
+        dragSelection.updateDrag,
+        dragSelection.endDrag,
+        dragSelection.onTouchStart,
+        dragSelection.onTouchMove,
+        dragSelection.onTouchEnd,
+        dragSelection.onContextMenu
+    ]);
 
     const displayValue = useMemo(() => ({
         highlightToday: persistence.highlightToday,
@@ -60,7 +86,17 @@ export const PlannerProvider: React.FC<PlannerProviderProps> = ({ user, children
         setShowDayProgress: persistence.setShowDayProgress,
         weekdayAlign: persistence.weekdayAlign,
         setWeekdayAlign: persistence.setWeekdayAlign,
-    }), [persistence.highlightToday, persistence.setHighlightToday, persistence.showWeekends, persistence.setShowWeekends, persistence.showDayProgress, persistence.setShowDayProgress, persistence.weekdayAlign, persistence.setWeekdayAlign]);
+    }), [
+        persistence.highlightToday,
+        persistence.showWeekends,
+        persistence.showDayProgress,
+        persistence.weekdayAlign,
+        // Stable setters omitted
+        persistence.setHighlightToday,
+        persistence.setShowWeekends,
+        persistence.setShowDayProgress,
+        persistence.setWeekdayAlign
+    ]);
 
     return (
         <PlannerDataProvider value={dataValue}>

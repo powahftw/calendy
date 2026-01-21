@@ -1,346 +1,232 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { syncEvents, subscribeToEvents, loadEvents, syncSettings, subscribeToSettings, loadSettings } from '../firestoreSync';
-import { PlannerEvent, PlannerSettings, ThemeId } from '../utils/calendarUtils';
+import { useEffect, useRef, useCallback, useReducer } from 'react';
 import { User } from 'firebase/auth';
+import { PlannerEvent, PlannerSettings, ThemeId } from '../utils/calendarUtils';
+import {
+    plannerReducer,
+    PlannerState,
+    PlannerData
+} from './usePlannerState';
+import {
+    loadFromLocalStorage,
+    saveToLocalStorage,
+    getDefaultData
+} from '../utils/persistence';
+import {
+    syncEvents,
+    syncSettings,
+    subscribeToEvents,
+    subscribeToSettings,
+    loadEvents,
+    loadSettings
+} from '../firestoreSync';
+import { logger } from '../utils/logger';
 
-const getStorageKey = (user: User | null, key: string) => {
-    // If user is null, we assume Guest Mode (or just local user).
-    // Using 'guest' suffix ensures we don't accidentally wipe a logged-out user's data if they logged out.
-    const suffix = user ? `_${user.uid}` : '_guest';
-    return `planner_${key}${suffix}`;
+const initialState: PlannerState = {
+    data: getDefaultData(),
+    metadata: {
+        lastActionType: null,
+        updatedAt: 0,
+        isHydrated: false
+    }
 };
 
-const SETTINGS_STORAGE_KEYS = {
-    theme: 'theme',
-    highlightToday: 'highlight_today',
-    showWeekends: 'show_weekends',
-    showDayProgress: 'show_day_progress',
-    weekdayAlign: 'weekday_align',
-    year: 'year',
-    monthsToShow: 'months_to_show'
-} as const;
-
 const usePlannerPersistence = (user: User | null) => {
-    // We use a ref to track which user "owns" the current state.
-    // This prevents writing User A's data to User B's storage during a fast switch.
-    const currentUserIdRef = useRef<string>(user ? user.uid : 'guest');
+    const [state, dispatch] = useReducer(plannerReducer, initialState);
+    const currentUserRef = useRef<string>(user?.uid ?? 'guest');
+    const isFirstLoad = useRef(true);
 
-    // -- State Definitions --
-    const [year, setYear] = useState<number>(2026);
-    const [monthsToShow, setMonthsToShow] = useState<number>(12);
-    const [theme, setTheme] = useState<ThemeId>('blue');
-    const [highlightToday, setHighlightToday] = useState<boolean>(true);
-    const [showWeekends, setShowWeekends] = useState<boolean>(true);
-    const [showDayProgress, setShowDayProgress] = useState<boolean>(true);
-    const [weekdayAlign, setWeekdayAlign] = useState<boolean>(true);
-    const [events, setEvents] = useState<PlannerEvent[]>([]);
-
-    const [isInitialLoadDone, setIsInitialLoadDone] = useState(false);
-    const [shouldSyncUpstream, setShouldSyncUpstream] = useState(false); // Safety guard
-    const isRemoteUpdate = useRef(false);
-    const isLocalLoad = useRef(false);
-    const localEventsUpdatedAtRef = useRef<number | null>(null);
-
-    const settingsPayload = useMemo<PlannerSettings>(() => ({
-        theme,
-        highlightToday,
-        showWeekends,
-        showDayProgress,
-        weekdayAlign,
-        year,
-        monthsToShow
-    }), [theme, highlightToday, showWeekends, showDayProgress, weekdayAlign, year, monthsToShow]);
-
-    const settingsRef = useRef(settingsPayload);
-
-    useEffect(() => {
-        settingsRef.current = settingsPayload;
-    }, [settingsPayload]);
-
-    const applyRemoteSettings = useCallback((remoteSettings: Partial<PlannerSettings>) => {
-        let changed = false;
-        const updateSetting = <K extends keyof PlannerSettings>(key: K, setter: (value: PlannerSettings[K]) => void) => {
-            const remoteValue = remoteSettings[key];
-            if (remoteValue !== undefined && remoteValue !== settingsRef.current[key]) {
-                setter(remoteValue as PlannerSettings[K]);
-                changed = true;
-            }
-        };
-
-        updateSetting('theme', setTheme);
-        updateSetting('highlightToday', setHighlightToday);
-        updateSetting('showWeekends', setShowWeekends);
-        updateSetting('showDayProgress', setShowDayProgress);
-        updateSetting('weekdayAlign', setWeekdayAlign);
-        updateSetting('year', setYear);
-        updateSetting('monthsToShow', setMonthsToShow);
-
-        return changed;
-    }, [setTheme, setHighlightToday, setShowWeekends, setShowDayProgress, setWeekdayAlign, setYear, setMonthsToShow]);
-
-    // Initialize/Load Data helper
-    const loadFromLocalStorage = useCallback((currentUser: User | null) => {
-        const getVal = <T,>(key: string, defaultVal: T): T => {
-            const storKey = getStorageKey(currentUser, key);
-            const saved = localStorage.getItem(storKey);
-
-            if (saved !== null) {
-                try {
-                    return JSON.parse(saved) as T;
-                } catch (error) {
-                    console.error(`Failed to parse setting from localStorage for key ${storKey}:`, error);
-                }
-            }
-
-            return defaultVal;
-        };
-
-        const getEvents = (): { events: PlannerEvent[]; found: boolean; updatedAt: number | null } => {
-            const storKey = getStorageKey(currentUser, 'events');
-            const saved = localStorage.getItem(storKey);
-
-            let rawEvents: PlannerEvent[] = [];
-            let found = false;
-            let updatedAt: number | null = null;
-
-            if (saved) {
-                try {
-                    const parsed = JSON.parse(saved);
-                    if (Array.isArray(parsed)) {
-                        rawEvents = parsed;
-                        found = true;
-                    } else if (parsed && typeof parsed === 'object') {
-                        rawEvents = Array.isArray(parsed.items) ? parsed.items : [];
-                        updatedAt = typeof parsed.updatedAt === 'number' ? parsed.updatedAt : null;
-                        found = true;
-                    }
-                } catch (error) {
-                    console.error(`Failed to parse events from localStorage for key ${storKey}:`, error);
-                }
-            }
-
-            return { events: rawEvents, found, updatedAt };
-        };
-
-        setYear(getVal<number>('year', 2026));
-        setMonthsToShow(getVal<number>('months_to_show', 12));
-        setTheme(getVal<ThemeId>('theme', 'blue'));
-        setHighlightToday(getVal<boolean>('highlight_today', true));
-        setShowWeekends(getVal<boolean>('show_weekends', true));
-        setShowDayProgress(getVal<boolean>('show_day_progress', true));
-        setWeekdayAlign(getVal<boolean>('weekday_align', true));
-
-        const { events: loadedEvents, found: foundLocalEvents, updatedAt } = getEvents();
-
-        setEvents(loadedEvents);
-        localEventsUpdatedAtRef.current = updatedAt;
-        isLocalLoad.current = true;
-
-        // Update the ref to match what we just loaded
-        currentUserIdRef.current = currentUser ? currentUser.uid : 'guest';
-
-        // If we found local events, we are ready to sync. 
-        // If NOT, we should wait for Remote Init before allowing upstream sync.
-        setIsInitialLoadDone(true);
-        if (foundLocalEvents || !currentUser) {
-            setShouldSyncUpstream(true);
-        }
-    }, []);
-
-    // 1. Load Local Data on Mount or User Change
-    useEffect(() => {
-        setIsInitialLoadDone(false);
-        setShouldSyncUpstream(false);
-        loadFromLocalStorage(user);
-    }, [user, loadFromLocalStorage]);
-
-    // 2. Persist to Local Storage (Immediate)
-    useEffect(() => {
-        const activeId = user ? user.uid : 'guest';
-        if (currentUserIdRef.current !== activeId) {
-            // State mismatch (e.g. during switch), do not save.
-            return;
-        }
-
-        const save = (key: string, val: unknown) => localStorage.setItem(getStorageKey(user, key), JSON.stringify(val));
-
-        const updatedAt = isRemoteUpdate.current || isLocalLoad.current
-            ? localEventsUpdatedAtRef.current
-            : Date.now();
-        if (!isRemoteUpdate.current && !isLocalLoad.current) {
-            localEventsUpdatedAtRef.current = updatedAt;
-        }
-        localStorage.setItem(
-            getStorageKey(user, 'events'),
-            JSON.stringify({ items: events, updatedAt })
-        );
-        (Object.keys(SETTINGS_STORAGE_KEYS) as Array<keyof PlannerSettings>).forEach((key) => {
-            const storageKey = SETTINGS_STORAGE_KEYS[key];
-            const value = settingsPayload[key];
-            save(storageKey, value);
-        });
-
-    }, [events, settingsPayload, user]);
-
-    // 3. Sync to Firestore (Upstream) - DEBOUNCED
     const syncEventsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const syncSettingsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const localStorageTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+    // === PHASE 1: HYDRATION (runs once per user) ===
     useEffect(() => {
-        // Guard: Only sync if we are explicitly allowed to (prevents wiping remote with empty local init)
-        if (user && isInitialLoadDone && shouldSyncUpstream && !isRemoteUpdate.current) {
+        const userId = user?.uid ?? 'guest';
 
-            // Debounce Events Sync
-            if (syncEventsTimeoutRef.current) clearTimeout(syncEventsTimeoutRef.current);
-            syncEventsTimeoutRef.current = setTimeout(() => {
-                syncEvents(user.uid, events);
-            }, 300);
+        // User switched or first load
+        if (currentUserRef.current !== userId || isFirstLoad.current) {
+            logger.info('User switched or first load, resetting state', { from: currentUserRef.current, to: userId });
+            currentUserRef.current = userId;
+            isFirstLoad.current = false;
 
-            // Debounce Settings Sync
-            if (syncSettingsTimeoutRef.current) clearTimeout(syncSettingsTimeoutRef.current);
-            syncSettingsTimeoutRef.current = setTimeout(() => {
-                syncSettings(user.uid, settingsPayload);
-            }, 300);
+            dispatch({ type: 'RESET', initialState });
+
+            const localState = loadFromLocalStorage(userId);
+            dispatch({
+                type: 'HYDRATE_LOCAL',
+                payload: localState.data,
+                timestamp: localState.updatedAt
+            });
         }
+    }, [user?.uid]);
 
-        return () => {
-            if (syncEventsTimeoutRef.current) clearTimeout(syncEventsTimeoutRef.current);
-            if (syncSettingsTimeoutRef.current) clearTimeout(syncSettingsTimeoutRef.current);
-        };
-    }, [events, settingsPayload, user, isInitialLoadDone, shouldSyncUpstream]);
-
-    // 4. Subscribe to Firestore (Downstream) & Initial Remote Load
+    // === PHASE 2: FIRESTORE LISTENER (only for logged-in users) ===
     useEffect(() => {
         if (!user) return;
 
-        // Reset remote update flag
-        isRemoteUpdate.current = false;
+        logger.info('Setting up Firestore listeners for', user.uid);
 
         const initRemoteData = async () => {
             try {
-                // Fetch remote data to see if we missed anything (source of truth)
                 const [remoteEvents, remoteSettings] = await Promise.all([
                     loadEvents(user.uid),
                     loadSettings(user.uid)
                 ]);
 
-                // If remote exists, it wins (or merges). For now, it wins.
                 if (remoteEvents) {
-                    setEvents(prev => {
-                        const localUpdatedAt = localEventsUpdatedAtRef.current ?? 0;
-                        const remoteUpdatedAt = remoteEvents.updatedAt ?? 0;
-                        const remoteHasData = remoteEvents.events.length > 0;
-                        const localHasData = prev.length > 0;
-
-                        const remoteWins =
-                            remoteHasData &&
-                            (remoteUpdatedAt >= localUpdatedAt || !localHasData);
-
-
-                        if (remoteWins && JSON.stringify(prev) !== JSON.stringify(remoteEvents.events)) {
-                            isRemoteUpdate.current = true;
-                            localEventsUpdatedAtRef.current = remoteEvents.updatedAt ?? null;
-                            return remoteEvents.events;
-                        }
-                        return prev;
+                    dispatch({
+                        type: 'REMOTE_UPDATE',
+                        payload: { events: remoteEvents.events },
+                        timestamp: remoteEvents.updatedAt || 0
                     });
                 }
 
-                // Settings...
                 if (remoteSettings) {
-                    if (applyRemoteSettings(remoteSettings)) {
-                        isRemoteUpdate.current = true;
-                    }
+                    const { updatedAt, ...settings } = remoteSettings;
+                    dispatch({
+                        type: 'REMOTE_UPDATE',
+                        payload: { settings },
+                        timestamp: updatedAt || 0
+                    });
                 }
-
-                // NOW we can allow upstream syncs for future changes
-                setShouldSyncUpstream(true);
-
-            } catch (e) {
-                console.error("Failed to init remote data", e);
-                // Even on fail, we should probably allow syncing local data eventually? 
-                // Maybe not, to be safe. User can retry interaction.
-                setShouldSyncUpstream(true); // Allow local changes to push eventually
+            } catch (err) {
+                logger.error('Failed to init remote data', err);
             }
         };
 
         initRemoteData();
 
         const unsubEvents = subscribeToEvents(user.uid, (remotePayload) => {
-            setEvents(prev => {
-                const prevStr = JSON.stringify(prev);
-                const remoteStr = JSON.stringify(remotePayload.events);
-                if (prevStr === remoteStr) return prev;
-
-                const localUpdatedAt = localEventsUpdatedAtRef.current ?? 0;
-                const remoteUpdatedAt = remotePayload.updatedAt ?? 0;
-                const remoteHasData = remotePayload.events.length > 0;
-
-                if (!remoteHasData && localUpdatedAt > remoteUpdatedAt) {
-                    return prev;
-                }
-
-                isRemoteUpdate.current = true;
-                localEventsUpdatedAtRef.current = remotePayload.updatedAt ?? null;
-                return remotePayload.events;
+            dispatch({
+                type: 'REMOTE_UPDATE',
+                payload: { events: remotePayload.events },
+                timestamp: remotePayload.updatedAt || 0
             });
         });
 
         const unsubSettings = subscribeToSettings(user.uid, (remoteSettings) => {
-            if (applyRemoteSettings(remoteSettings)) {
-                isRemoteUpdate.current = true;
-            }
+            const { updatedAt, ...settings } = remoteSettings;
+            dispatch({
+                type: 'REMOTE_UPDATE',
+                payload: { settings },
+                timestamp: updatedAt || 0
+            });
         });
 
         return () => {
             unsubEvents();
             unsubSettings();
         };
-    }, [applyRemoteSettings, user?.uid]); // Only re-subscribe if UID changes. 
+    }, [user?.uid]);
 
-    // 5. Reset Remote Update Flag
+    // === PHASE 3: PERSISTENCE (saves when needed) ===
     useEffect(() => {
-        if (isRemoteUpdate.current || isLocalLoad.current) {
-            // Unblock upstream sync or local timestamp updates after a short delay
-            const timer = setTimeout(() => {
-                isRemoteUpdate.current = false;
-                isLocalLoad.current = false;
-            }, 100); // 100ms grace period
-            return () => clearTimeout(timer);
+        const { lastActionType, isHydrated, updatedAt } = state.metadata;
+
+        // Don't save if not hydrated yet
+        if (!isHydrated) return;
+
+        const userId = user?.uid ?? 'guest';
+
+        // Debounce LocalStorage writes (50ms) to prevent blocking during rapid changes like dragging
+        if (localStorageTimeoutRef.current) clearTimeout(localStorageTimeoutRef.current);
+        localStorageTimeoutRef.current = setTimeout(() => {
+            logger.info('Saving state to LocalStorage for user:', userId);
+            saveToLocalStorage(userId, state.data, updatedAt);
+        }, 50);
+
+        // Save to Firestore ONLY on user changes and if logged in
+        if (user && lastActionType === 'USER_CHANGE') {
+            // Debounce Events Sync (300ms)
+            if (syncEventsTimeoutRef.current) clearTimeout(syncEventsTimeoutRef.current);
+            syncEventsTimeoutRef.current = setTimeout(() => {
+                syncEvents(user.uid, state.data.events, updatedAt);
+            }, 300);
+
+            // Debounce Settings Sync (300ms)
+            if (syncSettingsTimeoutRef.current) clearTimeout(syncSettingsTimeoutRef.current);
+            syncSettingsTimeoutRef.current = setTimeout(() => {
+                syncSettings(user.uid, state.data.settings, updatedAt);
+            }, 300);
         }
-    }, [events, settingsPayload]);
 
-    // 6. Offline Support (Sync on reconnect) - Optimized with useRef
-    const stateRef = useRef({ events, settings: settingsPayload });
 
-    useEffect(() => {
-        stateRef.current = { events, settings: settingsPayload };
-    }, [events, settingsPayload]);
+        return () => {
+            if (syncEventsTimeoutRef.current) clearTimeout(syncEventsTimeoutRef.current);
+            if (syncSettingsTimeoutRef.current) clearTimeout(syncSettingsTimeoutRef.current);
+            if (localStorageTimeoutRef.current) clearTimeout(localStorageTimeoutRef.current);
+        };
+    }, [state.data, user?.uid, state.metadata.lastActionType, state.metadata.isHydrated, state.metadata.updatedAt]);
 
+    // === PHASE 4: OFFLINE SUPPORT ===
     useEffect(() => {
         const handleOnline = () => {
-            if (user && isInitialLoadDone) {
-                console.log("Back online! Force syncing...");
-                const { events, settings } = stateRef.current;
-                syncEvents(user.uid, events);
-                syncSettings(user.uid, settings);
+            if (user && state.metadata.isHydrated) {
+                logger.info('Back online! Syncing state to Firestore...');
+                syncEvents(user.uid, state.data.events, Date.now());
+                syncSettings(user.uid, state.data.settings, Date.now());
             }
         };
 
         window.addEventListener('online', handleOnline);
         return () => window.removeEventListener('online', handleOnline);
-    }, [user, isInitialLoadDone]);
+    }, [user, state.data, state.metadata.isHydrated]);
+
+    // === PUBLIC API (Setters) ===
+
+    const updateState = useCallback((payload: { events?: PlannerEvent[]; settings?: Partial<PlannerSettings> }) => {
+        dispatch({
+            type: 'USER_CHANGE',
+            payload,
+            timestamp: Date.now()
+        });
+    }, []);
+
+    const updateSettings = useCallback((updates: Partial<PlannerSettings>) => {
+        dispatch({
+            type: 'USER_CHANGE',
+            payload: { settings: updates },
+            timestamp: Date.now()
+        });
+    }, []);
+
+    // Individual setters for backward compatibility with existing Context/Components
+    const setEvents = useCallback((eventsOrUpdater: PlannerEvent[] | ((prev: PlannerEvent[]) => PlannerEvent[])) => {
+        const newEvents = typeof eventsOrUpdater === 'function'
+            ? eventsOrUpdater(state.data.events)
+            : eventsOrUpdater;
+
+        updateState({ events: newEvents });
+    }, [state.data.events, updateState]);
+
+    const setTheme = useCallback((theme: ThemeId) => updateSettings({ theme }), [updateSettings]);
+    const setHighlightToday = useCallback((highlightToday: boolean) => updateSettings({ highlightToday }), [updateSettings]);
+    const setShowWeekends = useCallback((showWeekends: boolean) => updateSettings({ showWeekends }), [updateSettings]);
+    const setShowDayProgress = useCallback((showDayProgress: boolean) => updateSettings({ showDayProgress }), [updateSettings]);
+    const setWeekdayAlign = useCallback((weekdayAlign: boolean) => updateSettings({ weekdayAlign }), [updateSettings]);
+    const setYear = useCallback((year: number | ((prev: number) => number)) => {
+        const newYear = typeof year === 'function' ? year(state.data.settings.year) : year;
+        updateSettings({ year: newYear });
+    }, [state.data.settings.year, updateSettings]);
+    const setMonthsToShow = useCallback((monthsToShow: number) => updateSettings({ monthsToShow }), [updateSettings]);
 
     return {
-        year, setYear,
-        monthsToShow, setMonthsToShow,
-        theme, setTheme,
-        highlightToday, setHighlightToday,
-        showWeekends, setShowWeekends,
-        showDayProgress, setShowDayProgress,
-        weekdayAlign, setWeekdayAlign,
-        events, setEvents,
-        isInitialLoadDone
+        // Data
+        events: state.data.events,
+        ...state.data.settings,
+
+        // Setters
+        setEvents,
+        setTheme,
+        setHighlightToday,
+        setShowWeekends,
+        setShowDayProgress,
+        setWeekdayAlign,
+        setYear,
+        setMonthsToShow,
+
+        // Metadata
+        isInitialLoadDone: state.metadata.isHydrated
     };
 };
 

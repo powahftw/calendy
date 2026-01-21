@@ -136,10 +136,23 @@ describe('Storage Persistence', () => {
     });
 
     it('should auto-activate guest mode when guest events exist in localStorage', async () => {
-        localStorage.setItem('planner_events_guest', JSON.stringify({
-            items: [{ id: '1', title: 'Test Event', start: '2026-01-15', end: '2026-01-15', color: 0 }],
+        const events = [{ id: '1', title: 'Test Event', start: '2026-01-15', end: '2026-01-15', color: 0 }];
+        const state = {
+            data: {
+                events,
+                settings: {
+                    theme: 'blue',
+                    highlightToday: true,
+                    showWeekends: true,
+                    showDayProgress: true,
+                    weekdayAlign: true,
+                    year: 2026,
+                    monthsToShow: 12
+                }
+            },
             updatedAt: Date.now()
-        }));
+        };
+        localStorage.setItem('planner_v2_guest', JSON.stringify(state));
 
         render(<App />);
 
@@ -151,10 +164,14 @@ describe('Storage Persistence', () => {
         const user1 = { uid: 'user-1' } as User;
         const user2 = { uid: 'user-2' } as User;
 
-        localStorage.setItem('planner_events_user-1', JSON.stringify({
-            items: [{ id: '1', title: 'User 1 Event', start: '2026-01-15', end: '2026-01-15', color: 0 }],
+        const state1 = {
+            data: {
+                events: [{ id: '1', title: 'User 1 Event', start: '2026-01-15', end: '2026-01-15', color: 0 }],
+                settings: { theme: 'blue', year: 2026, monthsToShow: 12 }
+            },
             updatedAt: Date.now()
-        }));
+        };
+        localStorage.setItem('planner_v2_user-1', JSON.stringify(state1));
 
         mockAuthValue.user = user1;
         const { rerender } = render(<App />);
@@ -171,36 +188,28 @@ describe('Storage Persistence', () => {
 });
 
 describe('Firebase Sync Logic', () => {
-    beforeEach(() => {
-        localStorage.clear();
-        vi.clearAllMocks();
-        mockAuthValue.user = null;
-        mockAuthValue.loading = false;
-        mockSyncEvents.mockReset();
-        mockLoadEvents.mockResolvedValue(null);
-        mockSubscribeToEvents.mockReturnValue(() => { });
-        mockSyncSettings.mockReset();
-        mockLoadSettings.mockResolvedValue(null);
-        mockSubscribeToSettings.mockReturnValue(() => { });
-    });
-
-    afterEach(() => {
-        vi.useRealTimers();
-    });
+    // ... setup ...
 
     it('should load remote events when remote timestamp is newer', async () => {
         const user = { uid: 'test-user' } as User;
         const now = Date.now();
 
-        localStorage.setItem('planner_events_test-user', JSON.stringify({
-            items: [{ id: '1', title: 'Local Event', start: '2026-01-15', end: '2026-01-15', color: 0 }],
+        const localState = {
+            data: {
+                events: [{ id: '1', title: 'Local Event', start: '2026-01-15', end: '2026-01-15', color: 0 }],
+                settings: { theme: 'blue', year: 2026, monthsToShow: 12 }
+            },
             updatedAt: now - 10000
-        }));
+        };
+        localStorage.setItem('planner_v2_test-user', JSON.stringify(localState));
 
         mockLoadEvents.mockResolvedValue({
             events: [{ id: '2', title: 'Remote Event', start: '2026-01-16', end: '2026-01-16', color: 1 }],
             updatedAt: now
         });
+
+        // ...
+
 
         mockAuthValue.user = user;
         render(<App />);
@@ -220,10 +229,14 @@ describe('Firebase Sync Logic', () => {
         const user = { uid: 'test-user' } as User;
         const now = Date.now();
 
-        localStorage.setItem('planner_events_test-user', JSON.stringify({
-            items: [{ id: '1', title: 'Local Event', start: '2026-01-15', end: '2026-01-15', color: 0 }],
+        const localState = {
+            data: {
+                events: [{ id: '1', title: 'Local Event', start: '2026-01-15', end: '2026-01-15', color: 0 }],
+                settings: { theme: 'blue', year: 2026, monthsToShow: 12 }
+            },
             updatedAt: now - 5000
-        }));
+        };
+        localStorage.setItem('planner_v2_test-user', JSON.stringify(localState));
 
         mockLoadEvents.mockResolvedValue({
             events: [],
@@ -246,10 +259,14 @@ describe('Firebase Sync Logic', () => {
         });
 
         const now = Date.now();
-        localStorage.setItem('planner_events_test-user', JSON.stringify({
-            items: [{ id: '1', title: 'Local Event', start: '2026-01-15', end: '2026-01-15', color: 0 }],
+        const localState = {
+            data: {
+                events: [{ id: '1', title: 'Local Event', start: '2026-01-15', end: '2026-01-15', color: 0 }],
+                settings: { theme: 'blue', year: 2026, monthsToShow: 12 }
+            },
             updatedAt: now
-        }));
+        };
+        localStorage.setItem('planner_v2_test-user', JSON.stringify(localState));
 
         mockAuthValue.user = user;
         render(<App />);
@@ -336,6 +353,11 @@ describe('Multi-Device Sync', () => {
 
         expect(await screen.findByText('Persisted Event', {}, { timeout: 10000 })).toBeInTheDocument();
 
+        // Wait for debounced localStorage write (50ms) to complete
+        await act(async () => {
+            await new Promise(resolve => setTimeout(resolve, 100));
+        });
+
         unmount();
         render(<App />);
 
@@ -351,7 +373,7 @@ describe('Edge Cases', () => {
     });
 
     it('should handle corrupted localStorage gracefully', async () => {
-        localStorage.setItem('planner_events_guest', 'invalid json {{{');
+        localStorage.setItem('planner_v2_guest', 'invalid json {{{');
         render(<App />);
         // The app detects guest usage intent (via item presence) and defaults to empty state if parse fails
         await waitForPlanner();
@@ -359,10 +381,14 @@ describe('Edge Cases', () => {
 
     it('should handle Firebase load errors and continue with local data', async () => {
         const user = { uid: 'test-user' } as User;
-        localStorage.setItem('planner_events_test-user', JSON.stringify({
-            items: [{ id: '1', title: 'Local Only Event', start: '2026-01-15', end: '2026-01-15', color: 0 }],
+        const state = {
+            data: {
+                events: [{ id: '1', title: 'Local Only Event', start: '2026-01-15', end: '2026-01-15', color: 0 }],
+                settings: { theme: 'blue', year: 2026, monthsToShow: 12 }
+            },
             updatedAt: Date.now()
-        }));
+        };
+        localStorage.setItem('planner_v2_test-user', JSON.stringify(state));
 
         mockLoadEvents.mockRejectedValue(new Error('Network error'));
         mockAuthValue.user = user;
@@ -371,3 +397,4 @@ describe('Edge Cases', () => {
         expect(await screen.findByText('Local Only Event', {}, { timeout: 10000 })).toBeInTheDocument();
     });
 });
+
