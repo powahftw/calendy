@@ -75,12 +75,6 @@ export const plannerReducer = (state: PlannerState, action: Action): PlannerStat
                 return state;
             }
 
-            // If remote is empty and we have local data, ignore it (unless it's actually newer, which isStale handled)
-            const remoteIsEmpty = !action.payload.events?.length && !action.payload.settings;
-            if (remoteIsEmpty && state.data.events.length > 0) {
-                logger.info('Ignoring empty remote update (preserving local data)');
-                return state;
-            }
 
             logger.info('Applying Remote Update', action.payload);
             return {

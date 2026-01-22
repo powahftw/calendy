@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { User } from 'firebase/auth';
 
 const GUEST_MODE_KEY = 'planner_guest_mode';
-const GUEST_EVENTS_KEY = 'planner_events_guest';
+const GUEST_EVENTS_KEY = 'planner_v2_guest';
 
 const getInitialGuestMode = () => {
   if (typeof window === 'undefined') return false;

@@ -17,9 +17,6 @@ const SettingsModal: FC<SettingsModalProps> = ({
     onClose, user, onSignOut, isGuest
 }) => {
     const [showImportModal, setShowImportModal] = useState(false);
-    const [holdProgress, setHoldProgress] = useState(0);
-    const holdTimerRef = useRef<number | null>(null);
-    const holdIntervalRef = useRef<number | null>(null);
 
     const {
         year, setYear,
@@ -40,33 +37,12 @@ const SettingsModal: FC<SettingsModalProps> = ({
         window.addEventListener('keydown', handleKeyDown);
         return () => {
             window.removeEventListener('keydown', handleKeyDown);
-            if (holdTimerRef.current) window.clearTimeout(holdTimerRef.current);
-            if (holdIntervalRef.current) window.clearInterval(holdIntervalRef.current);
         };
     }, [onClose]);
 
-    const startHold = () => {
-        setHoldProgress(0);
-        const startTime = Date.now();
-        const duration = 3000;
-
-        holdIntervalRef.current = window.setInterval(() => {
-            const elapsed = Date.now() - startTime;
-            const progress = Math.min((elapsed / duration) * 100, 100);
-            setHoldProgress(progress);
-        }, 30);
-
-        holdTimerRef.current = window.setTimeout(() => {
-            setEvents([]);
-            toast.success("All events cleared.");
-            cancelHold();
-        }, duration);
-    };
-
-    const cancelHold = () => {
-        if (holdTimerRef.current) window.clearTimeout(holdTimerRef.current);
-        if (holdIntervalRef.current) window.clearInterval(holdIntervalRef.current);
-        setHoldProgress(0);
+    const handleClearAll = () => {
+        setEvents([]);
+        toast.success("All events cleared.");
     };
 
     const handleExport = () => {
@@ -258,22 +234,14 @@ const SettingsModal: FC<SettingsModalProps> = ({
                             </div>
 
                             <button
-                                className="btn-danger-outline btn-icon-with-text btn-hold"
-                                onMouseDown={startHold}
-                                onMouseUp={cancelHold}
-                                onMouseLeave={cancelHold}
-                                onTouchStart={startHold}
-                                onTouchEnd={cancelHold}
-                                style={{ position: 'relative', overflow: 'hidden' }}
+                                className="btn-danger-outline btn-icon-with-text"
+                                onClick={handleClearAll}
+                                title="Clear All Events"
                             >
-                                <div
-                                    className="hold-progress-bar"
-                                    style={{ width: `${holdProgress}%` }}
-                                />
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ position: 'relative', zIndex: 1 }}>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                     <path d="M3 6h18m-2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
                                 </svg>
-                                <span style={{ position: 'relative', zIndex: 1 }}>Clear All (Hold 3s)</span>
+                                <span>Clear All</span>
                             </button>
                         </div>
                     </div>
