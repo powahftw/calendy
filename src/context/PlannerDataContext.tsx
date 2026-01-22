@@ -10,6 +10,8 @@ interface PlannerDataContextValue {
     setMonthsToShow: (n: number) => void;
     theme: ThemeId;
     setTheme: (theme: ThemeId) => void;
+    canUndo: boolean;
+    undo: () => void;
     eventMap: Map<string, PlannerEvent[]>;
     isInitialLoadDone: boolean;
 }

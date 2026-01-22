@@ -6,7 +6,8 @@ export type ActionType =
     | 'HYDRATE_REMOTE'
     | 'USER_CHANGE'
     | 'REMOTE_UPDATE'
-    | 'RESET';
+    | 'RESET'
+    | 'UNDO';
 
 export interface PlannerData {
     events: PlannerEvent[];
@@ -15,6 +16,7 @@ export interface PlannerData {
 
 export interface PlannerState {
     data: PlannerData;
+    history: PlannerData[];
     metadata: {
         lastActionType: ActionType | null;
         updatedAt: number;
@@ -27,7 +29,10 @@ export type Action =
     | { type: 'HYDRATE_REMOTE'; payload: PlannerData; timestamp: number }
     | { type: 'USER_CHANGE'; payload: { events?: PlannerEvent[]; settings?: Partial<PlannerSettings> }; timestamp: number }
     | { type: 'REMOTE_UPDATE'; payload: { events?: PlannerEvent[]; settings?: Partial<PlannerSettings> }; timestamp: number }
-    | { type: 'RESET'; initialState: PlannerState };
+    | { type: 'RESET'; initialState: PlannerState }
+    | { type: 'UNDO' };
+
+const MAX_HISTORY_LENGTH = 20;
 
 export const plannerReducer = (state: PlannerState, action: Action): PlannerState => {
     switch (action.type) {
@@ -36,6 +41,7 @@ export const plannerReducer = (state: PlannerState, action: Action): PlannerStat
             logger.info('Hydrating from LocalStorage', action.payload);
             return {
                 data: action.payload,
+                history: [],
                 metadata: {
                     lastActionType: 'HYDRATE_LOCAL',
                     updatedAt: action.timestamp,
@@ -46,6 +52,7 @@ export const plannerReducer = (state: PlannerState, action: Action): PlannerStat
             logger.info('Hydrating from Remote (Firestore)', action.payload);
             return {
                 data: action.payload,
+                history: [],
                 metadata: {
                     lastActionType: 'HYDRATE_REMOTE',
                     updatedAt: action.timestamp,
@@ -54,14 +61,33 @@ export const plannerReducer = (state: PlannerState, action: Action): PlannerStat
             };
         case 'USER_CHANGE':
             logger.info('User Change detected:', action.payload);
+            const nextData: PlannerData = {
+                events: action.payload.events ?? state.data.events,
+                settings: action.payload.settings ? { ...state.data.settings, ...action.payload.settings } : state.data.settings
+            };
+            const nextHistory = [...state.history, state.data].slice(-MAX_HISTORY_LENGTH);
             return {
-                data: {
-                    events: action.payload.events ?? state.data.events,
-                    settings: action.payload.settings ? { ...state.data.settings, ...action.payload.settings } : state.data.settings
-                },
+                data: nextData,
+                history: nextHistory,
                 metadata: {
                     lastActionType: 'USER_CHANGE',
                     updatedAt: action.timestamp,
+                    isHydrated: true
+                }
+            };
+        case 'UNDO':
+            if (state.history.length === 0) {
+                logger.info('Nothing to undo');
+                return state;
+            }
+
+            logger.info('Undoing last action');
+            return {
+                data: state.history[state.history.length - 1],
+                history: state.history.slice(0, -1),
+                metadata: {
+                    lastActionType: 'USER_CHANGE',
+                    updatedAt: Date.now(),
                     isHydrated: true
                 }
             };
@@ -82,6 +108,7 @@ export const plannerReducer = (state: PlannerState, action: Action): PlannerStat
                     events: action.payload.events ?? state.data.events,
                     settings: action.payload.settings ? { ...state.data.settings, ...action.payload.settings } : state.data.settings
                 },
+                history: state.history,
                 metadata: {
                     lastActionType: 'REMOTE_UPDATE',
                     updatedAt: action.timestamp,
