@@ -27,7 +27,8 @@ const SettingsModal: FC<SettingsModalProps> = ({
         showDayProgress, setShowDayProgress,
         weekdayAlign, setWeekdayAlign,
         setEvents,
-        events
+        events,
+        undo
     } = usePlanner();
 
     useEffect(() => {
@@ -42,7 +43,21 @@ const SettingsModal: FC<SettingsModalProps> = ({
 
     const handleClearAll = () => {
         setEvents([]);
-        toast.success("All events cleared.");
+        toast.custom((t) => (
+            <div className="custom-toast undo-toast">
+                <span>All events cleared.</span>
+                <button
+                    type="button"
+                    onClick={() => {
+                        undo();
+                        toast.dismiss(t.id);
+                    }}
+                    className="undo-toast-action"
+                >
+                    Undo
+                </button>
+            </div>
+        ), { duration: 5000 });
     };
 
     const handleExport = () => {

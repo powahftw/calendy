@@ -132,6 +132,26 @@ body {
   font-weight: 500 !important;
 }
 
+.undo-toast {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.undo-toast-action {
+  border: none;
+  background: transparent;
+  color: var(--accent-text);
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.undo-toast-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .app-year {
   margin: 0;
   font-size: 1.5rem;
