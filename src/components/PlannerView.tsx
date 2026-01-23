@@ -8,6 +8,7 @@ import EventModal from './EventModal';
 import EventListModal from './EventListModal';
 import { User } from 'firebase/auth';
 import { logger } from '../utils/logger';
+import toast from 'react-hot-toast';
 
 
 interface PlannerViewProps {
@@ -25,7 +26,8 @@ const PlannerView: React.FC<PlannerViewProps> = ({ user, signOut, isGuest, setIs
         onContextMenu,
         events,
         setEvents,
-        theme
+        theme,
+        undo
     } = usePlanner();
 
     // App UI State
@@ -82,6 +84,36 @@ const PlannerView: React.FC<PlannerViewProps> = ({ user, signOut, isGuest, setIs
         color
     });
 
+    const showUndoToast = (message: string) => {
+        toast.custom((t) => (
+            <div
+                className="custom-toast undo-toast"
+                onClick={() => toast.dismiss(t.id)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        toast.dismiss(t.id);
+                    }
+                }}
+            >
+                <span>{message}</span>
+                <button
+                    type="button"
+                    onClick={(event) => {
+                        event.stopPropagation();
+                        undo();
+                        toast.dismiss(t.id);
+                    }}
+                    className="undo-toast-action"
+                >
+                    Undo
+                </button>
+            </div>
+        ), { duration: 5000 });
+    };
+
     const saveNewEvent = (title: string, colorIndex: number) => {
         if (modal.type !== 'CREATE') return;
         const startStr = toDateStr(modal.range.start.year, modal.range.start.month, modal.range.start.day);
@@ -112,6 +144,7 @@ const PlannerView: React.FC<PlannerViewProps> = ({ user, signOut, isGuest, setIs
     const handleDeleteEvent = (id: string) => {
         logger.info('Deleting event ID:', id);
         setEvents(prevEvents => prevEvents.filter(ev => ev.id !== id));
+        showUndoToast('Event deleted.');
         if (modal.type === 'LIST') {
             const nextSelected = modal.events.filter(ev => ev.id !== id);
             if (nextSelected.length === 0) {

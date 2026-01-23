@@ -23,6 +23,7 @@ import { logger } from '../utils/logger';
 
 const initialState: PlannerState = {
     data: getDefaultData(),
+    history: [],
     metadata: {
         lastActionType: null,
         updatedAt: 0,
@@ -209,11 +210,15 @@ const usePlannerPersistence = (user: User | null) => {
         updateSettings({ year: newYear });
     }, [state.data.settings.year, updateSettings]);
     const setMonthsToShow = useCallback((monthsToShow: number) => updateSettings({ monthsToShow }), [updateSettings]);
+    const undo = useCallback(() => {
+        dispatch({ type: 'UNDO' });
+    }, []);
 
     return {
         // Data
         events: state.data.events,
         ...state.data.settings,
+        canUndo: state.history.length > 0,
 
         // Setters
         setEvents,
@@ -224,6 +229,7 @@ const usePlannerPersistence = (user: User | null) => {
         setWeekdayAlign,
         setYear,
         setMonthsToShow,
+        undo,
 
         // Metadata
         isInitialLoadDone: state.metadata.isHydrated

@@ -31,12 +31,16 @@ export const PlannerProvider: React.FC<PlannerProviderProps> = ({ user, children
         setMonthsToShow: persistence.setMonthsToShow,
         theme: persistence.theme,
         setTheme: persistence.setTheme,
+        canUndo: persistence.canUndo,
+        undo: persistence.undo,
         isInitialLoadDone: persistence.isInitialLoadDone,
     }), [
         persistence.events,
         persistence.year,
         persistence.monthsToShow,
         persistence.theme,
+        persistence.canUndo,
+        persistence.undo,
         persistence.isInitialLoadDone,
         // Setters omitted - they're stable from useCallback
         persistence.setEvents,
