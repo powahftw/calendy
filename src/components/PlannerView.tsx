@@ -86,11 +86,23 @@ const PlannerView: React.FC<PlannerViewProps> = ({ user, signOut, isGuest, setIs
 
     const showUndoToast = (message: string) => {
         toast.custom((t) => (
-            <div className="custom-toast undo-toast">
+            <div
+                className="custom-toast undo-toast"
+                onClick={() => toast.dismiss(t.id)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        toast.dismiss(t.id);
+                    }
+                }}
+            >
                 <span>{message}</span>
                 <button
                     type="button"
-                    onClick={() => {
+                    onClick={(event) => {
+                        event.stopPropagation();
                         undo();
                         toast.dismiss(t.id);
                     }}

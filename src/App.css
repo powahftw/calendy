@@ -136,15 +136,28 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
+  cursor: pointer;
 }
 
 .undo-toast-action {
-  border: none;
-  background: transparent;
+  border: 1px solid transparent;
+  background: var(--accent-light);
   color: var(--accent-text);
   font-weight: 600;
   cursor: pointer;
-  padding: 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.1s ease;
+}
+
+.undo-toast-action:hover {
+  background: var(--accent-light);
+  border-color: var(--accent-color);
+}
+
+.undo-toast-action:active {
+  transform: translateY(1px);
 }
 
 .undo-toast-action:disabled {
