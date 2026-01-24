@@ -8,7 +8,8 @@ import EventModal from './EventModal';
 import EventListModal from './EventListModal';
 import { User } from 'firebase/auth';
 import { logger } from '../utils/logger';
-import toast from 'react-hot-toast';
+import { usePlannerModals } from '../hooks/usePlannerModals';
+import { useEventOperations } from '../hooks/useEventOperations';
 
 
 interface PlannerViewProps {
@@ -24,27 +25,20 @@ const PlannerView: React.FC<PlannerViewProps> = ({ user, signOut, isGuest, setIs
         endDrag,
         selectionMode,
         onContextMenu,
-        events,
         setEvents,
         theme,
         undo
     } = usePlanner();
 
-    // App UI State
-    type ModalState =
-        | { type: 'NONE' }
-        | { type: 'CREATE'; range: EventRange }
-        | { type: 'LIST'; date: RangeDate; events: PlannerEvent[] }
-        | { type: 'SETTINGS' };
-
-    const [modal, setModal] = useState<ModalState>({ type: 'NONE' });
+    const { modalState, openCreate, openList, openSettings, close, updateListEvents } = usePlannerModals();
+    const { createEvent, updateEvent, deleteEvent, createEventFromDate } = useEventOperations(setEvents, undo);
 
     // Visibility State
     const [todayInView, setTodayInView] = useState(false);
 
     // Selection State
-    const activeRange = modal.type === 'CREATE' ? modal.range : null;
-    const activeList = modal.type === 'LIST' ? modal : null;
+    const activeRange = modalState.type === 'CREATE' ? modalState.range : null;
+    const activeList = modalState.type === 'LIST' ? modalState : null;
 
     // Effects
     useEffect(() => {
@@ -53,7 +47,7 @@ const PlannerView: React.FC<PlannerViewProps> = ({ user, signOut, isGuest, setIs
 
     // Handlers
     const handleRangeComplete = (range: EventRange) => {
-        setModal({ type: 'CREATE', range });
+        openCreate(range);
     };
 
     const handleMouseUp = () => {
@@ -62,115 +56,54 @@ const PlannerView: React.FC<PlannerViewProps> = ({ user, signOut, isGuest, setIs
 
     const handleEventClickWithDate = (e: React.MouseEvent, allEventsOnDay: PlannerEvent[], m: number, d: number) => {
         e.stopPropagation();
-        setModal({
-            type: 'LIST',
-            date: { year, month: m, day: d },
-            events: allEventsOnDay
-        });
+        openList(
+            { year, month: m, day: d },
+            allEventsOnDay
+        );
     };
 
-    type EventDraft = {
-        title?: string;
-        start: string;
-        end: string;
-        color: number;
-    };
+    const handleSaveNewEvent = (title: string, colorIndex: number) => {
+        if (modalState.type !== 'CREATE') return;
 
-    const createEvent = ({ title, start, end, color }: EventDraft): PlannerEvent => ({
-        id: uid(),
-        title: title?.trim() ? title : 'New Event',
-        start,
-        end,
-        color
-    });
+        const startStr = toDateStr(modalState.range.start.year, modalState.range.start.month, modalState.range.start.day);
+        const endStr = toDateStr(modalState.range.end.year, modalState.range.end.month, modalState.range.end.day);
 
-    const showUndoToast = (message: string) => {
-        toast.custom((t) => (
-            <div
-                className="custom-toast undo-toast"
-                onClick={() => toast.dismiss(t.id)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault();
-                        toast.dismiss(t.id);
-                    }
-                }}
-            >
-                <span>{message}</span>
-                <button
-                    type="button"
-                    onClick={(event) => {
-                        event.stopPropagation();
-                        undo();
-                        toast.dismiss(t.id);
-                    }}
-                    className="undo-toast-action"
-                >
-                    Undo
-                </button>
-            </div>
-        ), { duration: 5000 });
-    };
-
-    const saveNewEvent = (title: string, colorIndex: number) => {
-        if (modal.type !== 'CREATE') return;
-        const startStr = toDateStr(modal.range.start.year, modal.range.start.month, modal.range.start.day);
-        const endStr = toDateStr(modal.range.end.year, modal.range.end.month, modal.range.end.day);
-
-        const newEvent = createEvent({
+        createEvent({
             title,
             start: startStr,
             end: endStr,
             color: colorIndex
         });
-        logger.info('Creating new event:', newEvent);
-        setEvents(prevEvents => [...prevEvents, newEvent]);
-        setModal({ type: 'NONE' });
+        close();
     };
 
     const handleUpdateEvent = (updatedEvent: PlannerEvent) => {
-        logger.info('Updating event:', updatedEvent);
-        setEvents(prevEvents => prevEvents.map(ev => ev.id === updatedEvent.id ? updatedEvent : ev));
-        if (modal.type === 'LIST') {
-            setModal({
-                ...modal,
-                events: modal.events.map(ev => ev.id === updatedEvent.id ? updatedEvent : ev)
-            });
+        updateEvent(updatedEvent);
+        if (modalState.type === 'LIST') {
+            const newEvents = modalState.events.map(ev => ev.id === updatedEvent.id ? updatedEvent : ev);
+            updateListEvents(newEvents);
         }
     };
 
-    const handleDeleteEvent = (id: string) => {
-        logger.info('Deleting event ID:', id);
-        setEvents(prevEvents => prevEvents.filter(ev => ev.id !== id));
-        showUndoToast('Event deleted.');
-        if (modal.type === 'LIST') {
-            const nextSelected = modal.events.filter(ev => ev.id !== id);
-            if (nextSelected.length === 0) {
-                setModal({ type: 'NONE' });
-            } else {
-                setModal({
-                    ...modal,
-                    events: nextSelected
-                });
+    const handleDelete = (id: string) => {
+        deleteEvent(id, () => {
+            if (modalState.type === 'LIST') {
+                const nextSelected = modalState.events.filter(ev => ev.id !== id);
+                if (nextSelected.length === 0) {
+                    close();
+                } else {
+                    updateListEvents(nextSelected);
+                }
             }
-        }
+        });
     };
 
     const handleAddFromList = () => {
-        if (modal.type !== 'LIST') return;
-        const dateStr = toDateStr(modal.date.year, modal.date.month, modal.date.day);
-        const newEvent = createEvent({
-            start: dateStr,
-            end: dateStr,
-            color: 0
-        });
-        setEvents(prevEvents => [...prevEvents, newEvent]);
-        setModal({
-            ...modal,
-            events: [...modal.events, newEvent]
-        });
+        if (modalState.type !== 'LIST') return;
+        const { year, month, day } = modalState.date;
+        const newEvent = createEventFromDate(year, month, day);
+
+        updateListEvents([...modalState.events, newEvent]);
     };
 
     return (
@@ -181,7 +114,7 @@ const PlannerView: React.FC<PlannerViewProps> = ({ user, signOut, isGuest, setIs
         >
             <AppHeader
                 todayInView={todayInView}
-                onSettingsClick={() => setModal({ type: 'SETTINGS' })}
+                onSettingsClick={openSettings}
             />
 
             <PlannerGrid
@@ -190,28 +123,28 @@ const PlannerView: React.FC<PlannerViewProps> = ({ user, signOut, isGuest, setIs
                 onRangeSelection={handleRangeComplete}
             />
 
-            {modal.type === 'CREATE' && activeRange && (
+            {modalState.type === 'CREATE' && activeRange && (
                 <EventModal
                     range={activeRange}
-                    onClose={() => setModal({ type: 'NONE' })}
-                    onSave={saveNewEvent}
+                    onClose={close}
+                    onSave={handleSaveNewEvent}
                 />
             )}
 
-            {modal.type === 'LIST' && activeList && (
+            {modalState.type === 'LIST' && activeList && (
                 <EventListModal
                     events={activeList.events}
                     date={activeList.date}
-                    onClose={() => setModal({ type: 'NONE' })}
-                    onDelete={handleDeleteEvent}
+                    onClose={close}
+                    onDelete={handleDelete}
                     onUpdate={handleUpdateEvent}
                     onAdd={handleAddFromList}
                 />
             )}
 
-            {modal.type === 'SETTINGS' && (
+            {modalState.type === 'SETTINGS' && (
                 <SettingsModal
-                    onClose={() => setModal({ type: 'NONE' })}
+                    onClose={close}
                     user={user}
                     onSignOut={() => {
                         if (isGuest) setIsGuest(false);

@@ -25,6 +25,13 @@ export interface PlannerEvent {
     color: number;
 }
 
+export interface EventDraft {
+    title?: string;
+    start: string;
+    end: string;
+    color: number;
+}
+
 export interface PlannerSettings {
     theme: ThemeId;
     highlightToday: boolean;
