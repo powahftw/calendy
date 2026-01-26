@@ -11,22 +11,30 @@ type DayCellProps =
     }
     | {
         type: 'day';
-        year: number;
-        month: number;
-        day: number;
-        isWeekend: boolean;
-        isToday: boolean;
-        eventsOnDay: PlannerEvent[];
-        isHighlighted: boolean;
-        dragPreviewEvent: PlannerEvent | null;
-        activeEventId: string | null;
-        showWeekends: boolean;
-        onEventClick: (e: React.MouseEvent, allEventsOnDay: PlannerEvent[], m: number, d: number) => void;
-        onMouseDown: (m: number, d: number) => void;
-        onMouseEnter: (m: number, d: number) => void;
-        onTouchStart: (e: React.TouchEvent, m: number, d: number) => void;
-        onTouchMove: (e: React.TouchEvent) => void;
-        onTouchEnd: () => void;
+        date: {
+            year: number;
+            month: number;
+            day: number;
+        };
+        events: PlannerEvent[];
+        appearance: {
+            isHighlighted: boolean;
+            isWeekend: boolean;
+            showWeekends: boolean;
+            activeEventId: string | null;
+            dragPreviewEvent: PlannerEvent | null;
+        };
+        today: {
+            isToday: boolean;
+        };
+        interactions: {
+            onEventClick: (e: React.MouseEvent, allEventsOnDay: PlannerEvent[], m: number, d: number) => void;
+            onMouseDown: (m: number, d: number) => void;
+            onMouseEnter: (m: number, d: number) => void;
+            onTouchStart: (e: React.TouchEvent, m: number, d: number) => void;
+            onTouchMove: (e: React.TouchEvent) => void;
+            onTouchEnd: () => void;
+        };
     };
 
 const DraggableEventChip: FC<{
@@ -92,20 +100,21 @@ const DayCell: FC<DayCellProps> = React.memo((props) => {
         return <div className="day-cell empty"></div>;
     }
 
-    const {
-        year, month, day, isWeekend, isToday, eventsOnDay, isHighlighted,
-        dragPreviewEvent, activeEventId, showWeekends,
-        onEventClick, onMouseDown, onMouseEnter, onTouchStart, onTouchMove, onTouchEnd
-    } = props;
+    const { date, events, appearance, today, interactions } = props;
+    const { year, month, day } = date;
+    const { isHighlighted, isWeekend, showWeekends, activeEventId, dragPreviewEvent } = appearance;
+    const { isToday } = today;
+    const { onEventClick, onMouseDown, onMouseEnter, onTouchStart, onTouchMove, onTouchEnd } = interactions;
+
     const currentColors = useTheme();
     const { isOver, setNodeRef } = useDroppable({
         id: `day-${year}-${month}-${day}`,
         data: { year, month, day }
     });
 
-    const hasEvents = eventsOnDay.length > 0;
-    const mainEvent = eventsOnDay[0];
-    const hiddenEvents = eventsOnDay.slice(1);
+    const hasEvents = events.length > 0;
+    const mainEvent = events[0];
+    const hiddenEvents = events.slice(1);
     const hasOverflow = hiddenEvents.length > 0;
     const mainEventColor = hasEvents ? currentColors[mainEvent.color] || currentColors[0] : null;
 
@@ -158,7 +167,7 @@ const DayCell: FC<DayCellProps> = React.memo((props) => {
                         hasOverflow={hasOverflow}
                         color={mainEventColor!}
                         isActive={activeEventId === mainEvent.id}
-                        onClick={(e) => onEventClick(e, eventsOnDay, month, day)}
+                        onClick={(e) => onEventClick(e, events, month, day)}
                     />
                 </>
             )}
@@ -167,7 +176,7 @@ const DayCell: FC<DayCellProps> = React.memo((props) => {
                 <OverflowIndicator
                     events={hiddenEvents}
                     currentColors={currentColors}
-                    onClick={(e) => onEventClick(e, eventsOnDay, month, day)}
+                    onClick={(e) => onEventClick(e, events, month, day)}
                 />
             )}
         </div>
@@ -175,3 +184,4 @@ const DayCell: FC<DayCellProps> = React.memo((props) => {
 });
 
 export default DayCell;
+

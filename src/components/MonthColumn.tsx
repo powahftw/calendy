@@ -66,22 +66,24 @@ const MonthColumn: FC<MonthColumnProps> = ({
                     <DayCell
                         key={cell.id}
                         type="day"
-                        year={year}
-                        month={monthIndex}
-                        day={day}
-                        isWeekend={isWeekend}
-                        isToday={isToday}
-                        eventsOnDay={eventsOnDay}
-                        isHighlighted={isHighlighted(monthIndex, day)}
-                        dragPreviewEvent={showPreview ? dragPreviewEvent : null}
-                        activeEventId={activeEventId}
-                        showWeekends={showWeekends}
-                        onEventClick={onEventClick}
-                        onMouseDown={startDrag}
-                        onMouseEnter={updateDrag}
-                        onTouchStart={onTouchStart}
-                        onTouchMove={onTouchMove}
-                        onTouchEnd={onTouchEnd}
+                        date={{ year, month: monthIndex, day }}
+                        events={eventsOnDay}
+                        appearance={{
+                            isHighlighted: isHighlighted(monthIndex, day),
+                            isWeekend,
+                            showWeekends,
+                            activeEventId,
+                            dragPreviewEvent: showPreview ? dragPreviewEvent : null
+                        }}
+                        today={{ isToday }}
+                        interactions={{
+                            onEventClick,
+                            onMouseDown: startDrag,
+                            onMouseEnter: updateDrag,
+                            onTouchStart,
+                            onTouchMove,
+                            onTouchEnd
+                        }}
                     />
                 );
             })}
