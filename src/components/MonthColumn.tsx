@@ -1,6 +1,8 @@
 import React, { FC, useMemo } from 'react';
 import { monthNames, getDayOfWeekIndex, PlannerEvent, isDateInRange, getDateKey } from '../utils/calendarUtils';
-import { usePlannerData, usePlannerInteraction, usePlannerDisplay } from '../context/PlannerContext';
+import { usePlannerMeta } from '../context/PlannerMetaContext';
+import { usePlannerEvents } from '../context/PlannerEventsContext';
+import { usePlannerInteraction } from '../context/PlannerInteractionContext';
 import { generateMonthLayout } from '../utils/calendar/layoutCalculations';
 import DayCell from './calendar/DayCell';
 
@@ -15,6 +17,13 @@ interface MonthColumnProps {
     };
     onTouchEnd: () => void;
     dragPreviewEvent?: PlannerEvent | null;
+
+    // Drag Props
+    startDrag: (m: number, d: number) => void;
+    updateDrag: (m: number, d: number) => void;
+    isHighlighted: (m: number, d: number) => boolean;
+    onTouchStart: (e: React.TouchEvent, m: number, d: number) => void;
+    onTouchMove: (e: React.TouchEvent) => void;
 }
 
 const MonthColumn: FC<MonthColumnProps> = ({
@@ -24,12 +33,15 @@ const MonthColumn: FC<MonthColumnProps> = ({
     today,
     onTouchEnd,
     dragPreviewEvent,
+    startDrag,
+    updateDrag,
+    isHighlighted,
+    onTouchStart,
+    onTouchMove
 }) => {
-    const { year, eventMap } = usePlannerData();
-    const {
-        startDrag, updateDrag, isHighlighted, onTouchStart, onTouchMove, activeEventId
-    } = usePlannerInteraction();
-    const { weekdayAlign, showWeekends, highlightToday } = usePlannerDisplay();
+    const { year, weekdayAlign, showWeekends, highlightToday } = usePlannerMeta();
+    const { eventMap } = usePlannerEvents();
+    const { activeEventId } = usePlannerInteraction();
 
     const layout = useMemo(() => generateMonthLayout({
         year,

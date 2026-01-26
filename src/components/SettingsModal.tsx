@@ -274,6 +274,28 @@ const SettingsModal: FC<SettingsModalProps> = ({
                     </div>
 
 
+                    <div className="settings-section">
+                        <h4>Keyboard Shortcuts</h4>
+                        <div className="setting-row">
+                            <span>New Event</span>
+                            <div>
+                                <kbd>C</kbd> <span style={{ fontSize: '0.8em', color: 'var(--text-secondary)' }}>or</span> <kbd>N</kbd>
+                            </div>
+                        </div>
+                        <div className="setting-row">
+                            <span>Undo</span>
+                            <div>
+                                <kbd>Ctrl</kbd> + <kbd>Z</kbd>
+                            </div>
+                        </div>
+                        <div className="setting-row">
+                            <span>Navigate Year</span>
+                            <div>
+                                <kbd>←</kbd> / <kbd>→</kbd>
+                            </div>
+                        </div>
+                    </div>
+
                     {/* Account Section */}
                     <div className="settings-section">
                         <h4>Account</h4>
