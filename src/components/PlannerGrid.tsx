@@ -51,6 +51,10 @@ const PlannerGrid: React.FC<PlannerGridProps> = ({ onEventClick, setTodayInView,
         onTouchEndSelection(onRangeSelection);
     };
 
+    const handleMouseUpWrapped = () => {
+        endSelectionDrag(onRangeSelection);
+    };
+
     // Dnd Sensors
     const sensors = useSensors(
         useSensor(MouseSensor, {
@@ -166,6 +170,7 @@ const PlannerGrid: React.FC<PlannerGridProps> = ({ onEventClick, setTodayInView,
                             onTouchStart={onTouchStart}
                             onTouchMove={onTouchMove}
                             onTouchEnd={handleTouchEndWrapped}
+                            onMouseUp={handleMouseUpWrapped}
                         />
                     ))}
                 </div>

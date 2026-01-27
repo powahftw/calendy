@@ -16,6 +16,7 @@ interface MonthColumnProps {
         todayDay: number;
     };
     onTouchEnd: () => void;
+    onMouseUp: () => void;
     dragPreviewEvent?: PlannerEvent | null;
 
     // Drag Props
@@ -32,6 +33,7 @@ const MonthColumn: FC<MonthColumnProps> = ({
     maxRows,
     today,
     onTouchEnd,
+    onMouseUp,
     dragPreviewEvent,
     startDrag,
     updateDrag,
@@ -94,7 +96,8 @@ const MonthColumn: FC<MonthColumnProps> = ({
                             onMouseEnter: updateDrag,
                             onTouchStart,
                             onTouchMove,
-                            onTouchEnd
+                            onTouchEnd,
+                            onMouseUp
                         }}
                     />
                 );
