@@ -10,7 +10,8 @@ import {
 import {
     loadFromLocalStorage,
     saveToLocalStorage,
-    getDefaultData
+    getDefaultData,
+    getTimestampInMillis
 } from '../utils/persistence';
 import {
     syncEvents,
@@ -79,7 +80,7 @@ const usePlannerPersistence = (user: User | null) => {
                     dispatch({
                         type: 'REMOTE_UPDATE',
                         payload: { events: remoteEvents.events },
-                        timestamp: (remoteEvents.updatedAt as any)?.toMillis ? (remoteEvents.updatedAt as any).toMillis() : (remoteEvents.updatedAt || 0)
+                        timestamp: getTimestampInMillis(remoteEvents.updatedAt)
                     });
                 }
 
@@ -88,7 +89,7 @@ const usePlannerPersistence = (user: User | null) => {
                     dispatch({
                         type: 'REMOTE_UPDATE',
                         payload: { settings },
-                        timestamp: (updatedAt as any)?.toMillis ? (updatedAt as any).toMillis() : (updatedAt || 0)
+                        timestamp: getTimestampInMillis(updatedAt)
                     });
                 }
             } catch (err) {
@@ -102,7 +103,7 @@ const usePlannerPersistence = (user: User | null) => {
             dispatch({
                 type: 'REMOTE_UPDATE',
                 payload: { events: remotePayload.events },
-                timestamp: (remotePayload.updatedAt as any)?.toMillis ? (remotePayload.updatedAt as any).toMillis() : (remotePayload.updatedAt || 0)
+                timestamp: getTimestampInMillis(remotePayload.updatedAt)
             });
         });
 
@@ -111,7 +112,7 @@ const usePlannerPersistence = (user: User | null) => {
             dispatch({
                 type: 'REMOTE_UPDATE',
                 payload: { settings },
-                timestamp: (updatedAt as any)?.toMillis ? (updatedAt as any).toMillis() : (updatedAt || 0)
+                timestamp: getTimestampInMillis(updatedAt)
             });
         });
 

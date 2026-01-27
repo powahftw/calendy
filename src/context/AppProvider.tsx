@@ -4,12 +4,6 @@ import usePlannerPersistence from '../hooks/usePlannerPersistence';
 import { PlannerMetaProvider } from './PlannerMetaContext';
 import { PlannerEventsProvider } from './PlannerEventsContext';
 import { PlannerInteractionProvider } from './PlannerInteractionContext';
-import { PlannerDisplayProvider } from './PlannerDisplayContext'; // Legacy support or keep for display settings?
-
-// Merging PlannerDisplayContext into PlannerMetaContext in this refactor
-// but for now I'll check if I need to keep it or if I merged it.
-// Checked PlannerMetaContext: it has highlightToday, showWeekends, etc.
-// So PlannerDisplayContext is effectively merged into PlannerMetaContext.
 
 export interface AppProviderProps {
     user: User | null;

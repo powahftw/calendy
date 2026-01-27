@@ -10,6 +10,7 @@ import {
 } from 'firebase/firestore';
 import { PlannerEvent, PlannerSettings } from './utils/calendarUtils';
 import { logger } from './utils/logger';
+import { getTimestampInMillis } from './utils/persistence';
 
 
 export interface RemoteEventsPayload {
@@ -58,7 +59,7 @@ export const subscribeToEvents = (uid: string, callback: (payload: RemoteEventsP
     return onSnapshot(ref, (snapshot) => {
         if (snapshot.exists()) {
             const data = snapshot.data();
-            const updatedAt = data.updatedAt?.toMillis?.() ?? null;
+            const updatedAt = getTimestampInMillis(data.updatedAt);
             callback({ events: data.events || [], updatedAt });
         }
     }, (error) => {
@@ -78,7 +79,7 @@ export const loadEvents = async (uid: string): Promise<RemoteEventsPayload | nul
 
         if (snapshot.exists()) {
             const data = snapshot.data();
-            const updatedAt = data.updatedAt?.toMillis?.() ?? null;
+            const updatedAt = getTimestampInMillis(data.updatedAt);
             return { events: data.events || [], updatedAt };
         }
         return null;
@@ -127,8 +128,8 @@ export const subscribeToSettings = (uid: string, callback: (settings: Partial<Pl
     return onSnapshot(ref, (snapshot) => {
         if (snapshot.exists()) {
             const data = snapshot.data();
-            const updatedAtMillis = data.updatedAt?.toMillis?.() || data.updatedAt;
-            callback({ ...data, updatedAt: typeof updatedAtMillis === 'number' ? updatedAtMillis : undefined });
+            const updatedAtMillis = getTimestampInMillis(data.updatedAt);
+            callback({ ...data, updatedAt: updatedAtMillis || undefined });
         }
     }, (error) => {
         logger.error('Error subscribing to settings:', error);
@@ -147,7 +148,7 @@ export const loadSettings = async (uid: string): Promise<(Partial<PlannerSetting
 
         if (snapshot.exists()) {
             const data = snapshot.data();
-            const updatedAt = data.updatedAt?.toMillis?.() ?? null;
+            const updatedAt = getTimestampInMillis(data.updatedAt);
             return { ...(data as Partial<PlannerSettings>), updatedAt };
         }
         return null;
