@@ -34,6 +34,7 @@ type DayCellProps =
             onTouchStart: (e: React.TouchEvent, m: number, d: number) => void;
             onTouchMove: (e: React.TouchEvent) => void;
             onTouchEnd: () => void;
+            onMouseUp: () => void;
         };
     };
 
@@ -104,7 +105,7 @@ const DayCell: FC<DayCellProps> = React.memo((props) => {
     const { year, month, day } = date;
     const { isHighlighted, isWeekend, showWeekends, activeEventId, dragPreviewEvent } = appearance;
     const { isToday } = today;
-    const { onEventClick, onMouseDown, onMouseEnter, onTouchStart, onTouchMove, onTouchEnd } = interactions;
+    const { onEventClick, onMouseDown, onMouseEnter, onTouchStart, onTouchMove, onTouchEnd, onMouseUp } = interactions;
 
     const currentColors = useTheme();
     const { isOver, setNodeRef } = useDroppable({
@@ -138,6 +139,7 @@ const DayCell: FC<DayCellProps> = React.memo((props) => {
             onTouchStart={(e) => onTouchStart(e, month, day)}
             onTouchMove={onTouchMove}
             onTouchEnd={onTouchEnd}
+            onMouseUp={onMouseUp}
         >
             <DayNumber value={day} />
 

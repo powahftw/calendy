@@ -274,6 +274,8 @@ const SettingsModal: FC<SettingsModalProps> = ({
                     </div>
 
 
+
+
                     {/* Account Section */}
                     <div className="settings-section">
                         <h4>Account</h4>

@@ -5,10 +5,12 @@ import {
     onSnapshot,
     getDoc,
     serverTimestamp,
-    DocumentData
+    DocumentData,
+    FieldValue
 } from 'firebase/firestore';
 import { PlannerEvent, PlannerSettings } from './utils/calendarUtils';
 import { logger } from './utils/logger';
+import { getTimestampInMillis } from './utils/persistence';
 
 
 export interface RemoteEventsPayload {
@@ -23,7 +25,7 @@ const DEBOUNCE_MS = 1000;
 /**
  * Save events to Firestore (debounced)
  */
-export const syncEvents = (uid: string, events: PlannerEvent[], timestamp?: number) => {
+export const syncEvents = (uid: string, events: PlannerEvent[], timestamp?: number | FieldValue) => {
     if (!uid) return;
 
     if (saveTimeout) {
@@ -57,7 +59,7 @@ export const subscribeToEvents = (uid: string, callback: (payload: RemoteEventsP
     return onSnapshot(ref, (snapshot) => {
         if (snapshot.exists()) {
             const data = snapshot.data();
-            const updatedAt = data.updatedAt?.toMillis?.() ?? null;
+            const updatedAt = getTimestampInMillis(data.updatedAt);
             callback({ events: data.events || [], updatedAt });
         }
     }, (error) => {
@@ -77,7 +79,7 @@ export const loadEvents = async (uid: string): Promise<RemoteEventsPayload | nul
 
         if (snapshot.exists()) {
             const data = snapshot.data();
-            const updatedAt = data.updatedAt?.toMillis?.() ?? null;
+            const updatedAt = getTimestampInMillis(data.updatedAt);
             return { events: data.events || [], updatedAt };
         }
         return null;
@@ -92,7 +94,7 @@ export const loadEvents = async (uid: string): Promise<RemoteEventsPayload | nul
  */
 let settingsSaveTimeout: ReturnType<typeof setTimeout> | null = null;
 
-export const syncSettings = (uid: string, settings: PlannerSettings, timestamp?: number) => {
+export const syncSettings = (uid: string, settings: PlannerSettings, timestamp?: number | FieldValue) => {
     if (!uid) return;
 
     if (settingsSaveTimeout) {
@@ -126,8 +128,8 @@ export const subscribeToSettings = (uid: string, callback: (settings: Partial<Pl
     return onSnapshot(ref, (snapshot) => {
         if (snapshot.exists()) {
             const data = snapshot.data();
-            const updatedAtMillis = data.updatedAt?.toMillis?.() || data.updatedAt;
-            callback({ ...data, updatedAt: typeof updatedAtMillis === 'number' ? updatedAtMillis : undefined });
+            const updatedAtMillis = getTimestampInMillis(data.updatedAt);
+            callback({ ...data, updatedAt: updatedAtMillis || undefined });
         }
     }, (error) => {
         logger.error('Error subscribing to settings:', error);
@@ -137,7 +139,7 @@ export const subscribeToSettings = (uid: string, callback: (settings: Partial<Pl
 /**
  * Load initial settings from Firestore
  */
-export const loadSettings = async (uid: string): Promise<Partial<PlannerSettings> | null> => {
+export const loadSettings = async (uid: string): Promise<(Partial<PlannerSettings> & { updatedAt?: number | null }) | null> => {
     if (!uid) return null;
 
     try {
@@ -145,8 +147,9 @@ export const loadSettings = async (uid: string): Promise<Partial<PlannerSettings
         const snapshot = await getDoc(ref);
 
         if (snapshot.exists()) {
-            const { updatedAt: _updatedAt, ...settings } = snapshot.data() as DocumentData;
-            return settings as Partial<PlannerSettings>;
+            const data = snapshot.data();
+            const updatedAt = getTimestampInMillis(data.updatedAt);
+            return { ...(data as Partial<PlannerSettings>), updatedAt };
         }
         return null;
     } catch (error) {

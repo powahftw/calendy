@@ -1,0 +1,48 @@
+import React, { createContext, useContext, ReactNode } from 'react';
+import { ThemeId } from '../utils/calendarUtils';
+
+interface PlannerMetaContextValue {
+    // Time
+    year: number;
+    setYear: (year: number) => void;
+    monthsToShow: number;
+    setMonthsToShow: (n: number) => void;
+
+    // Appearance
+    theme: ThemeId;
+    setTheme: (theme: ThemeId) => void;
+    highlightToday: boolean;
+    setHighlightToday: (h: boolean) => void;
+    showWeekends: boolean;
+    setShowWeekends: (s: boolean) => void;
+    showDayProgress: boolean;
+    setShowDayProgress: (s: boolean) => void;
+    weekdayAlign: boolean;
+    setWeekdayAlign: (s: boolean) => void;
+
+    // System
+    isInitialLoadDone: boolean;
+}
+
+const PlannerMetaContext = createContext<PlannerMetaContextValue | undefined>(undefined);
+
+export const usePlannerMeta = () => {
+    const context = useContext(PlannerMetaContext);
+    if (!context) {
+        throw new Error('usePlannerMeta must be used within a PlannerMetaProvider');
+    }
+    return context;
+};
+
+interface PlannerMetaProviderProps {
+    value: PlannerMetaContextValue;
+    children: ReactNode;
+}
+
+export const PlannerMetaProvider: React.FC<PlannerMetaProviderProps> = ({ value, children }) => {
+    return (
+        <PlannerMetaContext.Provider value={value}>
+            {children}
+        </PlannerMetaContext.Provider>
+    );
+};

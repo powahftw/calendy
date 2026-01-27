@@ -8,6 +8,8 @@ import EventModal from './EventModal';
 import EventListModal from './EventListModal';
 import { User } from 'firebase/auth';
 import { logger } from '../utils/logger';
+import toast from 'react-hot-toast';
+import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { usePlannerModals } from '../hooks/usePlannerModals';
 import { useEventOperations } from '../hooks/useEventOperations';
 
@@ -22,16 +24,17 @@ interface PlannerViewProps {
 const PlannerView: React.FC<PlannerViewProps> = ({ user, signOut, isGuest, setIsGuest }) => {
     const {
         year,
-        endDrag,
-        selectionMode,
-        onContextMenu,
+        events,
         setEvents,
         theme,
         undo
     } = usePlanner();
 
+    const today = new Date();
     const { modalState, openCreate, openList, openSettings, close, updateListEvents } = usePlannerModals();
     const { createEvent, updateEvent, deleteEvent, createEventFromDate } = useEventOperations(setEvents, undo);
+
+    useKeyboardShortcuts();
 
     // Visibility State
     const [todayInView, setTodayInView] = useState(false);
@@ -48,10 +51,6 @@ const PlannerView: React.FC<PlannerViewProps> = ({ user, signOut, isGuest, setIs
     // Handlers
     const handleRangeComplete = (range: EventRange) => {
         openCreate(range);
-    };
-
-    const handleMouseUp = () => {
-        endDrag(handleRangeComplete);
     };
 
     const handleEventClickWithDate = (e: React.MouseEvent, allEventsOnDay: PlannerEvent[], m: number, d: number) => {
@@ -107,11 +106,7 @@ const PlannerView: React.FC<PlannerViewProps> = ({ user, signOut, isGuest, setIs
     };
 
     return (
-        <div
-            className={`app-container ${selectionMode ? 'selection-mode' : ''}`}
-            onMouseUp={handleMouseUp}
-            onContextMenu={onContextMenu}
-        >
+        <div className="app-container">
             <AppHeader
                 todayInView={todayInView}
                 onSettingsClick={openSettings}

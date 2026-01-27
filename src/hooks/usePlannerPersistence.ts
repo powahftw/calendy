@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback, useReducer } from 'react';
 import { User } from 'firebase/auth';
+import { serverTimestamp, Timestamp } from 'firebase/firestore';
 import { PlannerEvent, PlannerSettings, ThemeId } from '../utils/calendarUtils';
 import {
     plannerReducer,
@@ -9,7 +10,8 @@ import {
 import {
     loadFromLocalStorage,
     saveToLocalStorage,
-    getDefaultData
+    getDefaultData,
+    getTimestampInMillis
 } from '../utils/persistence';
 import {
     syncEvents,
@@ -56,7 +58,7 @@ const usePlannerPersistence = (user: User | null) => {
             dispatch({
                 type: 'HYDRATE_LOCAL',
                 payload: localState.data,
-                timestamp: localState.updatedAt
+                timestamp: localState.updatedAt || 0
             });
         }
     }, [user?.uid]);
@@ -78,7 +80,7 @@ const usePlannerPersistence = (user: User | null) => {
                     dispatch({
                         type: 'REMOTE_UPDATE',
                         payload: { events: remoteEvents.events },
-                        timestamp: remoteEvents.updatedAt || 0
+                        timestamp: getTimestampInMillis(remoteEvents.updatedAt)
                     });
                 }
 
@@ -87,7 +89,7 @@ const usePlannerPersistence = (user: User | null) => {
                     dispatch({
                         type: 'REMOTE_UPDATE',
                         payload: { settings },
-                        timestamp: updatedAt || 0
+                        timestamp: getTimestampInMillis(updatedAt)
                     });
                 }
             } catch (err) {
@@ -101,7 +103,7 @@ const usePlannerPersistence = (user: User | null) => {
             dispatch({
                 type: 'REMOTE_UPDATE',
                 payload: { events: remotePayload.events },
-                timestamp: remotePayload.updatedAt || 0
+                timestamp: getTimestampInMillis(remotePayload.updatedAt)
             });
         });
 
@@ -110,7 +112,7 @@ const usePlannerPersistence = (user: User | null) => {
             dispatch({
                 type: 'REMOTE_UPDATE',
                 payload: { settings },
-                timestamp: updatedAt || 0
+                timestamp: getTimestampInMillis(updatedAt)
             });
         });
 
@@ -137,17 +139,17 @@ const usePlannerPersistence = (user: User | null) => {
         }, 50);
 
         // Save to Firestore ONLY on user changes and if logged in
-        if (user && lastActionType === 'USER_CHANGE') {
+        if (user && (lastActionType === 'USER_CHANGE' || lastActionType === 'UNDO')) {
             // Debounce Events Sync (300ms)
             if (syncEventsTimeoutRef.current) clearTimeout(syncEventsTimeoutRef.current);
             syncEventsTimeoutRef.current = setTimeout(() => {
-                syncEvents(user.uid, state.data.events, updatedAt);
+                syncEvents(user.uid, state.data.events, serverTimestamp());
             }, 300);
 
             // Debounce Settings Sync (300ms)
             if (syncSettingsTimeoutRef.current) clearTimeout(syncSettingsTimeoutRef.current);
             syncSettingsTimeoutRef.current = setTimeout(() => {
-                syncSettings(user.uid, state.data.settings, updatedAt);
+                syncSettings(user.uid, state.data.settings, serverTimestamp());
             }, 300);
         }
 
@@ -164,8 +166,8 @@ const usePlannerPersistence = (user: User | null) => {
         const handleOnline = () => {
             if (user && state.metadata.isHydrated) {
                 logger.info('Back online! Syncing state to Firestore...');
-                syncEvents(user.uid, state.data.events, Date.now());
-                syncSettings(user.uid, state.data.settings, Date.now());
+                syncEvents(user.uid, state.data.events, serverTimestamp());
+                syncSettings(user.uid, state.data.settings, serverTimestamp());
             }
         };
 

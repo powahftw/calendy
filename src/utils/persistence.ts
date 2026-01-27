@@ -4,6 +4,17 @@ import { PlannerEvent, PlannerSettings, ThemeId } from './calendarUtils';
 import { PlannerData } from '../hooks/usePlannerState';
 import { logger } from './logger';
 
+/**
+ * Robustly convert a Firestore Timestamp or number to milliseconds.
+ */
+export const getTimestampInMillis = (timestamp: any): number => {
+    if (!timestamp) return 0;
+    if (typeof timestamp.toMillis === 'function') {
+        return timestamp.toMillis();
+    }
+    return typeof timestamp === 'number' ? timestamp : 0;
+};
+
 const STORAGE_PREFIX = 'planner_v2_';
 
 export interface LocalStorageState {

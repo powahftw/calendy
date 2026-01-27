@@ -86,7 +86,7 @@ export const plannerReducer = (state: PlannerState, action: Action): PlannerStat
                 data: state.history[state.history.length - 1],
                 history: state.history.slice(0, -1),
                 metadata: {
-                    lastActionType: 'USER_CHANGE',
+                    lastActionType: 'UNDO',
                     updatedAt: Date.now(),
                     isHydrated: true
                 }

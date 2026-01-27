@@ -4,7 +4,7 @@ import './App.css';
 import './utils/logger';
 import { useAuth } from './AuthContext';
 import LoginScreen from './LoginScreen';
-import { PlannerProvider } from './context/PlannerContext';
+import { AppProvider } from './context/AppProvider';
 import PlannerView from './components/PlannerView';
 import { useGuestMode } from './hooks/useGuestMode';
 
@@ -25,7 +25,7 @@ function App() {
   }
 
   return (
-    <PlannerProvider user={user}>
+    <AppProvider user={user}>
       <Toaster
         position="top-center"
         toastOptions={{
@@ -39,7 +39,7 @@ function App() {
         isGuest={isGuest}
         setIsGuest={setIsGuest}
       />
-    </PlannerProvider>
+    </AppProvider>
   );
 }
 

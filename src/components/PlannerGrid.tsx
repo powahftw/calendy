@@ -1,11 +1,14 @@
 import React, { useRef, useMemo } from 'react';
 import { DndContext, DragEndEvent, DragStartEvent, DragOverEvent, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
-import { usePlannerData, usePlannerInteraction, usePlannerDisplay } from '../context/PlannerContext';
+import { usePlannerMeta } from '../context/PlannerMetaContext';
+import { usePlannerEvents } from '../context/PlannerEventsContext';
+import { usePlannerInteraction } from '../context/PlannerInteractionContext';
 import MonthColumn from './MonthColumn';
 import { daysOfWeek, PlannerEvent, EventRange } from '../utils/calendarUtils';
 import { useEventDragCalculations } from '../hooks/useEventDragCalculations';
 import { useTodayVisibility } from '../hooks/useTodayVisibility';
 import { logger } from '../utils/logger';
+import useDragSelection from '../hooks/useDragSelection';
 
 
 interface PlannerGridProps {
@@ -15,9 +18,20 @@ interface PlannerGridProps {
 }
 
 const PlannerGrid: React.FC<PlannerGridProps> = ({ onEventClick, setTodayInView, onRangeSelection }) => {
-    const { year, monthsToShow, events, setEvents } = usePlannerData();
-    const { onTouchEnd, setActiveEventId } = usePlannerInteraction();
-    const { weekdayAlign, highlightToday } = usePlannerDisplay();
+    const { year, monthsToShow, weekdayAlign, highlightToday } = usePlannerMeta();
+    const { events, setEvents } = usePlannerEvents();
+    const { setActiveEventId } = usePlannerInteraction();
+
+    // Local drag state
+    const {
+        startDrag,
+        updateDrag,
+        endDrag: endSelectionDrag,
+        isHighlighted,
+        onTouchStart,
+        onTouchEnd: onTouchEndSelection,
+        onTouchMove
+    } = useDragSelection(year);
 
     const { calculateNewEventPosition } = useEventDragCalculations(events);
 
@@ -34,7 +48,11 @@ const PlannerGrid: React.FC<PlannerGridProps> = ({ onEventClick, setTodayInView,
     useTodayVisibility(scrollAreaRef, setTodayInView, [year, monthsToShow, highlightToday, events]);
 
     const handleTouchEndWrapped = () => {
-        onTouchEnd(onRangeSelection);
+        onTouchEndSelection(onRangeSelection);
+    };
+
+    const handleMouseUpWrapped = () => {
+        endSelectionDrag(onRangeSelection);
     };
 
     // Dnd Sensors
@@ -144,7 +162,15 @@ const PlannerGrid: React.FC<PlannerGridProps> = ({ onEventClick, setTodayInView,
                             onEventClick={handleEventClickWrapped}
                             maxRows={maxRows}
                             today={todayData}
+
+                            // Drag props
+                            startDrag={startDrag}
+                            updateDrag={updateDrag}
+                            isHighlighted={isHighlighted}
+                            onTouchStart={onTouchStart}
+                            onTouchMove={onTouchMove}
                             onTouchEnd={handleTouchEndWrapped}
+                            onMouseUp={handleMouseUpWrapped}
                         />
                     ))}
                 </div>

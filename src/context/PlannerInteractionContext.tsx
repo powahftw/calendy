@@ -1,20 +1,7 @@
-import React, { createContext, useContext, useMemo, ReactNode } from 'react';
-import { RangeDate, EventRange } from '../utils/calendarUtils';
+import React, { createContext, useContext, ReactNode } from 'react';
 
 interface PlannerInteractionContextValue {
-    isDragging: boolean;
-    dragStart: RangeDate | null;
-    dragCurrent: RangeDate | null;
-    selectionMode: boolean;
     activeEventId: string | null;
-    startDrag: (m: number, d: number) => void;
-    updateDrag: (m: number, d: number) => void;
-    endDrag: (callback: (range: EventRange) => void) => void;
-    isHighlighted: (m: number, d: number) => boolean;
-    onTouchStart: (e: React.TouchEvent, m: number, d: number) => void;
-    onTouchMove: (e: React.TouchEvent) => void;
-    onTouchEnd: (callback: (range: EventRange) => void) => void;
-    onContextMenu: (e: React.MouseEvent) => void;
     setActiveEventId: (id: string | null) => void;
 }
 
