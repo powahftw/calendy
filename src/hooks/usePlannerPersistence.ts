@@ -139,7 +139,7 @@ const usePlannerPersistence = (user: User | null) => {
         }, 50);
 
         // Save to Firestore ONLY on user changes and if logged in
-        if (user && lastActionType === 'USER_CHANGE') {
+        if (user && (lastActionType === 'USER_CHANGE' || lastActionType === 'UNDO')) {
             // Debounce Events Sync (300ms)
             if (syncEventsTimeoutRef.current) clearTimeout(syncEventsTimeoutRef.current);
             syncEventsTimeoutRef.current = setTimeout(() => {

@@ -1,14 +1,8 @@
 import { useEffect, useCallback } from 'react';
 import { usePlannerEvents } from '../context/PlannerEventsContext';
-import { usePlannerMeta } from '../context/PlannerMetaContext';
 
-interface UseKeyboardShortcutsProps {
-    onNewEvent?: () => void;
-}
-
-export const useKeyboardShortcuts = ({ onNewEvent }: UseKeyboardShortcutsProps) => {
+export const useKeyboardShortcuts = () => {
     const { undo, canUndo } = usePlannerEvents();
-    const { year, setYear } = usePlannerMeta();
 
     const handleKeyDown = useCallback((e: KeyboardEvent) => {
         // Ignore if typing in an input
@@ -17,7 +11,7 @@ export const useKeyboardShortcuts = ({ onNewEvent }: UseKeyboardShortcutsProps) 
         }
 
         // Undo: Ctrl + Z
-        if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
             e.preventDefault();
             if (canUndo) {
                 undo();
@@ -25,24 +19,7 @@ export const useKeyboardShortcuts = ({ onNewEvent }: UseKeyboardShortcutsProps) 
             return;
         }
 
-        // New Event: C or N
-        if ((e.key === 'c' || e.key === 'n') && !e.ctrlKey && !e.metaKey && !e.altKey) {
-            e.preventDefault();
-            onNewEvent?.();
-            return;
-        }
-
-        // Navigation: Arrow Keys (Change Year)
-        if (e.key === 'ArrowLeft') {
-            e.preventDefault();
-            setYear(year - 1);
-        }
-        if (e.key === 'ArrowRight') {
-            e.preventDefault();
-            setYear(year + 1);
-        }
-
-    }, [undo, canUndo, onNewEvent, year, setYear]);
+    }, [undo, canUndo]);
 
     useEffect(() => {
         window.addEventListener('keydown', handleKeyDown);

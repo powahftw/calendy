@@ -34,14 +34,7 @@ const PlannerView: React.FC<PlannerViewProps> = ({ user, signOut, isGuest, setIs
     const { modalState, openCreate, openList, openSettings, close, updateListEvents } = usePlannerModals();
     const { createEvent, updateEvent, deleteEvent, createEventFromDate } = useEventOperations(setEvents, undo);
 
-    useKeyboardShortcuts({
-        onNewEvent: () => {
-            openCreate({
-                start: { year: today.getFullYear(), month: today.getMonth(), day: today.getDate() },
-                end: { year: today.getFullYear(), month: today.getMonth(), day: today.getDate() }
-            });
-        }
-    });
+    useKeyboardShortcuts();
 
     // Visibility State
     const [todayInView, setTodayInView] = useState(false);
