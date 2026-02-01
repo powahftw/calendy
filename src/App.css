@@ -390,6 +390,7 @@ body[data-theme='dark'] .header-settings-btn:hover {
   border-radius: 3px;
   display: flex;
   align-items: center;
+  gap: 4px;
   font-size: 0.75rem;
   font-weight: 500;
   white-space: nowrap;
@@ -413,6 +414,19 @@ body[data-theme='dark'] .header-settings-btn:hover {
 
 .draggable-chip-style:active {
   cursor: grabbing;
+}
+
+.event-chip-emoji {
+  font-size: 0.9rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.event-chip-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 /* Overflow Indicator */

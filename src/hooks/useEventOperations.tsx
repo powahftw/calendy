@@ -38,12 +38,13 @@ export const useEventOperations = (
         ), { duration: 5000 });
     };
 
-    const createDraftEvent = ({ title, start, end, color }: EventDraft): PlannerEvent => ({
+    const createDraftEvent = ({ title, start, end, color, emoji }: EventDraft): PlannerEvent => ({
         id: uid(),
         title: title?.trim() ? title : 'New Event',
         start,
         end,
-        color
+        color,
+        emoji
     });
 
     const createEvent = (draft: EventDraft) => {

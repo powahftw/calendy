@@ -1,5 +1,5 @@
 import React from 'react';
-import { PlannerEvent } from '../../utils/calendarUtils';
+import { PlannerEvent, ProvisionalPattern, getProvisionalPattern, getProvisionalPatternStyles } from '../../utils/calendarUtils';
 
 export const DayNumber: React.FC<{ value: number }> = ({ value }) => (
     <span className="day-num">{value}</span>
@@ -11,6 +11,8 @@ export const EventPreview: React.FC<{
     currentColors: string[];
 }> = ({ event, hasConflict, currentColors }) => {
     const color = currentColors[event.color] || currentColors[0];
+    const pattern = getProvisionalPattern(event.color, currentColors.length);
+    const patternStyles = pattern ? getProvisionalPatternStyles(color, pattern, { opacityHex: '45', border: true }) : {};
 
     if (hasConflict) {
         return (
@@ -36,9 +38,12 @@ export const EventPreview: React.FC<{
             style={{
                 backgroundColor: color + '45',
                 borderLeft: `2px solid ${color}`,
+                paddingLeft: event.emoji ? '6px' : '4px',
+                ...patternStyles
             }}
         >
-            <span style={{ color: 'var(--text-primary)', opacity: 0.8 }}>{event.title}</span>
+            {event.emoji && <span className="event-chip-emoji">{event.emoji}</span>}
+            <span className="event-chip-title" style={{ color: 'var(--text-primary)', opacity: 0.8 }}>{event.title}</span>
         </div>
     );
 };
@@ -47,27 +52,39 @@ export const EventShadow: React.FC<{
     event: PlannerEvent;
     hasOverflow: boolean;
     color: string;
-}> = ({ event, hasOverflow, color }) => (
+    pattern?: ProvisionalPattern;
+}> = ({ event, hasOverflow, color, pattern = null }) => (
     <div
         className="event-chip-common"
         style={{
             right: hasOverflow ? '6px' : '2px',
             paddingRight: hasOverflow ? '12px' : '4px',
-            paddingLeft: '4px',
+            paddingLeft: event.emoji ? '6px' : '4px',
             backgroundColor: `${color}15`,
             borderLeft: `2px solid ${color}`,
             opacity: 0.25,
             zIndex: 2,
-            pointerEvents: 'none'
+            pointerEvents: 'none',
+            ...getProvisionalPatternStyles(
+                color,
+                pattern,
+                { opacityHex: '15', border: true }
+            )
         }}
     >
-        <span style={{
-            color: 'var(--text-primary)',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            width: '100%',
-            userSelect: 'none'
-        }}>{event.title}</span>
+        {event.emoji && <span className="event-chip-emoji">{event.emoji}</span>}
+        <span
+            className="event-chip-title"
+            style={{
+                color: 'var(--text-primary)',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                width: '100%',
+                userSelect: 'none'
+            }}
+        >
+            {event.title}
+        </span>
     </div>
 );
 

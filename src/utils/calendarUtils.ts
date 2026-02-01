@@ -23,6 +23,7 @@ export interface PlannerEvent {
     start: string;
     end: string;
     color: number;
+    emoji?: string;
 }
 
 export interface EventDraft {
@@ -30,6 +31,7 @@ export interface EventDraft {
     start: string;
     end: string;
     color: number;
+    emoji?: string;
 }
 
 export interface PlannerSettings {
@@ -70,6 +72,49 @@ export const getThemeColors = (themeId: ThemeId): string[] => {
     }
     // Default Blue / Modern
     return defaultBluePalette;
+};
+
+export type ProvisionalPattern = 'striped' | 'dotted' | null;
+
+export const getProvisionalPattern = (colorIndex: number, paletteLength: number): ProvisionalPattern => {
+    if (paletteLength < 2) return null;
+    if (colorIndex === paletteLength - 2) return 'striped';
+    if (colorIndex === paletteLength - 1) return 'dotted';
+    return null;
+};
+
+export const getProvisionalPatternStyles = (
+    color: string,
+    pattern: ProvisionalPattern,
+    options?: {
+        opacityHex?: string;
+        border?: boolean;
+        includeBorderLeft?: boolean;
+    }
+): Record<string, string> => {
+    if (!pattern) return {};
+
+    const opacityHex = options?.opacityHex ?? '15';
+    const includeBorderLeft = options?.includeBorderLeft ?? true;
+    const style: Record<string, string> = {
+        backgroundColor: `${color}${opacityHex}`
+    };
+
+    if (pattern === 'striped') {
+        style.backgroundImage = `repeating-linear-gradient(45deg, ${color}55 0, ${color}55 6px, transparent 6px, transparent 12px)`;
+    } else {
+        style.backgroundImage = `radial-gradient(${color}66 28%, transparent 30%)`;
+        style.backgroundSize = '6px 6px';
+    }
+
+    if (options?.border) {
+        style.border = `1px dotted ${color}`;
+        if (includeBorderLeft) {
+            style.borderLeft = `2px solid ${color}`;
+        }
+    }
+
+    return style;
 };
 
 export const getDaysInMonth = (year: number, month: number): number => new Date(year, month + 1, 0).getDate();

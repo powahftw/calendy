@@ -1,5 +1,5 @@
 import React, { FC, useState, useEffect, useRef } from 'react';
-import { monthNames, EventRange } from '../utils/calendarUtils';
+import { monthNames, EventRange, getProvisionalPattern, getProvisionalPatternStyles } from '../utils/calendarUtils';
 import { useTheme } from '../hooks/useTheme';
 
 interface EventModalProps {
@@ -49,7 +49,14 @@ const EventModal: FC<EventModalProps> = ({ range, onClose, onSave }) => {
                         <div
                             key={idx}
                             className={`color-circle ${selectedIndex === idx ? 'active' : ''}`}
-                            style={{ backgroundColor: c }}
+                            style={{
+                                backgroundColor: c,
+                                ...getProvisionalPatternStyles(
+                                    c,
+                                    getProvisionalPattern(idx, palette.length),
+                                    { opacityHex: '25' }
+                                )
+                            }}
                             onClick={() => setSelectedIndex(idx)}
                         />
                     ))}

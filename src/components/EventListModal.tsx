@@ -1,5 +1,5 @@
 import React, { FC, useEffect } from 'react';
-import { formatDateRange, monthNames, PlannerEvent, RangeDate } from '../utils/calendarUtils';
+import { formatDateRange, monthNames, PlannerEvent, RangeDate, getProvisionalPattern, getProvisionalPatternStyles } from '../utils/calendarUtils';
 import { useTheme } from '../hooks/useTheme';
 
 interface EventListModalProps {
@@ -43,7 +43,14 @@ const EventListModal: FC<EventListModalProps> = ({ events, date, onClose, onDele
                             <div key={ev.id} className="event-list-item">
                                 <div
                                     className="event-color-indicator clickable"
-                                    style={{ backgroundColor: colorHex }}
+                                    style={{
+                                        backgroundColor: colorHex,
+                                        ...getProvisionalPatternStyles(
+                                            colorHex,
+                                            getProvisionalPattern(ev.color, palette.length),
+                                            { opacityHex: '25' }
+                                        )
+                                    }}
                                     onClick={() => cycleColor(ev)}
                                     title="Cycle Color"
                                 ></div>
