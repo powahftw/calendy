@@ -61,7 +61,7 @@ const PlannerView: React.FC<PlannerViewProps> = ({ user, signOut, isGuest, setIs
         );
     };
 
-    const handleSaveNewEvent = (title: string, colorIndex: number) => {
+    const handleSaveNewEvent = (title: string, colorIndex: number, icon?: string) => {
         if (modalState.type !== 'CREATE') return;
 
         const startStr = toDateStr(modalState.range.start.year, modalState.range.start.month, modalState.range.start.day);
@@ -71,7 +71,8 @@ const PlannerView: React.FC<PlannerViewProps> = ({ user, signOut, isGuest, setIs
             title,
             start: startStr,
             end: endStr,
-            color: colorIndex
+            color: colorIndex,
+            icon
         });
         close();
     };

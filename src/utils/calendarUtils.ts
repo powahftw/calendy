@@ -23,6 +23,7 @@ export interface PlannerEvent {
     start: string;
     end: string;
     color: number;
+    icon?: string;
 }
 
 export interface EventDraft {
@@ -30,6 +31,7 @@ export interface EventDraft {
     start: string;
     end: string;
     color: number;
+    icon?: string;
 }
 
 export interface PlannerSettings {
@@ -53,20 +55,20 @@ export const themes: Theme[] = [
     { id: 'dark', name: 'Dark Mode', primary: '#818cf8' },
 ];
 
-export const defaultBluePalette = ["#3b82f6", "#10b981", "#db2777", "#f59e0b", "#8b5cf6", "#6366f1", "#ef4444"];
+export const defaultBluePalette = ["#3b82f6", "#10b981", "#db2777", "#f59e0b", "#8b5cf6", "#6366f1", "#ef4444", "transparent"];
 
 export const getThemeColors = (themeId: ThemeId): string[] => {
     if (themeId === 'forest') {
         // Earthy / Sepia Tones
-        return ["#5C7886", "#627264", "#8B5E5E", "#BC9663", "#7A728A", "#646E82", "#A65D57"];
+        return ["#5C7886", "#627264", "#8B5E5E", "#BC9663", "#7A728A", "#646E82", "#A65D57", "transparent"];
     }
     if (themeId === 'pastel') {
         // Pastel Rainbow Fantasy
-        return ["#a0c4ff", "#baffc9", "#ffb3ba", "#ffdfba", "#eecbff", "#bae1ff", "#ffb3e6"];
+        return ["#a0c4ff", "#baffc9", "#ffb3ba", "#ffdfba", "#eecbff", "#bae1ff", "#ffb3e6", "transparent"];
     }
     if (themeId === 'dark') {
         // Vivid/Neon for Dark Mode
-        return ["#60a5fa", "#34d399", "#f472b6", "#fbbf24", "#a78bfa", "#818cf8", "#f87171"];
+        return ["#60a5fa", "#34d399", "#f472b6", "#fbbf24", "#a78bfa", "#818cf8", "#f87171", "transparent"];
     }
     // Default Blue / Modern
     return defaultBluePalette;

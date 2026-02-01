@@ -1,6 +1,7 @@
 import React, { FC, useEffect } from 'react';
 import { formatDateRange, monthNames, PlannerEvent, RangeDate } from '../utils/calendarUtils';
 import { useTheme } from '../hooks/useTheme';
+import { renderCustomEmoji } from '../utils/emojiUtils';
 
 interface EventListModalProps {
     events: PlannerEvent[];
@@ -32,7 +33,9 @@ const EventListModal: FC<EventListModalProps> = ({ events, date, onClose, onDele
         <div className="modal-overlay" onMouseDown={(e: React.MouseEvent) => e.target === e.currentTarget && onClose()}>
             <div className="modal bounce-in">
                 <div className="modal-header">
-                    <h3>{date.day} {monthNames[date.month]}</h3>
+                    <div className="header-text">
+                        <h3>{date.day} {monthNames[date.month]}</h3>
+                    </div>
                     <button onClick={onClose} className="close-btn">&times;</button>
                 </div>
                 <div className="event-list">
@@ -48,18 +51,27 @@ const EventListModal: FC<EventListModalProps> = ({ events, date, onClose, onDele
                                     title="Cycle Color"
                                 ></div>
                                 <div className="event-input-wrapper">
-                                    <input
-                                        className="event-title-input"
-                                        defaultValue={ev.title}
-                                        onBlur={(e) => {
-                                            if (e.target.value !== ev.title) {
-                                                onUpdate({ ...ev, title: e.target.value });
-                                            }
-                                        }}
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                                        }}
-                                    />
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
+                                        <input
+                                            className="event-title-input"
+                                            defaultValue={ev.title}
+                                            placeholder={ev.icon ? "(Icon only)" : "Untitled Event"}
+                                            style={{ flex: 1 }}
+                                            onBlur={(e) => {
+                                                if (e.target.value !== ev.title) {
+                                                    onUpdate({ ...ev, title: e.target.value });
+                                                }
+                                            }}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                                            }}
+                                        />
+                                        {ev.icon && (
+                                            <span style={{ fontSize: '1rem', flexShrink: 0, marginLeft: 'auto' }}>
+                                                {renderCustomEmoji(ev.icon)}
+                                            </span>
+                                        )}
+                                    </div>
                                     {isMultiDay && (
                                         <span className="event-date-hint">
                                             {formatDateRange(ev.start, ev.end, 'monthDay')}
