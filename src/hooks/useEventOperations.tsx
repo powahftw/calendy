@@ -41,8 +41,7 @@ export const useEventOperations = (
     const createDraftEvent = ({ title, start, end, color, icon }: EventDraft): PlannerEvent => {
         // Allow empty title if an icon is present (Icon-only event)
         // Otherwise default to 'New Event'
-        const effectiveTitle = title?.trim();
-        const finalTitle = effectiveTitle !== undefined && effectiveTitle !== '' ? effectiveTitle : (icon ? '' : 'New Event');
+        const finalTitle = title?.trim() || (icon ? '' : 'New Event');
 
         return {
             id: uid(),

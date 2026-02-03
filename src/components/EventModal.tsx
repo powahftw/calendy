@@ -1,7 +1,7 @@
 import React, { FC, useState, useEffect, useRef } from 'react';
 import { monthNames, EventRange, PlannerEvent } from '../utils/calendarUtils';
 import { useTheme } from '../hooks/useTheme';
-import { renderCustomEmoji } from '../utils/emojiUtils';
+
 
 interface EventModalProps {
     range: EventRange;
@@ -16,7 +16,7 @@ const EventModal: FC<EventModalProps> = ({ range, event, onClose, onSave }) => {
     const [colorIndex, setSelectedIndex] = useState(event?.color || 0);
     const [icon, setIcon] = useState(event?.icon || '');
 
-    const icons = ['', '🇨🇭', '🇮🇹', '⚠️', '❓'];
+    const icons = ['', '⚠️', '❓', '🌍', '🗺️', '🇨🇭', '🇮🇹', '🇬🇧', '🇪🇸'];
     const inputRef = useRef<HTMLInputElement>(null);
     const palette = useTheme();
 
@@ -27,10 +27,12 @@ const EventModal: FC<EventModalProps> = ({ range, event, onClose, onSave }) => {
 
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Escape') onClose();
+            if (e.key === 'Enter') handleSave();
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [onClose]);
+    }, [onClose, title, colorIndex, icon]); // Added dependencies for handleSave closure if it uses them, but handleSave is usually stable or recreated. 
+    // Actually handleSave is defined inside, so it's a closure.
 
     const handleSave = () => {
         onSave(title, colorIndex, icon);
@@ -61,10 +63,11 @@ const EventModal: FC<EventModalProps> = ({ range, event, onClose, onSave }) => {
                         className="modal-input"
                         value={title}
                         onChange={(e) => setTitle(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleSave()}
                         autoFocus
                     />
                     <button className="emoji-picker-btn" onClick={cycleIcon} title="Cycle Icon">
-                        {icon ? renderCustomEmoji(icon) : <span style={{ opacity: 0.3 }}>☺</span>}
+                        {icon ? icon : <span style={{ opacity: 0.3 }}>☺</span>}
                     </button>
                 </div>
 

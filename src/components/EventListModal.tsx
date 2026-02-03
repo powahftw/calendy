@@ -1,7 +1,7 @@
 import React, { FC, useEffect } from 'react';
 import { formatDateRange, monthNames, PlannerEvent, RangeDate } from '../utils/calendarUtils';
 import { useTheme } from '../hooks/useTheme';
-import { renderCustomEmoji } from '../utils/emojiUtils';
+
 
 interface EventListModalProps {
     events: PlannerEvent[];
@@ -51,7 +51,7 @@ const EventListModal: FC<EventListModalProps> = ({ events, date, onClose, onDele
                                     title="Cycle Color"
                                 ></div>
                                 <div className="event-input-wrapper">
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
+                                    <div className="event-list-item-details">
                                         <input
                                             className="event-title-input"
                                             defaultValue={ev.title}
@@ -67,8 +67,8 @@ const EventListModal: FC<EventListModalProps> = ({ events, date, onClose, onDele
                                             }}
                                         />
                                         {ev.icon && (
-                                            <span style={{ fontSize: '1rem', flexShrink: 0, marginLeft: 'auto' }}>
-                                                {renderCustomEmoji(ev.icon)}
+                                            <span className="event-list-item-icon">
+                                                {ev.icon}
                                             </span>
                                         )}
                                     </div>

@@ -4,7 +4,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { PlannerEvent } from '../../utils/calendarUtils';
 import { useTheme } from '../../hooks/useTheme';
 import { DayNumber, EventPreview, EventShadow, OverflowIndicator } from './DayCellSubComponents';
-import { renderCustomEmoji } from '../../utils/emojiUtils';
+
 
 type DayCellProps =
     | {
@@ -48,8 +48,7 @@ const DraggableEventChip: FC<{
     color: string;
     isActive: boolean;
     onClick: (e: React.MouseEvent) => void;
-    hasFlagOnDay?: boolean;
-}> = ({ event, day, month, year, hasOverflow, color, isActive, onClick, hasFlagOnDay }) => {
+}> = ({ event, day, month, year, hasOverflow, color, isActive, onClick }) => {
     const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
         id: `${event.id}-${year}-${month}-${day}`,
         data: {
@@ -62,15 +61,10 @@ const DraggableEventChip: FC<{
     const isDotted = event.color === 6;
     const isTransparent = event.color === 7;
 
-    const isFlag = event.icon && !event.title;
-
     let className = "event-chip-common draggable-chip-style";
     if (isStriped) className += " event-striped";
     else if (isDotted) className += " event-dotted";
     else if (isTransparent) className += " event-transparent";
-
-    if (isFlag) className += " flag-chip";
-    else if (hasFlagOnDay) className += " has-flag";
 
     const dndStyle: React.CSSProperties = {
         transform: CSS.Translate.toString(transform),
@@ -85,10 +79,6 @@ const DraggableEventChip: FC<{
 
     if (isTransparent) {
         // Transparent events have no background or border by default (css)
-        // Ensure no leftover styles
-        dndStyle.backgroundColor = 'transparent';
-        dndStyle.border = 'none';
-        dndStyle.boxShadow = 'none';
     } else {
         // Base styles for normal events (overridden by classes for striped/dotted)
         if (!isStriped && !isDotted) {
@@ -132,8 +122,14 @@ const DraggableEventChip: FC<{
                     }}>{event.title}</span>
                 )}
                 {event.icon && (
-                    <span className="icon-span" style={{ lineHeight: 1, display: 'flex', alignItems: 'center', flexShrink: 0, marginLeft: 'auto' }}>
-                        {renderCustomEmoji(event.icon)}
+                    <span className="icon-span" style={{
+                        lineHeight: 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        flexShrink: 0,
+                        marginLeft: 'auto'
+                    }}>
+                        {event.icon}
                     </span>
                 )}
             </div>
@@ -158,14 +154,9 @@ const DayCell: FC<DayCellProps> = React.memo((props) => {
         data: { year, month, day }
     });
 
-    const allEvents = events;
-    const flags = allEvents.filter(ev => ev.icon && !ev.title);
-    const regularEvents = allEvents.filter(ev => !ev.icon || ev.title);
-
-    const hasRegularEvents = regularEvents.length > 0;
-    const mainRegularEvent = regularEvents[0];
-    const hiddenRegularEvents = regularEvents.slice(1);
-    const hasOverflow = hiddenRegularEvents.length > 0;
+    const mainEvent = events[0];
+    const hiddenEvents = events.slice(1);
+    const hasOverflow = hiddenEvents.length > 0;
 
     const cellClassName = `day-cell ${isWeekend && showWeekends ? 'weekend' : ''} ${isHighlighted ? 'highlighted' : ''} ${isToday ? 'today today-marker' : ''}`;
 
@@ -194,55 +185,39 @@ const DayCell: FC<DayCellProps> = React.memo((props) => {
             {dragPreviewEvent && (
                 <EventPreview
                     event={dragPreviewEvent}
-                    hasConflict={hasRegularEvents || flags.length > 0}
+                    hasConflict={events.length > 0}
                     currentColors={currentColors}
                 />
             )}
 
-            {/* Render all Flags first (or after main? user wants them overlapping/not hidden) */}
-            {flags.map(flag => (
-                <DraggableEventChip
-                    key={flag.id}
-                    event={flag}
-                    day={day}
-                    month={month}
-                    year={year}
-                    hasOverflow={false} // Flags don't take overflow indicator
-                    color="transparent"
-                    isActive={activeEventId === flag.id}
-                    onClick={(e) => onEventClick(e, allEvents, month, day)}
-                />
-            ))}
-
-            {hasRegularEvents && (
+            {mainEvent && (
                 <>
-                    {activeEventId === mainRegularEvent.id && (
+                    {activeEventId === mainEvent.id && (
                         <EventShadow
-                            event={mainRegularEvent}
+                            event={mainEvent}
                             hasOverflow={hasOverflow}
-                            color={currentColors[mainRegularEvent.color] || currentColors[0]}
+                            color={currentColors[mainEvent.color] || currentColors[0]}
                         />
                     )}
 
                     <DraggableEventChip
-                        event={mainRegularEvent}
+                        event={mainEvent}
                         day={day}
                         month={month}
                         year={year}
                         hasOverflow={hasOverflow}
-                        color={currentColors[mainRegularEvent.color] || currentColors[0]}
-                        isActive={activeEventId === mainRegularEvent.id}
-                        onClick={(e) => onEventClick(e, allEvents, month, day)}
-                        hasFlagOnDay={flags.length > 0}
+                        color={currentColors[mainEvent.color] || currentColors[0]}
+                        isActive={activeEventId === mainEvent.id}
+                        onClick={(e) => onEventClick(e, events, month, day)}
                     />
                 </>
             )}
 
             {hasOverflow && (
                 <OverflowIndicator
-                    events={hiddenRegularEvents}
+                    events={hiddenEvents}
                     currentColors={currentColors}
-                    onClick={(e) => onEventClick(e, allEvents, month, day)}
+                    onClick={(e) => onEventClick(e, events, month, day)}
                 />
             )}
         </div>
