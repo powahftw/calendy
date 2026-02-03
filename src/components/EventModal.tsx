@@ -1,5 +1,5 @@
 import React, { FC, useState, useEffect, useRef } from 'react';
-import { monthNames, EventRange, PlannerEvent } from '../utils/calendarUtils';
+import { monthNames, EventRange, PlannerEvent, STRIPED_COLOR_INDEX, DOTTED_COLOR_INDEX, TRANSPARENT_COLOR_INDEX } from '../utils/calendarUtils';
 import { useTheme } from '../hooks/useTheme';
 
 
@@ -27,13 +27,10 @@ const EventModal: FC<EventModalProps> = ({ range, event, onClose, onSave }) => {
 
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Escape') onClose();
-            if (e.key === 'Enter') handleSave();
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [onClose, title, colorIndex, icon]); // Added dependencies for handleSave closure if it uses them, but handleSave is usually stable or recreated. 
-    // Actually handleSave is defined inside, so it's a closure.
-
+    }, [onClose]);
     const handleSave = () => {
         onSave(title, colorIndex, icon);
     };
@@ -76,16 +73,16 @@ const EventModal: FC<EventModalProps> = ({ range, event, onClose, onSave }) => {
                         let circleClass = `color-circle ${colorIndex === idx ? 'active' : ''}`;
                         const extraStyle: React.CSSProperties & Record<string, string> = {};
 
-                        // Apply special pattern classes or styles for indices 5 and 6
-                        if (idx === 5) {
+                        // Apply special pattern classes or styles for special indices
+                        if (idx === STRIPED_COLOR_INDEX) {
                             circleClass += ' event-striped';
                             extraStyle['--event-color-bg'] = `${c}30`;
                             extraStyle['--event-color-stripe'] = `${c}60`;
-                        } else if (idx === 6) {
+                        } else if (idx === DOTTED_COLOR_INDEX) {
                             circleClass += ' event-dotted';
                             extraStyle['--event-color-bg'] = `${c}30`;
                             extraStyle['--event-color-dot'] = `${c}`;
-                        } else if (idx === 7) { // Transparent
+                        } else if (idx === TRANSPARENT_COLOR_INDEX) {
                             circleClass += ' color-transparent';
                         }
 

@@ -541,6 +541,31 @@ body[data-theme='dark'] .header-settings-btn:hover {
   transition: padding-right 0.2s;
 }
 
+.event-chip-content {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  overflow: hidden;
+}
+
+.event-chip-title {
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: none;
+  flex: 1;
+}
+
+.event-chip-icon {
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-left: auto;
+  font-size: 0.9rem;
+}
+
 .preview-chip-style {
   right: 2px;
   padding: 0 4px;
@@ -648,7 +673,6 @@ body[data-theme='dark'] .day-cell.highlighted {
 
 .modal-header {
   display: flex;
-  flex-direction: row;
   align-items: center;
   justify-content: space-between;
   padding: 15px 20px;

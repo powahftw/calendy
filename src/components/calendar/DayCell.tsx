@@ -1,7 +1,7 @@
 import React, { FC } from 'react';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
-import { PlannerEvent } from '../../utils/calendarUtils';
+import { PlannerEvent, STRIPED_COLOR_INDEX, DOTTED_COLOR_INDEX, TRANSPARENT_COLOR_INDEX } from '../../utils/calendarUtils';
 import { useTheme } from '../../hooks/useTheme';
 import { DayNumber, EventPreview, EventShadow, OverflowIndicator } from './DayCellSubComponents';
 
@@ -57,9 +57,9 @@ const DraggableEventChip: FC<{
         }
     });
 
-    const isStriped = event.color === 5;
-    const isDotted = event.color === 6;
-    const isTransparent = event.color === 7;
+    const isStriped = event.color === STRIPED_COLOR_INDEX;
+    const isDotted = event.color === DOTTED_COLOR_INDEX;
+    const isTransparent = event.color === TRANSPARENT_COLOR_INDEX;
 
     let className = "event-chip-common draggable-chip-style";
     if (isStriped) className += " event-striped";
@@ -111,24 +111,12 @@ const DraggableEventChip: FC<{
             onClick={onClick}
             className={className}
         >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '100%', overflow: 'hidden' }}>
+            <div className="event-chip-content">
                 {event.title && (
-                    <span style={{
-                        color: 'var(--text-primary)',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        userSelect: 'none',
-                        flex: 1
-                    }}>{event.title}</span>
+                    <span className="event-chip-title">{event.title}</span>
                 )}
                 {event.icon && (
-                    <span className="icon-span" style={{
-                        lineHeight: 1,
-                        display: 'flex',
-                        alignItems: 'center',
-                        flexShrink: 0,
-                        marginLeft: 'auto'
-                    }}>
+                    <span className="event-chip-icon">
                         {event.icon}
                     </span>
                 )}

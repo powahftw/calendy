@@ -1,5 +1,9 @@
 export type ThemeId = 'blue' | 'forest' | 'pastel' | 'dark';
 
+export const STRIPED_COLOR_INDEX = 5;
+export const DOTTED_COLOR_INDEX = 6;
+export const TRANSPARENT_COLOR_INDEX = 7;
+
 export interface Theme {
     id: ThemeId;
     name: string;
