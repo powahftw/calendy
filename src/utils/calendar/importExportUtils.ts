@@ -3,8 +3,10 @@ import { PlannerEvent } from '../calendarUtils';
 export const EXPORT_SEPARATOR = "|";
 
 export const serializeEvents = (events: PlannerEvent[]): string => {
-    // Sort events by start date
-    const sorted = [...events].sort((a, b) => a.start.localeCompare(b.start));
+    // Sort events by start date, excluding events with no title (e.g. icon-only markers)
+    const sorted = [...events]
+        .filter(ev => ev.title && ev.title.trim().length > 0)
+        .sort((a, b) => a.start.localeCompare(b.start));
 
     const lines: string[] = [];
     let lastMonth = "";

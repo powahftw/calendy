@@ -212,5 +212,42 @@ test.describe('Visual Regression Tests', () => {
             // Cleanup: Drop it
             await page.mouse.up();
         });
+        test('provisional and emoji events', async ({ page }) => {
+            // 1. Create Striped Event (Color Index 5)
+            const day15 = page.locator('.day-cell').filter({ hasText: '15' }).first();
+            await day15.click();
+            await page.waitForSelector('.modal-overlay .modal');
+            await page.fill('.modal-overlay .modal input[type="text"]', 'Provisional Striped');
+            await page.locator('.color-circle').nth(5).click(); // Striped
+            await page.click('.modal-overlay .modal button:has-text("Save")');
+            await page.waitForSelector('.modal-overlay', { state: 'hidden' });
+
+            // 2. Create Dotted Event (Color Index 6)
+            const day16 = page.locator('.day-cell').filter({ hasText: '16' }).first();
+            await day16.click();
+            await page.waitForSelector('.modal-overlay .modal');
+            await page.fill('.modal-overlay .modal input[type="text"]', 'Provisional Dotted');
+            await page.locator('.color-circle').nth(6).click(); // Dotted
+            await page.click('.modal-overlay .modal button:has-text("Save")');
+            await page.waitForSelector('.modal-overlay', { state: 'hidden' });
+
+            // 3. Create Emoji Event (Icon Only)
+            const day17 = page.locator('.day-cell').filter({ hasText: '17' }).first();
+            await day17.click();
+            await page.waitForSelector('.modal-overlay .modal');
+
+            // Click cycle button 5 times to select Swiss Flag (index 5)
+            for (let i = 0; i < 5; i++) await page.click('.emoji-picker-btn');
+
+            // Select Transparent (Index 7)
+            await page.locator('.color-circle').nth(7).click();
+
+            await page.click('.modal-overlay .modal button:has-text("Save")');
+            await page.waitForSelector('.modal-overlay', { state: 'hidden' });
+
+            await expect(page).toHaveScreenshot('provisional-emoji-events.png', {
+                fullPage: true,
+            });
+        });
     });
 });

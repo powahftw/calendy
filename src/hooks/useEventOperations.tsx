@@ -38,13 +38,20 @@ export const useEventOperations = (
         ), { duration: 5000 });
     };
 
-    const createDraftEvent = ({ title, start, end, color }: EventDraft): PlannerEvent => ({
-        id: uid(),
-        title: title?.trim() ? title : 'New Event',
-        start,
-        end,
-        color
-    });
+    const createDraftEvent = ({ title, start, end, color, icon }: EventDraft): PlannerEvent => {
+        // Allow empty title if an icon is present (Icon-only event)
+        // Otherwise default to 'New Event'
+        const finalTitle = title?.trim() || (icon ? '' : 'New Event');
+
+        return {
+            id: uid(),
+            title: finalTitle,
+            start,
+            end,
+            color,
+            icon
+        };
+    };
 
     const createEvent = (draft: EventDraft) => {
         const newEvent = createDraftEvent(draft);

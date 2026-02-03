@@ -121,6 +121,80 @@ describe('App Integration', () => {
         const overflow = dayCell?.querySelector('.event-overflow');
         expect(overflow).toBeInTheDocument();
     });
+
+    it('renders special event styles (striped) and emoji events', async () => {
+        mockAuthValue.user = { uid: 'test-user' } as User;
+        render(<App />);
+        await waitForPlanner();
+
+        // 1. Create Striped Event
+        const dayCells = screen.getAllByText('15');
+        const dayCell = dayCells[0].closest('.day-cell');
+
+        fireEvent.mouseDown(dayCell!); fireEvent.mouseUp(dayCell!);
+
+        const titleInput = await screen.findByPlaceholderText(/Event Name/i);
+        fireEvent.change(titleInput, { target: { value: 'Striped Event' } });
+
+        // Select 6th color (Index 5 - Striped)
+        const colorOptions = screen.getByText('Save').parentElement?.parentElement?.querySelectorAll('.color-circle');
+        fireEvent.click(colorOptions![5]);
+
+        fireEvent.click(screen.getByRole('button', { name: /Save/i }));
+        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
+        const stripedEvent = await screen.findByText('Striped Event');
+        const chip = stripedEvent.closest('.event-chip-common');
+        expect(chip).toHaveClass('event-striped');
+
+        // 2. Create Transparent Icon Event (Flag Only) on day 17 to avoid overflow
+        const dayCells17 = screen.getAllByText('17');
+        const dayCell17 = dayCells17[0].closest('.day-cell');
+        fireEvent.mouseDown(dayCell17!); fireEvent.mouseUp(dayCell17!);
+
+        await screen.findByPlaceholderText(/Event Name/i); // Wait for modal
+
+        // Click cycle button to select Swiss Flag (index 5 in ['', '⚠️', '❓', '🌍', '🗺️', '🇨🇭', ...])
+        const cycleBtn = screen.getByTitle('Cycle Icon');
+        for (let i = 0; i < 5; i++) fireEvent.click(cycleBtn);
+
+        // Verify icon updated in UI
+        expect(screen.getByText('🇨🇭')).toBeInTheDocument();
+
+        // Select 8th color (Index 7 - Transparent)
+        // Need to re-query color options as modal refreshed
+        const colorOptions2 = screen.getByText('Save').parentElement?.parentElement?.querySelectorAll('.color-circle');
+        fireEvent.click(colorOptions2![7]);
+
+        fireEvent.click(screen.getByRole('button', { name: /Save/i }));
+        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument(), { timeout: 3000 });
+
+        const swissFlag = await screen.findByText('🇨🇭', {}, { timeout: 3000 });
+        const transparentChip = swissFlag.closest('.event-chip-common');
+        expect(transparentChip).toHaveClass('event-transparent');
+
+        // 3. Create Icon + Text Event on a DIFFERENT day (day 16) to avoid overflow
+        const dayCells16 = screen.getAllByText('16');
+        const dayCell16 = dayCells16[0].closest('.day-cell');
+        fireEvent.mouseDown(dayCell16!); fireEvent.mouseUp(dayCell16!);
+
+        const titleInput3 = await screen.findByPlaceholderText(/Event Name/i);
+        fireEvent.change(titleInput3, { target: { value: 'Trip to Italy' } });
+
+        const cycleBtn2 = screen.getByTitle('Cycle Icon');
+        for (let i = 0; i < 6; i++) fireEvent.click(cycleBtn2); // 6 clicks -> 🇮🇹
+
+        fireEvent.click(screen.getByRole('button', { name: /Save/i }));
+        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument(), { timeout: 5000 });
+
+        const italianFlag = await screen.findByText('🇮🇹', {}, { timeout: 5000 });
+        const textElement = await screen.findByText('Trip to Italy', {}, { timeout: 5000 });
+        const normalChip = textElement.closest('.event-chip-common');
+
+        expect(italianFlag).toBeInTheDocument();
+        expect(textElement).toBeInTheDocument();
+        expect(normalChip).not.toHaveClass('event-transparent');
+    });
 });
 
 describe('Storage Persistence', () => {

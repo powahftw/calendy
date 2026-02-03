@@ -122,14 +122,14 @@ body {
 }
 
 .custom-toast {
-  background: var(--bg-color) !important;
-  color: var(--text-primary) !important;
-  border: 1px solid var(--line-color) !important;
-  border-radius: 8px !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
-  padding: 8px 12px !important;
-  font-size: 0.9rem !important;
-  font-weight: 500 !important;
+  background: var(--bg-color);
+  color: var(--text-primary);
+  border: 1px solid var(--line-color);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  padding: 8px 12px;
+  font-size: 0.9rem;
+  font-weight: 500;
 }
 
 .undo-toast {
@@ -354,7 +354,7 @@ body[data-theme='dark'] .header-settings-btn:hover {
   align-items: center;
   font-family: 'Inter', sans-serif;
   font-size: 0.75rem;
-  font-weight: 500;
+  font-weight: 400;
   white-space: nowrap;
   overflow: hidden;
   cursor: pointer;
@@ -368,7 +368,7 @@ body[data-theme='dark'] .header-settings-btn:hover {
 }
 
 .event-chip:hover {
-  z-index: 50 !important;
+  z-index: 50;
   transform: translateY(-50%) scale(1.02);
 }
 
@@ -379,22 +379,191 @@ body[data-theme='dark'] .header-settings-btn:hover {
   user-select: none;
 }
 
+/* Special Event and Color Circle Styles */
+.event-chip.event-striped,
+.event-chip-common.event-striped,
+.color-circle.event-striped {
+  background: repeating-linear-gradient(45deg,
+      var(--event-color-bg, #e0e0e0),
+      var(--event-color-bg, #e0e0e0) 10px,
+      var(--event-color-stripe, #c0c0c0) 10px,
+      var(--event-color-stripe, #c0c0c0) 20px);
+  border-left-style: dashed;
+}
+
+.event-chip.event-dotted,
+.event-chip-common.event-dotted,
+.color-circle.event-dotted {
+  background-image: radial-gradient(var(--event-color-dot, #808080) 15%, transparent 16%),
+    radial-gradient(var(--event-color-dot, #808080) 15%, transparent 16%);
+  background-size: 10px 10px;
+  background-position: 0 0, 5px 5px;
+  background-color: var(--event-color-bg, #e0e0e0);
+  border-left-style: dotted;
+}
+
+/* Transparent Event Style */
+.event-chip.event-transparent,
+.event-chip-common.event-transparent {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  z-index: 50;
+}
+
+.color-circle.event-transparent {
+  background: transparent;
+  border: 2px dashed rgba(0, 0, 0, 0.2);
+}
+
+/* Specific overrides for color circles to ensure patterns show without vars needing to be set on the element itself if possible, 
+   or we set vars inline in component. We will assume inline vars are set or defaults used.
+*/
+.color-circle.event-striped {
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.color-circle.event-dotted {
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.emoji-event-chip {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  /* Center Right */
+  transform: translateY(-50%);
+  z-index: 150;
+  /* Ensure on top of everything */
+  font-size: 0.96rem;
+  /* Reduced by 20% from previous 1.2rem. 1.2 * 0.8 = 0.96 */
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  pointer-events: auto;
+  user-select: none;
+  line-height: normal;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+}
+
+.emoji-event-chip:hover {
+  transform: translateY(-50%) scale(1.2);
+  /* Keep TranslateY for centering */
+  cursor: pointer;
+  z-index: 200;
+}
+
+/* Input Row with Emoji Picker */
+.input-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 20px 15px 15px 15px;
+}
+
+.modal-input {
+  display: block;
+  padding: 10px 14px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  /* Even softer */
+  border-radius: 10px;
+  font-size: 1rem;
+  background: var(--bg-color);
+  color: var(--text-primary);
+  box-sizing: border-box;
+  transition: all 0.2s ease;
+  outline: none;
+}
+
+.modal-input:focus {
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 3px var(--accent-light), 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.input-row .modal-input {
+  flex: 1;
+  width: 100%;
+  margin: 0;
+}
+
+.emoji-picker-btn {
+  width: 44px;
+  height: 42px;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  /* Match input border */
+  background: var(--bg-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 1.4rem;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}
+
+.emoji-picker-btn:hover {
+  border-color: var(--accent-color);
+  background: var(--accent-light);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+}
+
+.emoji-picker-btn:active {
+  transform: translateY(0);
+}
+
+
+
+
 /* Common shared event chip styles for alignment */
 .event-chip-common {
   position: absolute;
   left: 24px;
   top: 50%;
   margin-top: -11px;
-  /* Half of height 22px */
   height: 22px;
   border-radius: 3px;
   display: flex;
   align-items: center;
   font-size: 0.75rem;
-  font-weight: 500;
+  font-weight: 400;
   white-space: nowrap;
   overflow: hidden;
   box-sizing: border-box;
+  z-index: 10;
+  transition: padding-right 0.2s;
+}
+
+.event-chip-content {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  overflow: hidden;
+}
+
+.event-chip-title {
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: none;
+  flex: 1;
+}
+
+.event-chip-icon {
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-left: auto;
+  font-size: 0.9rem;
 }
 
 .preview-chip-style {
@@ -498,30 +667,32 @@ body[data-theme='dark'] .day-cell.highlighted {
 
 .modal h3 {
   font-family: 'Oswald', sans-serif;
-  margin: 15px 15px 5px 15px;
+  margin: 0;
   font-size: 1.2rem;
 }
 
 .modal-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
+  padding: 15px 20px;
   border-bottom: 1px solid var(--line-color);
-  padding-bottom: 10px;
-  margin-bottom: 0;
 }
 
-.modal-header h3 {
-  margin-bottom: 0;
+.header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
 }
 
 .close-btn {
   background: none;
   border: none;
-  font-size: 1.2rem;
-  padding: 0 15px;
+  font-size: 1.4rem;
+  padding: 0;
   cursor: pointer;
   color: var(--text-secondary);
+  line-height: 1;
 }
 
 .modal-meta {
@@ -654,12 +825,30 @@ body[data-theme='dark'] .day-cell.highlighted {
   border-color: var(--text-primary);
 }
 
+.color-circle.color-transparent {
+  border: 1px dashed var(--line-color);
+  position: relative;
+  background: transparent;
+  box-shadow: inset 0 0 4px rgba(0, 0, 0, 0.05);
+}
+
+.color-circle.color-transparent::after {
+  content: '✕';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 10px;
+  color: var(--text-secondary);
+  opacity: 0.6;
+}
+
 .modal-actions {
   background: var(--weekend-bg);
-  padding: 10px 15px;
+  padding: 15px 20px;
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 12px;
   border-top: 1px solid var(--line-color);
 }
 
@@ -727,7 +916,7 @@ body[data-theme='dark'] .day-cell.highlighted {
   align-items: stretch;
 }
 
-.settings-actions-row > * {
+.settings-actions-row>* {
   flex: 1;
 }
 
@@ -826,6 +1015,19 @@ body[data-theme='dark'] .day-cell.highlighted {
   border-color: var(--accent-color);
   background: var(--bg-color);
   outline: none;
+}
+
+.event-list-item-details {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.event-list-item-icon {
+  font-size: 1rem;
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 .btn-icon-danger {

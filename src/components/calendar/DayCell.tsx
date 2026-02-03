@@ -1,9 +1,10 @@
 import React, { FC } from 'react';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
-import { PlannerEvent } from '../../utils/calendarUtils';
+import { PlannerEvent, STRIPED_COLOR_INDEX, DOTTED_COLOR_INDEX, TRANSPARENT_COLOR_INDEX } from '../../utils/calendarUtils';
 import { useTheme } from '../../hooks/useTheme';
 import { DayNumber, EventPreview, EventShadow, OverflowIndicator } from './DayCellSubComponents';
+
 
 type DayCellProps =
     | {
@@ -56,17 +57,42 @@ const DraggableEventChip: FC<{
         }
     });
 
+    const isStriped = event.color === STRIPED_COLOR_INDEX;
+    const isDotted = event.color === DOTTED_COLOR_INDEX;
+    const isTransparent = event.color === TRANSPARENT_COLOR_INDEX;
+
+    let className = "event-chip-common draggable-chip-style";
+    if (isStriped) className += " event-striped";
+    else if (isDotted) className += " event-dotted";
+    else if (isTransparent) className += " event-transparent";
+
     const dndStyle: React.CSSProperties = {
         transform: CSS.Translate.toString(transform),
         opacity: isDragging ? 0.5 : (isActive ? 0.6 : 1),
         zIndex: isDragging ? 200 : undefined,
         touchAction: 'manipulation',
-        right: hasOverflow ? '6px' : '2px',
-        paddingRight: hasOverflow ? '12px' : '4px',
-        paddingLeft: '4px',
-        backgroundColor: `${color}15`,
-        borderLeft: `2px solid ${color}`,
     };
+
+    dndStyle.right = hasOverflow ? '6px' : '2px';
+    dndStyle.paddingRight = hasOverflow ? '12px' : '4px';
+    dndStyle.paddingLeft = '4px';
+
+    if (isTransparent) {
+        // Transparent events have no background or border by default (css)
+    } else {
+        // Base styles for normal events (overridden by classes for striped/dotted)
+        if (!isStriped && !isDotted) {
+            dndStyle.backgroundColor = `${color}15`;
+            dndStyle.borderLeft = `2px solid ${color}`;
+        } else {
+            // Variables for special styles
+            dndStyle.borderLeft = `2px solid ${color}`; // Border color stays solid
+            const customProps = dndStyle as React.CSSProperties & Record<string, string>;
+            customProps['--event-color-bg'] = `${color}15`;
+            customProps['--event-color-stripe'] = `${color}30`; // Subtle stripe
+            customProps['--event-color-dot'] = `${color}80`; // Visible dot
+        }
+    }
 
     return (
         <div
@@ -83,15 +109,18 @@ const DraggableEventChip: FC<{
                 if (listeners?.onTouchStart) listeners.onTouchStart(e);
             }}
             onClick={onClick}
-            className="event-chip-common draggable-chip-style"
+            className={className}
         >
-            <span style={{
-                color: 'var(--text-primary)',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                width: '100%',
-                userSelect: 'none'
-            }}>{event.title}</span>
+            <div className="event-chip-content">
+                {event.title && (
+                    <span className="event-chip-title">{event.title}</span>
+                )}
+                {event.icon && (
+                    <span className="event-chip-icon">
+                        {event.icon}
+                    </span>
+                )}
+            </div>
         </div>
     );
 };
@@ -113,11 +142,9 @@ const DayCell: FC<DayCellProps> = React.memo((props) => {
         data: { year, month, day }
     });
 
-    const hasEvents = events.length > 0;
     const mainEvent = events[0];
     const hiddenEvents = events.slice(1);
     const hasOverflow = hiddenEvents.length > 0;
-    const mainEventColor = hasEvents ? currentColors[mainEvent.color] || currentColors[0] : null;
 
     const cellClassName = `day-cell ${isWeekend && showWeekends ? 'weekend' : ''} ${isHighlighted ? 'highlighted' : ''} ${isToday ? 'today today-marker' : ''}`;
 
@@ -146,18 +173,18 @@ const DayCell: FC<DayCellProps> = React.memo((props) => {
             {dragPreviewEvent && (
                 <EventPreview
                     event={dragPreviewEvent}
-                    hasConflict={hasEvents}
+                    hasConflict={events.length > 0}
                     currentColors={currentColors}
                 />
             )}
 
-            {hasEvents && (
+            {mainEvent && (
                 <>
                     {activeEventId === mainEvent.id && (
                         <EventShadow
                             event={mainEvent}
                             hasOverflow={hasOverflow}
-                            color={mainEventColor!}
+                            color={currentColors[mainEvent.color] || currentColors[0]}
                         />
                     )}
 
@@ -167,7 +194,7 @@ const DayCell: FC<DayCellProps> = React.memo((props) => {
                         month={month}
                         year={year}
                         hasOverflow={hasOverflow}
-                        color={mainEventColor!}
+                        color={currentColors[mainEvent.color] || currentColors[0]}
                         isActive={activeEventId === mainEvent.id}
                         onClick={(e) => onEventClick(e, events, month, day)}
                     />
