@@ -147,17 +147,19 @@ describe('App Integration', () => {
         const chip = stripedEvent.closest('.event-chip-common');
         expect(chip).toHaveClass('event-striped');
 
-        // 2. Create Transparent Icon Event (Flag Only)
-        fireEvent.mouseDown(dayCell!); fireEvent.mouseUp(dayCell!);
+        // 2. Create Transparent Icon Event (Flag Only) on day 17 to avoid overflow
+        const dayCells17 = screen.getAllByText('17');
+        const dayCell17 = dayCells17[0].closest('.day-cell');
+        fireEvent.mouseDown(dayCell17!); fireEvent.mouseUp(dayCell17!);
 
         await screen.findByPlaceholderText(/Event Name/i); // Wait for modal
 
-        // Click cycle button to select Swiss Flag (index 1 in ['', '🇨🇭', ...])
+        // Click cycle button to select Swiss Flag (index 5 in ['', '⚠️', '❓', '🌍', '🗺️', '🇨🇭', ...])
         const cycleBtn = screen.getByTitle('Cycle Icon');
-        fireEvent.click(cycleBtn); // 1st click -> 🇨🇭
+        for (let i = 0; i < 5; i++) fireEvent.click(cycleBtn);
 
-        // Verify icon updated in UI (SVG renders with label)
-        expect(screen.getByLabelText('Switzerland')).toBeInTheDocument();
+        // Verify icon updated in UI
+        expect(screen.getByText('🇨🇭')).toBeInTheDocument();
 
         // Select 8th color (Index 7 - Transparent)
         // Need to re-query color options as modal refreshed
@@ -167,7 +169,7 @@ describe('App Integration', () => {
         fireEvent.click(screen.getByRole('button', { name: /Save/i }));
         await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument(), { timeout: 3000 });
 
-        const swissFlag = await screen.findByLabelText('Switzerland', {}, { timeout: 3000 });
+        const swissFlag = await screen.findByText('🇨🇭', {}, { timeout: 3000 });
         const transparentChip = swissFlag.closest('.event-chip-common');
         expect(transparentChip).toHaveClass('event-transparent');
 
@@ -180,13 +182,12 @@ describe('App Integration', () => {
         fireEvent.change(titleInput3, { target: { value: 'Trip to Italy' } });
 
         const cycleBtn2 = screen.getByTitle('Cycle Icon');
-        fireEvent.click(cycleBtn2); // 1st click -> 🇨🇭
-        fireEvent.click(cycleBtn2); // 2nd click -> 🇮🇹
+        for (let i = 0; i < 6; i++) fireEvent.click(cycleBtn2); // 6 clicks -> 🇮🇹
 
         fireEvent.click(screen.getByRole('button', { name: /Save/i }));
         await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument(), { timeout: 5000 });
 
-        const italianFlag = await screen.findByLabelText('Italy', {}, { timeout: 5000 });
+        const italianFlag = await screen.findByText('🇮🇹', {}, { timeout: 5000 });
         const textElement = await screen.findByText('Trip to Italy', {}, { timeout: 5000 });
         const normalChip = textElement.closest('.event-chip-common');
 

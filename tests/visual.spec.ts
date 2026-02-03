@@ -236,8 +236,8 @@ test.describe('Visual Regression Tests', () => {
             await day17.click();
             await page.waitForSelector('.modal-overlay .modal');
 
-            // Click cycle button to select Swiss Flag
-            await page.click('.emoji-picker-btn'); // 1st click
+            // Click cycle button 5 times to select Swiss Flag (index 5)
+            for (let i = 0; i < 5; i++) await page.click('.emoji-picker-btn');
 
             // Select Transparent (Index 7)
             await page.locator('.color-circle').nth(7).click();
