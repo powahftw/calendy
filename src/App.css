@@ -526,10 +526,14 @@ body[data-theme='dark'] .header-settings-btn:hover {
 .event-chip-common {
   position: absolute;
   left: 24px;
+  right: 2px;
+  /* moved from inline */
   top: 50%;
   margin-top: -11px;
   height: 22px;
   border-radius: 3px;
+  padding: 0 4px;
+  /* moved from inline */
   display: flex;
   align-items: center;
   font-size: 0.75rem;
@@ -541,11 +545,19 @@ body[data-theme='dark'] .header-settings-btn:hover {
   transition: padding-right 0.2s;
 }
 
+.event-chip-common.has-overflow {
+  right: 6px;
+  /* padding-right: 12px;  <-- Removed as requested to fix alignment */
+}
+
+
 .event-chip-content {
   display: flex;
   align-items: center;
   gap: 4px;
   width: 100%;
+  flex: 1;
+  /* Ensure it fills the parent flex container */
   overflow: hidden;
 }
 

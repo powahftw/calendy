@@ -1,7 +1,7 @@
 import React, { FC } from 'react';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
-import { PlannerEvent, STRIPED_COLOR_INDEX, DOTTED_COLOR_INDEX, TRANSPARENT_COLOR_INDEX } from '../../utils/calendarUtils';
+import { PlannerEvent, STRIPED_COLOR_INDEX, DOTTED_COLOR_INDEX, TRANSPARENT_COLOR_INDEX, getDisplayEvent } from '../../utils/calendarUtils';
 import { useTheme } from '../../hooks/useTheme';
 import { DayNumber, EventPreview, EventShadow, OverflowIndicator } from './DayCellSubComponents';
 
@@ -65,6 +65,7 @@ const DraggableEventChip: FC<{
     if (isStriped) className += " event-striped";
     else if (isDotted) className += " event-dotted";
     else if (isTransparent) className += " event-transparent";
+    if (hasOverflow) className += " has-overflow";
 
     const dndStyle: React.CSSProperties = {
         transform: CSS.Translate.toString(transform),
@@ -73,8 +74,8 @@ const DraggableEventChip: FC<{
         touchAction: 'manipulation',
     };
 
-    dndStyle.right = hasOverflow ? '6px' : '2px';
-    dndStyle.paddingRight = hasOverflow ? '12px' : '4px';
+    // dndStyle.right = hasOverflow ? '6px' : '2px';
+    // dndStyle.paddingRight = hasOverflow ? '12px' : '4px';
     dndStyle.paddingLeft = '4px';
 
     if (isTransparent) {
@@ -143,6 +144,10 @@ const DayCell: FC<DayCellProps> = React.memo((props) => {
     });
 
     const mainEvent = events[0];
+    // Use the helper to determine which icon/color/text to show
+    // We cast to PlannerEvent because if events[0] exists, getDisplayEvent returns a defined event
+    const displayEvent = React.useMemo(() => getDisplayEvent(events) || mainEvent, [events, mainEvent]);
+
     const hiddenEvents = events.slice(1);
     const hasOverflow = hiddenEvents.length > 0;
 
@@ -178,23 +183,23 @@ const DayCell: FC<DayCellProps> = React.memo((props) => {
                 />
             )}
 
-            {mainEvent && (
+            {mainEvent && displayEvent && (
                 <>
                     {activeEventId === mainEvent.id && (
                         <EventShadow
-                            event={mainEvent}
+                            event={displayEvent}
                             hasOverflow={hasOverflow}
-                            color={currentColors[mainEvent.color] || currentColors[0]}
+                            color={currentColors[displayEvent.color] || currentColors[0]}
                         />
                     )}
 
                     <DraggableEventChip
-                        event={mainEvent}
+                        event={displayEvent}
                         day={day}
                         month={month}
                         year={year}
                         hasOverflow={hasOverflow}
-                        color={currentColors[mainEvent.color] || currentColors[0]}
+                        color={currentColors[displayEvent.color] || currentColors[0]}
                         isActive={activeEventId === mainEvent.id}
                         onClick={(e) => onEventClick(e, events, month, day)}
                     />

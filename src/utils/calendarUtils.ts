@@ -175,5 +175,32 @@ export const calculateViewProgress = (
         // Actually, logic dictates: if viewYear > todayYear, we add nothing to currentProgress.
     }
 
+
     return { current: currentProgress, total: totalDays };
+};
+
+export const getDisplayEvent = (events: PlannerEvent[]): PlannerEvent | undefined => {
+    if (!events || events.length === 0) return undefined;
+
+    const mainEvent = events[0];
+
+    // 1. Icon Selection: First event with an icon
+    const eventWithIcon = events.find(e => e.icon && e.icon.trim() !== '');
+    const icon = eventWithIcon ? eventWithIcon.icon : mainEvent.icon;
+
+
+    // 2. Color Selection: First event with non-transparent color
+    const eventWithColor = events.find(e => e.color !== TRANSPARENT_COLOR_INDEX);
+    const color = eventWithColor ? eventWithColor.color : mainEvent.color;
+
+    // 3. Title Selection: First event with non-empty title
+    const eventWithTitle = events.find(e => e.title && e.title.trim() !== '');
+    const title = eventWithTitle ? eventWithTitle.title : mainEvent.title;
+
+    return {
+        ...mainEvent,
+        title,
+        icon,
+        color
+    };
 };
