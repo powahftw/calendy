@@ -4,7 +4,7 @@ import { isTouchDevice, MouseSelectionStrategy, SelectionStrategy, TouchSelectio
 
 const TOUCH_MOVE_THRESHOLD = 10;
 
-const useDragSelection = (year: number) => {
+const useDragSelection = () => {
     const [isDragging, setIsDragging] = useState(false);
     const [dragStart, setDragStart] = useState<RangeDate | null>(null);
     const [dragCurrent, setDragCurrent] = useState<RangeDate | null>(null);
@@ -22,35 +22,35 @@ const useDragSelection = (year: number) => {
         stateRef.current = { isDragging, selectionMode, dragStart, dragCurrent };
     }, [isDragging, selectionMode, dragStart, dragCurrent]);
 
-    const startDrag = useCallback((m: number, d: number) => {
+    const startDrag = useCallback((y: number, m: number, d: number) => {
         setIsDragging(true);
-        setDragStart({ year, month: m, day: d });
-        setDragCurrent({ year, month: m, day: d });
+        setDragStart({ year: y, month: m, day: d });
+        setDragCurrent({ year: y, month: m, day: d });
         stateRef.current.isDragging = true;
-        stateRef.current.dragStart = { year, month: m, day: d };
-        stateRef.current.dragCurrent = { year, month: m, day: d };
-    }, [year]);
+        stateRef.current.dragStart = { year: y, month: m, day: d };
+        stateRef.current.dragCurrent = { year: y, month: m, day: d };
+    }, []);
 
-    const updateDrag = useCallback((m: number, d: number) => {
+    const updateDrag = useCallback((y: number, m: number, d: number) => {
         if (stateRef.current.isDragging) {
-            setDragCurrent({ year, month: m, day: d });
-            stateRef.current.dragCurrent = { year, month: m, day: d };
+            setDragCurrent({ year: y, month: m, day: d });
+            stateRef.current.dragCurrent = { year: y, month: m, day: d };
         }
-    }, [year]);
+    }, []);
 
     const finaliseDrag = useCallback((callback: (range: EventRange) => void) => {
         const { dragStart, dragCurrent } = stateRef.current;
         if (dragStart && dragCurrent) {
-            const d1 = new Date(year, dragStart.month, dragStart.day);
-            const d2 = new Date(year, dragCurrent.month, dragCurrent.day);
+            const d1 = new Date(dragStart.year, dragStart.month, dragStart.day);
+            const d2 = new Date(dragCurrent.year, dragCurrent.month, dragCurrent.day);
 
             let start: RangeDate, end: RangeDate;
             if (d1.getTime() <= d2.getTime()) {
-                start = { year, month: dragStart.month, day: dragStart.day };
-                end = { year, month: dragCurrent.month, day: dragCurrent.day };
+                start = { ...dragStart };
+                end = { ...dragCurrent };
             } else {
-                start = { year, month: dragCurrent.month, day: dragCurrent.day };
-                end = { year, month: dragStart.month, day: dragStart.day };
+                start = { ...dragCurrent };
+                end = { ...dragStart };
             }
             callback({ start, end });
         }
@@ -58,7 +58,7 @@ const useDragSelection = (year: number) => {
         setDragCurrent(null);
         stateRef.current.dragStart = null;
         stateRef.current.dragCurrent = null;
-    }, [year]);
+    }, []);
 
     const endDrag = useCallback((callback: (range: EventRange) => void) => {
         if (!stateRef.current.isDragging) return;
@@ -74,24 +74,27 @@ const useDragSelection = (year: number) => {
 
         // Use closest in case we hit an event chip or child
         const cell = el.closest('.day-cell') as HTMLElement;
-        if (cell && cell.dataset.month && cell.dataset.day) {
+        if (cell && cell.dataset.year && cell.dataset.month && cell.dataset.day) {
             return {
-                year,
+                year: parseInt(cell.dataset.year),
                 month: parseInt(cell.dataset.month),
                 day: parseInt(cell.dataset.day)
             };
         }
         return null;
-    }, [year]);
+    }, []);
 
-    const isHighlighted = (m: number, d: number) => {
+    const isHighlighted = (y: number, m: number, d: number) => {
         if ((!isDragging && !selectionMode) || !dragStart || !dragCurrent) return false;
-        const startVal = dragStart.month * 100 + dragStart.day;
-        const currVal = dragCurrent.month * 100 + dragCurrent.day;
+
+        const startVal = dragStart.year * 10000 + dragStart.month * 100 + dragStart.day;
+        const currVal = dragCurrent.year * 10000 + dragCurrent.month * 100 + dragCurrent.day;
+        const targetVal = y * 10000 + m * 100 + d;
+
         const minVal = Math.min(startVal, currVal);
         const maxVal = Math.max(startVal, currVal);
-        const val = m * 100 + d;
-        return val >= minVal && val <= maxVal;
+
+        return targetVal >= minVal && targetVal <= maxVal;
     };
 
     const mouseStrategy = useMemo(() => new MouseSelectionStrategy({
@@ -101,7 +104,6 @@ const useDragSelection = (year: number) => {
     }), [startDrag, updateDrag, endDrag]);
 
     const touchStrategy = useMemo(() => new TouchSelectionStrategy({
-        year,
         getState: () => stateRef.current,
         setIsDragging,
         setSelectionMode,
@@ -110,7 +112,7 @@ const useDragSelection = (year: number) => {
         finaliseDrag,
         getCellFromPoint,
         touchMoveThreshold: TOUCH_MOVE_THRESHOLD
-    }), [year, finaliseDrag, getCellFromPoint]);
+    }), [finaliseDrag, getCellFromPoint]);
 
     useEffect(() => () => touchStrategy.cleanup?.(), [touchStrategy]);
 

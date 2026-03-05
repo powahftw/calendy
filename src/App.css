@@ -1518,3 +1518,46 @@ body[data-theme='dark'] .day-cell.highlighted {
     transform: rotate(360deg);
   }
 }
+
+/* --- Navigation Arrows --- */
+.nav-arrow {
+  position: fixed;
+  bottom: 30px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--bg-color);
+  border: 1px solid var(--line-color);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.nav-arrow:hover {
+  transform: scale(1.1);
+  background: var(--accent-light);
+  color: var(--accent-text);
+  border-color: var(--accent-color);
+}
+
+.nav-arrow:active {
+  transform: scale(0.95);
+}
+
+.nav-arrow.left {
+  left: 30px;
+}
+
+.nav-arrow.right {
+  right: 30px;
+}
+
+body[data-theme='dark'] .nav-arrow {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  background: var(--weekend-bg);
+}

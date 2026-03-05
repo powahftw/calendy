@@ -1,10 +1,10 @@
 import { EventRange, RangeDate } from './calendarUtils';
 
 export interface SelectionStrategy {
-    start: (m: number, d: number) => void;
-    update: (m: number, d: number) => void;
+    start: (y: number, m: number, d: number) => void;
+    update: (y: number, m: number, d: number) => void;
     end: (callback: (range: EventRange) => void) => void;
-    onTouchStart?: (e: React.TouchEvent, m: number, d: number) => void;
+    onTouchStart?: (e: React.TouchEvent, y: number, m: number, d: number) => void;
     onTouchMove?: (e: React.TouchEvent) => void;
     onTouchEnd?: (callback: (range: EventRange) => void) => void;
     onContextMenu?: (e: React.MouseEvent) => void;
@@ -16,7 +16,6 @@ export const isTouchDevice = () =>
     ('ontouchstart' in window || navigator.maxTouchPoints > 0);
 
 interface TouchStrategyOptions {
-    year: number;
     getState: () => { isDragging: boolean; selectionMode: boolean; dragStart: RangeDate | null; dragCurrent: RangeDate | null };
     setIsDragging: (value: boolean) => void;
     setSelectionMode: (value: boolean) => void;
@@ -30,14 +29,14 @@ interface TouchStrategyOptions {
 export class MouseSelectionStrategy implements SelectionStrategy {
     constructor(
         private handlers: {
-            start: (m: number, d: number) => void;
-            update: (m: number, d: number) => void;
+            start: (y: number, m: number, d: number) => void;
+            update: (y: number, m: number, d: number) => void;
             end: (callback: (range: EventRange) => void) => void;
         }
     ) { }
 
-    start = (m: number, d: number) => this.handlers.start(m, d);
-    update = (m: number, d: number) => this.handlers.update(m, d);
+    start = (y: number, m: number, d: number) => this.handlers.start(y, m, d);
+    update = (y: number, m: number, d: number) => this.handlers.update(y, m, d);
     end = (callback: (range: EventRange) => void) => this.handlers.end(callback);
 }
 
@@ -63,14 +62,14 @@ export class TouchSelectionStrategy implements SelectionStrategy {
         }
     };
 
-    onTouchStart = (e: React.TouchEvent, m: number, d: number) => {
+    onTouchStart = (e: React.TouchEvent, y: number, m: number, d: number) => {
         this.touchStartPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
 
         this.longPressTimer = setTimeout(() => {
             this.options.setSelectionMode(true);
             this.options.setIsDragging(true);
-            this.options.setDragStart({ year: this.options.year, month: m, day: d });
-            this.options.setDragCurrent({ year: this.options.year, month: m, day: d });
+            this.options.setDragStart({ year: y, month: m, day: d });
+            this.options.setDragCurrent({ year: y, month: m, day: d });
             if (navigator.vibrate) navigator.vibrate(50);
         }, 500);
     };

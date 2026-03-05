@@ -18,8 +18,11 @@ export const AppProvider: React.FC<AppProviderProps> = ({ user, children }) => {
     const metaValue = useMemo(() => ({
         year: persistence.year,
         setYear: persistence.setYear,
+        startMonth: persistence.startMonth,
+        setStartMonth: persistence.setStartMonth,
         monthsToShow: persistence.monthsToShow,
         setMonthsToShow: persistence.setMonthsToShow,
+        navigate: persistence.navigate,
 
         theme: persistence.theme,
         setTheme: persistence.setTheme,
@@ -36,6 +39,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ user, children }) => {
         isInitialLoadDone: persistence.isInitialLoadDone,
     }), [
         persistence.year,
+        persistence.startMonth,
         persistence.monthsToShow,
         persistence.theme,
         persistence.highlightToday,
@@ -45,7 +49,9 @@ export const AppProvider: React.FC<AppProviderProps> = ({ user, children }) => {
         persistence.isInitialLoadDone,
         // Setters are stable
         persistence.setYear,
+        persistence.setStartMonth,
         persistence.setMonthsToShow,
+        persistence.navigate,
         persistence.setTheme,
         persistence.setHighlightToday,
         persistence.setShowWeekends,
@@ -59,12 +65,14 @@ export const AppProvider: React.FC<AppProviderProps> = ({ user, children }) => {
         events: persistence.events,
         setEvents: persistence.setEvents,
         year: persistence.year,
+        startMonth: persistence.startMonth,
         monthsToShow: persistence.monthsToShow,
         canUndo: persistence.canUndo,
         undo: persistence.undo,
     }), [
         persistence.events,
         persistence.year,
+        persistence.startMonth,
         persistence.monthsToShow,
         persistence.canUndo,
         persistence.undo,

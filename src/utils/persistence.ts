@@ -31,6 +31,7 @@ export const getDefaultData = (): PlannerData => ({
         showDayProgress: true,
         weekdayAlign: true,
         year: 2026,
+        startMonth: 0,
         monthsToShow: 12
     }
 });

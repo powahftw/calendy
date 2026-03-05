@@ -221,6 +221,7 @@ describe('Storage Persistence', () => {
                     showDayProgress: true,
                     weekdayAlign: true,
                     year: 2026,
+                    startMonth: 0,
                     monthsToShow: 12
                 }
             },
@@ -241,7 +242,7 @@ describe('Storage Persistence', () => {
         const state1 = {
             data: {
                 events: [{ id: '1', title: 'User 1 Event', start: '2026-01-15', end: '2026-01-15', color: 0 }],
-                settings: { theme: 'blue', year: 2026, monthsToShow: 12 }
+                settings: { theme: 'blue', year: 2026, startMonth: 0, monthsToShow: 12 }
             },
             updatedAt: Date.now()
         };
@@ -275,7 +276,7 @@ describe('Firebase Sync Logic', () => {
         const localState = {
             data: {
                 events: [{ id: '1', title: 'Local Event', start: '2026-01-15', end: '2026-01-15', color: 0 }],
-                settings: { theme: 'blue', year: 2026, monthsToShow: 12 }
+                settings: { theme: 'blue', year: 2026, startMonth: 0, monthsToShow: 12 }
             },
             updatedAt: now - 10000
         };
@@ -310,7 +311,7 @@ describe('Firebase Sync Logic', () => {
         const localState = {
             data: {
                 events: [{ id: '1', title: 'Local Event', start: '2026-01-15', end: '2026-01-15', color: 0 }],
-                settings: { theme: 'blue', year: 2026, monthsToShow: 12 }
+                settings: { theme: 'blue', year: 2026, startMonth: 0, monthsToShow: 12 }
             },
             updatedAt: now - 5000
         };
@@ -349,7 +350,7 @@ describe('Firebase Sync Logic', () => {
         const localState = {
             data: {
                 events: [{ id: '1', title: 'Local Event', start: '2026-01-15', end: '2026-01-15', color: 0 }],
-                settings: { theme: 'blue', year: 2026, monthsToShow: 12 }
+                settings: { theme: 'blue', year: 2026, startMonth: 0, monthsToShow: 12 }
             },
             updatedAt: now
         };
@@ -471,7 +472,7 @@ describe('Edge Cases', () => {
         const state = {
             data: {
                 events: [{ id: '1', title: 'Local Only Event', start: '2026-01-15', end: '2026-01-15', color: 0 }],
-                settings: { theme: 'blue', year: 2026, monthsToShow: 12 }
+                settings: { theme: 'blue', year: 2026, startMonth: 0, monthsToShow: 12 }
             },
             updatedAt: Date.now()
         };

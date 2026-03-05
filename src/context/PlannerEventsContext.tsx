@@ -26,6 +26,7 @@ export const usePlannerEvents = () => {
 interface PlannerEventsProviderProps {
     value: Omit<PlannerEventsContextValue, 'eventMap'> & {
         year: number;
+        startMonth: number;
         monthsToShow: number;
     };
     children: ReactNode;
@@ -37,14 +38,18 @@ export const PlannerEventsProvider: React.FC<PlannerEventsProviderProps> = ({ va
     // even though they come from Meta context usually.
     const eventMap = useMemo(() => {
         const map = new Map<string, PlannerEvent[]>();
-        const { events, year, monthsToShow } = value;
+        const { events, year, startMonth, monthsToShow } = value;
+
+        const startMonthTotal = year * 12 + startMonth;
+        const endMonthTotal = startMonthTotal + monthsToShow;
 
         for (const event of events) {
             const dates = getDatesInRange(event.start, event.end);
 
             for (const date of dates) {
-                if (date.year !== year) continue;
-                if (date.month >= monthsToShow) continue;
+                const dateMonthTotal = date.year * 12 + date.month;
+
+                if (dateMonthTotal < startMonthTotal || dateMonthTotal >= endMonthTotal) continue;
 
                 const dateKey = getDateKey(date.year, date.month, date.day);
                 const existing = map.get(dateKey);
@@ -56,7 +61,7 @@ export const PlannerEventsProvider: React.FC<PlannerEventsProviderProps> = ({ va
             }
         }
         return map;
-    }, [value.events, value.year, value.monthsToShow]);
+    }, [value.events, value.year, value.startMonth, value.monthsToShow]);
 
     const memoizedValue = useMemo(() => ({
         events: value.events,

@@ -211,7 +211,26 @@ const usePlannerPersistence = (user: User | null) => {
         const newYear = typeof year === 'function' ? year(state.data.settings.year) : year;
         updateSettings({ year: newYear });
     }, [state.data.settings.year, updateSettings]);
+    const setStartMonth = useCallback((startMonth: number) => updateSettings({ startMonth }), [updateSettings]);
     const setMonthsToShow = useCallback((monthsToShow: number) => updateSettings({ monthsToShow }), [updateSettings]);
+
+    const navigate = useCallback((direction: 1 | -1) => {
+        const { year, startMonth, monthsToShow } = state.data.settings;
+        let newYear = year;
+        let newStartMonth = startMonth + (direction * monthsToShow);
+
+        while (newStartMonth >= 12) {
+            newYear += 1;
+            newStartMonth -= 12;
+        }
+        while (newStartMonth < 0) {
+            newYear -= 1;
+            newStartMonth += 12;
+        }
+
+        updateSettings({ year: newYear, startMonth: newStartMonth });
+    }, [state.data.settings, updateSettings]);
+
     const undo = useCallback(() => {
         dispatch({ type: 'UNDO' });
     }, []);
@@ -230,7 +249,9 @@ const usePlannerPersistence = (user: User | null) => {
         setShowDayProgress,
         setWeekdayAlign,
         setYear,
+        setStartMonth,
         setMonthsToShow,
+        navigate,
         undo,
 
         // Metadata

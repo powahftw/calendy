@@ -29,10 +29,10 @@ type DayCellProps =
             isToday: boolean;
         };
         interactions: {
-            onEventClick: (e: React.MouseEvent, allEventsOnDay: PlannerEvent[], m: number, d: number) => void;
-            onMouseDown: (m: number, d: number) => void;
-            onMouseEnter: (m: number, d: number) => void;
-            onTouchStart: (e: React.TouchEvent, m: number, d: number) => void;
+            onEventClick: (e: React.MouseEvent, allEventsOnDay: PlannerEvent[], y: number, m: number, d: number) => void;
+            onMouseDown: (y: number, m: number, d: number) => void;
+            onMouseEnter: (y: number, m: number, d: number) => void;
+            onTouchStart: (e: React.TouchEvent, y: number, m: number, d: number) => void;
             onTouchMove: (e: React.TouchEvent) => void;
             onTouchEnd: () => void;
             onMouseUp: () => void;
@@ -162,13 +162,14 @@ const DayCell: FC<DayCellProps> = React.memo((props) => {
             ref={setNodeRef}
             className={cellClassName}
             style={droppableStyle}
+            data-year={year}
             data-month={month}
             data-day={day}
             onMouseDown={(e) => {
-                if (e.button === 0) onMouseDown(month, day);
+                if (e.button === 0) onMouseDown(year, month, day);
             }}
-            onMouseEnter={() => onMouseEnter(month, day)}
-            onTouchStart={(e) => onTouchStart(e, month, day)}
+            onMouseEnter={() => onMouseEnter(year, month, day)}
+            onTouchStart={(e) => onTouchStart(e, year, month, day)}
             onTouchMove={onTouchMove}
             onTouchEnd={onTouchEnd}
             onMouseUp={onMouseUp}
@@ -201,7 +202,7 @@ const DayCell: FC<DayCellProps> = React.memo((props) => {
                         hasOverflow={hasOverflow}
                         color={currentColors[displayEvent.color] || currentColors[0]}
                         isActive={activeEventId === mainEvent.id}
-                        onClick={(e) => onEventClick(e, events, month, day)}
+                        onClick={(e) => onEventClick(e, events, year, month, day)}
                     />
                 </>
             )}
@@ -210,7 +211,7 @@ const DayCell: FC<DayCellProps> = React.memo((props) => {
                 <OverflowIndicator
                     events={hiddenEvents}
                     currentColors={currentColors}
-                    onClick={(e) => onEventClick(e, events, month, day)}
+                    onClick={(e) => onEventClick(e, events, year, month, day)}
                 />
             )}
         </div>

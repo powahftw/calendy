@@ -1,6 +1,6 @@
 import React from 'react';
 import { usePlanner } from '../context/PlannerContext';
-import { calculateViewProgress } from '../utils/calendarUtils';
+import { calculateViewProgress, getYearLabel } from '../utils/calendarUtils';
 
 interface AppHeaderProps {
     todayInView: boolean;
@@ -8,7 +8,7 @@ interface AppHeaderProps {
 }
 
 const AppHeader: React.FC<AppHeaderProps> = ({ todayInView, onSettingsClick }) => {
-    const { year, showDayProgress, monthsToShow } = usePlanner();
+    const { year, startMonth, showDayProgress, monthsToShow } = usePlanner();
     const [showPercentage, setShowPercentage] = React.useState(false);
 
     const handleBackToToday = () => {
@@ -22,7 +22,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({ todayInView, onSettingsClick }) =
     let dayProgressStr = "";
     if (showDayProgress) {
         const todayObj = new Date();
-        const { current, total } = calculateViewProgress(year, monthsToShow, todayObj);
+        const { current, total } = calculateViewProgress(year, startMonth, monthsToShow, todayObj);
 
         if (showPercentage) {
             const pct = ((current / total) * 100).toFixed(1);
@@ -45,7 +45,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({ todayInView, onSettingsClick }) =
                     </span>
                 )}
             </div>
-            <h1 className="app-year">{year}</h1>
+            <h1 className="app-year">{getYearLabel(year, startMonth, monthsToShow)}</h1>
             <div className="header-spacer right">
                 {!todayInView && (
                     <button

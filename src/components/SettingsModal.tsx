@@ -20,6 +20,7 @@ const SettingsModal: FC<SettingsModalProps> = ({
 
     const {
         year, setYear,
+        startMonth, setStartMonth,
         monthsToShow, setMonthsToShow,
         theme, setTheme,
         highlightToday, setHighlightToday,
@@ -201,7 +202,32 @@ const SettingsModal: FC<SettingsModalProps> = ({
                         <h4>Calendar</h4>
                         <div className="setting-row">
                             <label>Year</label>
-                            <input className="modal-input" type="number" value={year} onChange={e => setYear(Number(e.target.value))} />
+                            <select
+                                className="modal-input"
+                                value={startMonth !== 0 ? "today" : String(year)}
+                                onChange={e => {
+                                    const val = e.target.value;
+                                    if (val === "today") {
+                                        const now = new Date();
+                                        setYear(now.getFullYear());
+                                        setStartMonth(now.getMonth());
+                                    } else {
+                                        setYear(Number(val));
+                                        setStartMonth(0);
+                                    }
+                                }}
+                            >
+                                <option value="today">Today</option>
+                                <option value={year - 2}>{year - 2}</option>
+                                <option value={year - 1}>{year - 1}</option>
+                                <option value={year}>{year}</option>
+                                <option value={year + 1}>{year + 1}</option>
+                                <option value={year + 2}>{year + 2}</option>
+                                <option value={year + 3}>{year + 3}</option>
+                                {startMonth === 0 && year < new Date().getFullYear() - 2 && (
+                                    <option value={year} style={{ display: 'none' }}>{year}</option>
+                                )}
+                            </select>
                         </div>
                         <div className="setting-row">
                             <label>View</label>
