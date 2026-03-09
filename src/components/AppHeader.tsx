@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { usePlanner } from '../context/PlannerContext';
-import { calculateViewProgress } from '../utils/calendarUtils';
+import { calculateViewProgress, getYearLabel } from '../utils/calendarUtils';
 
 interface AppHeaderProps {
     todayInView: boolean;
@@ -8,21 +8,74 @@ interface AppHeaderProps {
 }
 
 const AppHeader: React.FC<AppHeaderProps> = ({ todayInView, onSettingsClick }) => {
-    const { year, showDayProgress, monthsToShow } = usePlanner();
-    const [showPercentage, setShowPercentage] = React.useState(false);
+    const { year, startMonth, showDayProgress, monthsToShow, navigate, setYear, setStartMonth } = usePlanner();
+    const [showPercentage, setShowPercentage] = useState(false);
+    const [isNavPinnedOpen, setIsNavPinnedOpen] = useState(false);
+    const [shouldScrollToToday, setShouldScrollToToday] = useState(false);
+    const yearNavRef = useRef<HTMLDivElement>(null);
 
-    const handleBackToToday = () => {
-        // Find the today cell
+    const scrollTodayIntoView = () => {
         const todayEl = document.querySelector('.today-marker');
         if (todayEl) {
             todayEl.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
         }
     };
 
+    useEffect(() => {
+        if (!isNavPinnedOpen) {
+            return;
+        }
+
+        const handlePointerDown = (event: PointerEvent) => {
+            if (yearNavRef.current && !yearNavRef.current.contains(event.target as Node)) {
+                setIsNavPinnedOpen(false);
+            }
+        };
+
+        document.addEventListener('pointerdown', handlePointerDown);
+        return () => {
+            document.removeEventListener('pointerdown', handlePointerDown);
+        };
+    }, [isNavPinnedOpen]);
+
+    useEffect(() => {
+        if (!shouldScrollToToday) {
+            return;
+        }
+
+        const frame = window.requestAnimationFrame(() => {
+            window.requestAnimationFrame(() => {
+                scrollTodayIntoView();
+                setShouldScrollToToday(false);
+            });
+        });
+
+        return () => {
+            window.cancelAnimationFrame(frame);
+        };
+    }, [shouldScrollToToday, year, startMonth, monthsToShow]);
+
+    const handleBackToToday = () => {
+        const today = new Date();
+        const currentRangeStart = year * 12 + startMonth;
+        const currentRangeEnd = currentRangeStart + monthsToShow - 1;
+        const todayIndex = today.getFullYear() * 12 + today.getMonth();
+        const isTodayInRange = todayIndex >= currentRangeStart && todayIndex <= currentRangeEnd;
+
+        if (!isTodayInRange) {
+            setYear(today.getFullYear());
+            setStartMonth(today.getMonth());
+            setShouldScrollToToday(true);
+            return;
+        }
+
+        scrollTodayIntoView();
+    };
+
     let dayProgressStr = "";
     if (showDayProgress) {
         const todayObj = new Date();
-        const { current, total } = calculateViewProgress(year, monthsToShow, todayObj);
+        const { current, total } = calculateViewProgress(year, startMonth, monthsToShow, todayObj);
 
         if (showPercentage) {
             const pct = ((current / total) * 100).toFixed(1);
@@ -45,7 +98,46 @@ const AppHeader: React.FC<AppHeaderProps> = ({ todayInView, onSettingsClick }) =
                     </span>
                 )}
             </div>
-            <h1 className="app-year">{year}</h1>
+            <div
+                ref={yearNavRef}
+                className={`app-year-nav ${isNavPinnedOpen ? 'nav-open' : ''}`}
+                onMouseEnter={() => setIsNavPinnedOpen(true)}
+                onMouseLeave={() => setIsNavPinnedOpen(false)}
+            >
+                <button
+                    type="button"
+                    className="header-nav-arrow header-nav-arrow-left"
+                    onClick={() => navigate(-1)}
+                    title="Previous Range"
+                    aria-label="Previous range"
+                >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="15 18 9 12 15 6"></polyline>
+                    </svg>
+                </button>
+
+                <button
+                    type="button"
+                    className="app-year-trigger"
+                    onClick={() => setIsNavPinnedOpen(open => !open)}
+                    aria-label="Toggle calendar navigation"
+                    aria-expanded={isNavPinnedOpen}
+                >
+                    <span className="app-year">{getYearLabel(year, startMonth, monthsToShow)}</span>
+                </button>
+
+                <button
+                    type="button"
+                    className="header-nav-arrow header-nav-arrow-right"
+                    onClick={() => navigate(1)}
+                    title="Next Range"
+                    aria-label="Next range"
+                >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="9 18 15 12 9 6"></polyline>
+                    </svg>
+                </button>
+            </div>
             <div className="header-spacer right">
                 {!todayInView && (
                     <button

@@ -12,13 +12,13 @@ import useDragSelection from '../hooks/useDragSelection';
 
 
 interface PlannerGridProps {
-    onEventClick: (e: React.MouseEvent, allEventsOnDay: PlannerEvent[], m: number, d: number) => void;
+    onEventClick: (e: React.MouseEvent, allEventsOnDay: PlannerEvent[], y: number, m: number, d: number) => void;
     setTodayInView: (inView: boolean) => void;
     onRangeSelection: (range: EventRange) => void;
 }
 
 const PlannerGrid: React.FC<PlannerGridProps> = ({ onEventClick, setTodayInView, onRangeSelection }) => {
-    const { year, monthsToShow, weekdayAlign, highlightToday } = usePlannerMeta();
+    const { year, startMonth, monthsToShow, weekdayAlign, highlightToday } = usePlannerMeta();
     const { events, setEvents } = usePlannerEvents();
     const { setActiveEventId } = usePlannerInteraction();
 
@@ -31,7 +31,7 @@ const PlannerGrid: React.FC<PlannerGridProps> = ({ onEventClick, setTodayInView,
         onTouchStart,
         onTouchEnd: onTouchEndSelection,
         onTouchMove
-    } = useDragSelection(year);
+    } = useDragSelection();
 
     const { calculateNewEventPosition } = useEventDragCalculations(events);
 
@@ -45,7 +45,7 @@ const PlannerGrid: React.FC<PlannerGridProps> = ({ onEventClick, setTodayInView,
 
     const scrollAreaRef = useRef<HTMLDivElement>(null);
 
-    useTodayVisibility(scrollAreaRef, setTodayInView, [year, monthsToShow, highlightToday, events]);
+    useTodayVisibility(scrollAreaRef, setTodayInView, [year, startMonth, monthsToShow, highlightToday, events]);
 
     const handleTouchEndWrapped = () => {
         onTouchEndSelection(onRangeSelection);
@@ -122,13 +122,13 @@ const PlannerGrid: React.FC<PlannerGridProps> = ({ onEventClick, setTodayInView,
         }
     };
 
-    const handleEventClickWrapped = (e: React.MouseEvent, allEventsOnDay: PlannerEvent[], m: number, d: number) => {
+    const handleEventClickWrapped = (e: React.MouseEvent, allEventsOnDay: PlannerEvent[], y: number, m: number, d: number) => {
         if (e.button !== 0) return; // Ignore right clicks
         if (isDragJustFinishedRef.current) {
             e.stopPropagation();
             return;
         }
-        onEventClick(e, allEventsOnDay, m, d);
+        onEventClick(e, allEventsOnDay, y, m, d);
     };
 
     const monthsArray = useMemo(() => Array.from({ length: monthsToShow }), [monthsToShow]);
@@ -154,25 +154,32 @@ const PlannerGrid: React.FC<PlannerGridProps> = ({ onEventClick, setTodayInView,
                         </div>
                     )}
 
-                    {monthsArray.map((_, monthIndex) => (
-                        <MonthColumn
-                            key={monthIndex}
-                            monthIndex={monthIndex}
-                            dragPreviewEvent={dragPreviewEvent}
-                            onEventClick={handleEventClickWrapped}
-                            maxRows={maxRows}
-                            today={todayData}
+                    {monthsArray.map((_, monthIndex) => {
+                        const colYear = year + Math.floor((startMonth + monthIndex) / 12);
+                        const colMonth = (startMonth + monthIndex) % 12;
 
-                            // Drag props
-                            startDrag={startDrag}
-                            updateDrag={updateDrag}
-                            isHighlighted={isHighlighted}
-                            onTouchStart={onTouchStart}
-                            onTouchMove={onTouchMove}
-                            onTouchEnd={handleTouchEndWrapped}
-                            onMouseUp={handleMouseUpWrapped}
-                        />
-                    ))}
+                        return (
+                            <MonthColumn
+                                key={monthIndex}
+                                monthIndex={monthIndex}
+                                colYear={colYear}
+                                colMonth={colMonth}
+                                dragPreviewEvent={dragPreviewEvent}
+                                onEventClick={handleEventClickWrapped}
+                                maxRows={maxRows}
+                                today={todayData}
+
+                                // Drag props
+                                startDrag={startDrag}
+                                updateDrag={updateDrag}
+                                isHighlighted={isHighlighted}
+                                onTouchStart={onTouchStart}
+                                onTouchMove={onTouchMove}
+                                onTouchEnd={handleTouchEndWrapped}
+                                onMouseUp={handleMouseUpWrapped}
+                            />
+                        );
+                    })}
                 </div>
             </div>
         </DndContext>

@@ -7,8 +7,10 @@ import { generateMonthLayout } from '../utils/calendar/layoutCalculations';
 import DayCell from './calendar/DayCell';
 
 interface MonthColumnProps {
-    monthIndex: number;
-    onEventClick: (e: React.MouseEvent, allEventsOnDay: PlannerEvent[], m: number, d: number) => void;
+    monthIndex: number; // The visual column index 0,1,2...
+    colYear: number;
+    colMonth: number;
+    onEventClick: (e: React.MouseEvent, allEventsOnDay: PlannerEvent[], y: number, m: number, d: number) => void;
     maxRows: number;
     today: {
         todayYear: number;
@@ -20,15 +22,17 @@ interface MonthColumnProps {
     dragPreviewEvent?: PlannerEvent | null;
 
     // Drag Props
-    startDrag: (m: number, d: number) => void;
-    updateDrag: (m: number, d: number) => void;
-    isHighlighted: (m: number, d: number) => boolean;
-    onTouchStart: (e: React.TouchEvent, m: number, d: number) => void;
+    startDrag: (y: number, m: number, d: number) => void;
+    updateDrag: (y: number, m: number, d: number) => void;
+    isHighlighted: (y: number, m: number, d: number) => boolean;
+    onTouchStart: (e: React.TouchEvent, y: number, m: number, d: number) => void;
     onTouchMove: (e: React.TouchEvent) => void;
 }
 
 const MonthColumn: FC<MonthColumnProps> = ({
     monthIndex,
+    colYear,
+    colMonth,
     onEventClick,
     maxRows,
     today,
@@ -41,20 +45,20 @@ const MonthColumn: FC<MonthColumnProps> = ({
     onTouchStart,
     onTouchMove
 }) => {
-    const { year, weekdayAlign, showWeekends, highlightToday } = usePlannerMeta();
+    const { weekdayAlign, showWeekends, highlightToday } = usePlannerMeta();
     const { eventMap } = usePlannerEvents();
     const { activeEventId } = usePlannerInteraction();
 
     const layout = useMemo(() => generateMonthLayout({
-        year,
-        monthIndex,
+        year: colYear,
+        monthIndex: colMonth,
         weekdayAlign,
         maxRows
-    }), [year, monthIndex, weekdayAlign, maxRows]);
+    }), [colYear, colMonth, weekdayAlign, maxRows]);
 
     return (
         <div className="month-col">
-            <div className="month-header unselectable">{monthNames[monthIndex]}</div>
+            <div className="month-header unselectable">{monthNames[colMonth]}</div>
 
             {layout.map((cell) => {
                 if (cell.type === 'spacer' || cell.type === 'filler') {
@@ -67,23 +71,23 @@ const MonthColumn: FC<MonthColumnProps> = ({
                 }
 
                 const day = cell.day!;
-                const dateKey = getDateKey(year, monthIndex, day);
+                const dateKey = getDateKey(colYear, colMonth, day);
                 const eventsOnDay = eventMap.get(dateKey) ?? [];
 
-                const dayIdx = getDayOfWeekIndex(year, monthIndex, day);
+                const dayIdx = getDayOfWeekIndex(colYear, colMonth, day);
                 const isWeekend = dayIdx === 5 || dayIdx === 6;
-                const isToday = highlightToday && year === today.todayYear && monthIndex === today.todayMonth && day === today.todayDay;
+                const isToday = highlightToday && colYear === today.todayYear && colMonth === today.todayMonth && day === today.todayDay;
 
-                const showPreview = dragPreviewEvent && isDateInRange(year, monthIndex, day, dragPreviewEvent.start, dragPreviewEvent.end);
+                const showPreview = dragPreviewEvent && isDateInRange(colYear, colMonth, day, dragPreviewEvent.start, dragPreviewEvent.end);
 
                 return (
                     <DayCell
                         key={cell.id}
                         type="day"
-                        date={{ year, month: monthIndex, day }}
+                        date={{ year: colYear, month: colMonth, day }}
                         events={eventsOnDay}
                         appearance={{
-                            isHighlighted: isHighlighted(monthIndex, day),
+                            isHighlighted: isHighlighted(colYear, colMonth, day),
                             isWeekend,
                             showWeekends,
                             activeEventId,

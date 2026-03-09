@@ -5,8 +5,11 @@ interface PlannerMetaContextValue {
     // Time
     year: number;
     setYear: (year: number) => void;
+    startMonth: number;
+    setStartMonth: (m: number) => void;
     monthsToShow: number;
     setMonthsToShow: (n: number) => void;
+    navigate: (direction: 1 | -1) => void;
 
     // Appearance
     theme: ThemeId;

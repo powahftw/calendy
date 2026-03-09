@@ -221,6 +221,7 @@ describe('Storage Persistence', () => {
                     showDayProgress: true,
                     weekdayAlign: true,
                     year: 2026,
+                    startMonth: 0,
                     monthsToShow: 12
                 }
             },
@@ -241,7 +242,7 @@ describe('Storage Persistence', () => {
         const state1 = {
             data: {
                 events: [{ id: '1', title: 'User 1 Event', start: '2026-01-15', end: '2026-01-15', color: 0 }],
-                settings: { theme: 'blue', year: 2026, monthsToShow: 12 }
+                settings: { theme: 'blue', year: 2026, startMonth: 0, monthsToShow: 12 }
             },
             updatedAt: Date.now()
         };
@@ -275,7 +276,7 @@ describe('Firebase Sync Logic', () => {
         const localState = {
             data: {
                 events: [{ id: '1', title: 'Local Event', start: '2026-01-15', end: '2026-01-15', color: 0 }],
-                settings: { theme: 'blue', year: 2026, monthsToShow: 12 }
+                settings: { theme: 'blue', year: 2026, startMonth: 0, monthsToShow: 12 }
             },
             updatedAt: now - 10000
         };
@@ -306,22 +307,21 @@ describe('Firebase Sync Logic', () => {
     it('should override local events with empty remote state if remote is newer (deletion sync)', async () => {
         const user = { uid: 'test-user' } as User;
         const now = Date.now();
+        let resolveRemoteEvents: ((value: { events: never[]; updatedAt: number }) => void) | null = null;
 
         const localState = {
             data: {
                 events: [{ id: '1', title: 'Local Event', start: '2026-01-15', end: '2026-01-15', color: 0 }],
-                settings: { theme: 'blue', year: 2026, monthsToShow: 12 }
+                settings: { theme: 'blue', year: 2026, startMonth: 0, monthsToShow: 12 }
             },
             updatedAt: now - 5000
         };
         localStorage.setItem('planner_v2_test-user', JSON.stringify(localState));
 
-        mockLoadEvents.mockImplementation(async () => {
-            await new Promise(resolve => setTimeout(resolve, 100));
-            return {
-                events: [],
-                updatedAt: now
-            };
+        mockLoadEvents.mockImplementation(() => {
+            return new Promise((resolve) => {
+                resolveRemoteEvents = resolve;
+            });
         });
 
         mockAuthValue.user = user;
@@ -331,6 +331,11 @@ describe('Firebase Sync Logic', () => {
         expect(await screen.findByText('Local Event')).toBeInTheDocument();
 
         // Then it should be cleared when remote data (which is newer and empty) arrives
+        resolveRemoteEvents?.({
+            events: [],
+            updatedAt: now
+        });
+
         await waitFor(() => {
             expect(screen.queryByText('Local Event')).not.toBeInTheDocument();
         }, { timeout: 10000 });
@@ -349,7 +354,7 @@ describe('Firebase Sync Logic', () => {
         const localState = {
             data: {
                 events: [{ id: '1', title: 'Local Event', start: '2026-01-15', end: '2026-01-15', color: 0 }],
-                settings: { theme: 'blue', year: 2026, monthsToShow: 12 }
+                settings: { theme: 'blue', year: 2026, startMonth: 0, monthsToShow: 12 }
             },
             updatedAt: now
         };
@@ -471,7 +476,7 @@ describe('Edge Cases', () => {
         const state = {
             data: {
                 events: [{ id: '1', title: 'Local Only Event', start: '2026-01-15', end: '2026-01-15', color: 0 }],
-                settings: { theme: 'blue', year: 2026, monthsToShow: 12 }
+                settings: { theme: 'blue', year: 2026, startMonth: 0, monthsToShow: 12 }
             },
             updatedAt: Date.now()
         };

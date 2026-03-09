@@ -45,6 +45,7 @@ export interface PlannerSettings {
     showDayProgress: boolean;
     weekdayAlign: boolean;
     year: number;
+    startMonth: number;
     monthsToShow: number;
 }
 
@@ -143,11 +144,28 @@ export const isDateInRange = (year: number, month: number, day: number, startStr
     return currentStr >= startStr && currentStr <= endStr;
 };
 
+export const getMonthYear = (baseYear: number, startMonth: number, columnIndex: number): { year: number, month: number } => {
+    const totalMonths = startMonth + columnIndex;
+    return {
+        year: baseYear + Math.floor(totalMonths / 12),
+        month: totalMonths % 12
+    };
+};
+
+export const getYearLabel = (baseYear: number, startMonth: number, monthsToShow: number): string => {
+    const end = getMonthYear(baseYear, startMonth, monthsToShow - 1);
+    if (baseYear === end.year) {
+        return `${baseYear}`;
+    }
+    return `${baseYear}-${end.year}`;
+};
+
 /**
- * Calculates current progress and total days for the visible months in a given year.
+ * Calculates current progress and total days for the visible months in a given year/startMonth.
  */
 export const calculateViewProgress = (
     viewYear: number,
+    startMonth: number,
     monthsToShow: number,
     today: Date = new Date()
 ): { current: number; total: number } => {
@@ -158,23 +176,21 @@ export const calculateViewProgress = (
     let totalDays = 0;
     let currentProgress = 0;
 
-    for (let m = 0; m < monthsToShow; m++) {
-        const daysInMonth = getDaysInMonth(viewYear, m);
+    for (let i = 0; i < monthsToShow; i++) {
+        const { year: currentYear, month: currentMonth } = getMonthYear(viewYear, startMonth, i);
+        const daysInMonth = getDaysInMonth(currentYear, currentMonth);
         totalDays += daysInMonth;
 
-        if (viewYear < todayYear) {
+        if (currentYear < todayYear) {
             currentProgress += daysInMonth;
-        } else if (viewYear === todayYear) {
-            if (m < todayMonth) {
+        } else if (currentYear === todayYear) {
+            if (currentMonth < todayMonth) {
                 currentProgress += daysInMonth;
-            } else if (m === todayMonth) {
+            } else if (currentMonth === todayMonth) {
                 currentProgress += Math.min(todayDate, daysInMonth);
             }
         }
-        // For years in the future, currentProgress remains 0 (or whatever it accumulated to).
-        // Actually, logic dictates: if viewYear > todayYear, we add nothing to currentProgress.
     }
-
 
     return { current: currentProgress, total: totalDays };
 };
