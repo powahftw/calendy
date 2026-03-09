@@ -307,6 +307,7 @@ describe('Firebase Sync Logic', () => {
     it('should override local events with empty remote state if remote is newer (deletion sync)', async () => {
         const user = { uid: 'test-user' } as User;
         const now = Date.now();
+        let resolveRemoteEvents: ((value: { events: never[]; updatedAt: number }) => void) | null = null;
 
         const localState = {
             data: {
@@ -317,12 +318,10 @@ describe('Firebase Sync Logic', () => {
         };
         localStorage.setItem('planner_v2_test-user', JSON.stringify(localState));
 
-        mockLoadEvents.mockImplementation(async () => {
-            await new Promise(resolve => setTimeout(resolve, 100));
-            return {
-                events: [],
-                updatedAt: now
-            };
+        mockLoadEvents.mockImplementation(() => {
+            return new Promise((resolve) => {
+                resolveRemoteEvents = resolve;
+            });
         });
 
         mockAuthValue.user = user;
@@ -332,6 +331,11 @@ describe('Firebase Sync Logic', () => {
         expect(await screen.findByText('Local Event')).toBeInTheDocument();
 
         // Then it should be cleared when remote data (which is newer and empty) arrives
+        resolveRemoteEvents?.({
+            events: [],
+            updatedAt: now
+        });
+
         await waitFor(() => {
             expect(screen.queryByText('Local Event')).not.toBeInTheDocument();
         }, { timeout: 10000 });

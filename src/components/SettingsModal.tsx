@@ -224,17 +224,14 @@ const SettingsModal: FC<SettingsModalProps> = ({
                                 <option value={year + 1}>{year + 1}</option>
                                 <option value={year + 2}>{year + 2}</option>
                                 <option value={year + 3}>{year + 3}</option>
-                                {startMonth === 0 && year < new Date().getFullYear() - 2 && (
-                                    <option value={year} style={{ display: 'none' }}>{year}</option>
-                                )}
                             </select>
                         </div>
                         <div className="setting-row">
-                            <label>View</label>
+                            <label>Range</label>
                             <select className="modal-input" value={monthsToShow} onChange={e => setMonthsToShow(Number(e.target.value))}>
-                                <option value={3}>Q1 (3 Months)</option>
-                                <option value={6}>H1 (6 Months)</option>
-                                <option value={12}>Full Year</option>
+                                <option value={3}>Quarter (3 months)</option>
+                                <option value={6}>Half (6 months)</option>
+                                <option value={12}>Yearly (365 days)</option>
                             </select>
                         </div>
                         {checkboxSettings.map(setting => (
