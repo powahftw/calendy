@@ -16,8 +16,8 @@ const AppHeader: React.FC<AppHeaderProps> = ({ todayInView, onSettingsClick }) =
 
     const scrollTodayIntoView = () => {
         const todayEl = document.querySelector('.today-marker');
-        if (todayEl && typeof (todayEl as HTMLElement).scrollIntoView === 'function') {
-            (todayEl as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+        if (todayEl) {
+            todayEl.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
         }
     };
 

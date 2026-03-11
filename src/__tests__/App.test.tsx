@@ -123,7 +123,10 @@ describe('App Integration', () => {
     });
 
 
-    it('shows Back to Today when navigating to a range that does not include today', async () => {
+    it('scrolls back to today when the button is clicked', async () => {
+        const scrollMock = vi.fn();
+        window.HTMLElement.prototype.scrollIntoView = scrollMock;
+
         render(<App />);
         const guestBtn = await screen.findByText(/Continue as Guest/i);
         fireEvent.click(guestBtn);
@@ -141,6 +144,7 @@ describe('App Integration', () => {
         fireEvent.click(screen.getByTitle('Back to Today'));
 
         await waitFor(() => {
+            expect(scrollMock).toHaveBeenCalledWith({ behavior: 'smooth', block: 'center', inline: 'center' });
             expect(screen.queryByTitle('Back to Today')).not.toBeInTheDocument();
         });
     });
