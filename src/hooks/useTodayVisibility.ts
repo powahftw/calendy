@@ -24,7 +24,7 @@ export function useTodayVisibility(
         setTarget(todayEl);
 
         if (!todayEl) {
-            setTodayInView(true);
+            setTodayInView(false);
         }
     }, dependencies);
 }

@@ -122,6 +122,33 @@ describe('App Integration', () => {
         expect(overflow).toBeInTheDocument();
     });
 
+
+    it('scrolls back to today when the button is clicked', async () => {
+        const scrollMock = vi.fn();
+        window.HTMLElement.prototype.scrollIntoView = scrollMock;
+
+        render(<App />);
+        const guestBtn = await screen.findByText(/Continue as Guest/i);
+        fireEvent.click(guestBtn);
+
+        await waitForPlanner();
+
+        expect(screen.queryByTitle('Back to Today')).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: /Next range/i }));
+
+        await waitFor(() => {
+            expect(screen.getByTitle('Back to Today')).toBeInTheDocument();
+        });
+
+        fireEvent.click(screen.getByTitle('Back to Today'));
+
+        await waitFor(() => {
+            expect(scrollMock).toHaveBeenCalledWith({ behavior: 'smooth', block: 'center', inline: 'center' });
+            expect(screen.queryByTitle('Back to Today')).not.toBeInTheDocument();
+        });
+    });
+
     it('renders special event styles (striped) and emoji events', async () => {
         mockAuthValue.user = { uid: 'test-user' } as User;
         render(<App />);
