@@ -122,6 +122,29 @@ describe('App Integration', () => {
         expect(overflow).toBeInTheDocument();
     });
 
+
+    it('shows Back to Today when navigating to a range that does not include today', async () => {
+        render(<App />);
+        const guestBtn = await screen.findByText(/Continue as Guest/i);
+        fireEvent.click(guestBtn);
+
+        await waitForPlanner();
+
+        expect(screen.queryByTitle('Back to Today')).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: /Next range/i }));
+
+        await waitFor(() => {
+            expect(screen.getByTitle('Back to Today')).toBeInTheDocument();
+        });
+
+        fireEvent.click(screen.getByTitle('Back to Today'));
+
+        await waitFor(() => {
+            expect(screen.queryByTitle('Back to Today')).not.toBeInTheDocument();
+        });
+    });
+
     it('renders special event styles (striped) and emoji events', async () => {
         mockAuthValue.user = { uid: 'test-user' } as User;
         render(<App />);
