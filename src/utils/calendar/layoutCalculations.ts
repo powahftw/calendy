@@ -18,7 +18,6 @@ export function generateMonthLayout(config: MonthLayoutConfig): CellData[] {
     const { year, monthIndex, weekdayAlign, maxRows } = config;
     const cells: CellData[] = [];
 
-    // Spacers (align to weekday)
     if (weekdayAlign) {
         const firstDayIndex = getDayOfWeekIndex(year, monthIndex, 1);
         for (let i = 0; i < firstDayIndex; i++) {
@@ -30,7 +29,6 @@ export function generateMonthLayout(config: MonthLayoutConfig): CellData[] {
         }
     }
 
-    // Actual days
     const daysInMonth = getDaysInMonth(year, monthIndex);
     for (let day = 1; day <= daysInMonth; day++) {
         cells.push({
@@ -41,7 +39,6 @@ export function generateMonthLayout(config: MonthLayoutConfig): CellData[] {
         });
     }
 
-    // Fillers (to reach maxRows)
     while (cells.length < maxRows) {
         cells.push({
             type: 'filler',

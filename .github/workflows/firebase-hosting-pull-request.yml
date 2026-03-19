@@ -16,6 +16,12 @@ jobs:
       
       - run: npm ci
       
+      - name: Run lint
+        run: npm run lint
+      
+      - name: Run typecheck
+        run: npm run typecheck
+      
       - name: Run unit tests
         run: npm run test:unit
       
@@ -54,5 +60,5 @@ jobs:
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CALENDY_79636 }}
-          projectId: calendy-79636
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          projectId: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}

@@ -1,14 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { usePlanner } from '../context/PlannerContext';
-import { PlannerEvent, EventRange, RangeDate, toDateStr, uid } from '../utils/calendarUtils';
+import { PlannerEvent, EventRange, toDateStr } from '../utils/calendarUtils';
 import PlannerGrid from './PlannerGrid';
 import AppHeader from './AppHeader';
 import SettingsModal from './SettingsModal';
 import EventModal from './EventModal';
 import EventListModal from './EventListModal';
 import { User } from 'firebase/auth';
-import { logger } from '../utils/logger';
-import toast from 'react-hot-toast';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { usePlannerModals } from '../hooks/usePlannerModals';
 import { useEventOperations } from '../hooks/useEventOperations';
@@ -23,40 +21,31 @@ interface PlannerViewProps {
 
 const PlannerView: React.FC<PlannerViewProps> = ({ user, signOut, isGuest, setIsGuest }) => {
     const {
-        year,
-        events,
         setEvents,
         theme,
         undo
     } = usePlanner();
-
-    const today = new Date();
     const { modalState, openCreate, openList, openSettings, close, updateListEvents } = usePlannerModals();
     const { createEvent, updateEvent, deleteEvent, createEventFromDate } = useEventOperations(setEvents, undo);
 
     useKeyboardShortcuts();
 
-    // Visibility State
     const [todayInView, setTodayInView] = useState(false);
-
-    // Selection State
     const activeRange = modalState.type === 'CREATE' ? modalState.range : null;
     const activeList = modalState.type === 'LIST' ? modalState : null;
 
-    // Effects
     useEffect(() => {
         document.body.setAttribute('data-theme', theme);
     }, [theme]);
 
-    // Handlers
     const handleRangeComplete = (range: EventRange) => {
         openCreate(range);
     };
 
-    const handleEventClickWithDate = (e: React.MouseEvent, allEventsOnDay: PlannerEvent[], m: number, d: number) => {
+    const handleEventClickWithDate = (e: React.MouseEvent, allEventsOnDay: PlannerEvent[], clickedYear: number, month: number, day: number) => {
         e.stopPropagation();
         openList(
-            { year, month: m, day: d },
+            { year: clickedYear, month, day },
             allEventsOnDay
         );
     };

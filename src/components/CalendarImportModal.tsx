@@ -1,7 +1,7 @@
 import React, { FC, useState } from 'react';
 import { CalendarService } from '../services/CalendarService';
 import { usePlanner } from '../context/PlannerContext';
-import { PlannerEvent, toDateStr, uid } from '../utils/calendarUtils';
+import { PlannerEvent, TRANSPARENT_COLOR_INDEX, toDateStr, uid } from '../utils/calendarUtils';
 import toast from 'react-hot-toast';
 import { useGoogleCalendar } from '../hooks/useGoogleCalendar';
 
@@ -16,6 +16,14 @@ const CalendarImportModal: FC<CalendarImportModalProps> = ({ onClose }) => {
     const [step, setStep] = useState<Step>('AUTH');
     const [selectedEventIds, setSelectedEventIds] = useState<Set<string>>(new Set());
     const { calendars, eligibleEvents, loading, error, signIn, fetchEvents } = useGoogleCalendar();
+
+    const hasMatchingEvent = (candidate: Pick<PlannerEvent, 'title' | 'start' | 'end'>) => (
+        plannerEvents.some((existing) =>
+            existing.title === candidate.title &&
+            existing.start === candidate.start &&
+            existing.end === candidate.end
+        )
+    );
 
     const handleAuth = async () => {
         const cals = await signIn();
@@ -71,8 +79,8 @@ const CalendarImportModal: FC<CalendarImportModalProps> = ({ onClose }) => {
                 const startStr = toDateStr(startD.getFullYear(), startD.getMonth(), startD.getDate());
                 const endStr = toDateStr(effectiveEnd.getFullYear(), effectiveEnd.getMonth(), effectiveEnd.getDate());
 
-                // Pick a random color index from the 7 available in the palette
-                const colorIdx = Math.floor(Math.random() * 7);
+                // Keep imported events away from the transparent slot while preserving current palette behavior.
+                const colorIdx = Math.floor(Math.random() * TRANSPARENT_COLOR_INDEX);
 
                 newEvents.push({
                     id: uid(),
@@ -83,8 +91,21 @@ const CalendarImportModal: FC<CalendarImportModalProps> = ({ onClose }) => {
                 });
             });
 
-            setEvents([...plannerEvents, ...newEvents]);
-            toast.success(`Imported ${newEvents.length} events successfully!`);
+            const uniqueEvents = newEvents.filter((event) => !hasMatchingEvent(event));
+            const duplicates = newEvents.length - uniqueEvents.length;
+
+            if (uniqueEvents.length > 0) {
+                setEvents([...plannerEvents, ...uniqueEvents]);
+            }
+
+            if (uniqueEvents.length > 0 && duplicates > 0) {
+                toast.success(`Imported ${uniqueEvents.length} events. Skipped ${duplicates} duplicates.`);
+            } else if (uniqueEvents.length > 0) {
+                toast.success(`Imported ${uniqueEvents.length} events successfully!`);
+            } else {
+                toast.error(`No new events found. ${duplicates} duplicates skipped.`);
+            }
+
             onClose();
         } catch (err) {
             console.error(err);

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getMonthYear, getYearLabel, calculateViewProgress } from './calendarUtils';
+import { calculateViewProgress, formatDateRange, getMonthYear, getYearLabel } from './calendarUtils';
 
 describe('calendarUtils', () => {
     describe('getMonthYear', () => {
@@ -49,7 +49,6 @@ describe('calendarUtils', () => {
         });
 
         it('calculates progress correctly across years', () => {
-            const startDate = new Date(2026, 5, 1); // June 1st
             const today = new Date(2026, 5, 10);
             const { current } = calculateViewProgress(2026, 5, 12, today);
             expect(current).toBe(10);
@@ -62,6 +61,16 @@ describe('calendarUtils', () => {
             // Jan 10th = 224 days total
             const { current } = calculateViewProgress(2026, 5, 12, today);
             expect(current).toBe(214 + 10);
+        });
+    });
+
+    describe('formatDateRange', () => {
+        it('returns a single formatted date for same-day ranges', () => {
+            expect(formatDateRange('2026-01-15', '2026-01-15', 'dayMonth')).toBe('15-01');
+        });
+
+        it('returns the full range for multi-day events', () => {
+            expect(formatDateRange('2026-01-15', '2026-01-17', 'monthDay')).toBe('01/15 - 01/17');
         });
     });
 });

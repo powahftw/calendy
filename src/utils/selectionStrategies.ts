@@ -46,13 +46,9 @@ export class TouchSelectionStrategy implements SelectionStrategy {
 
     constructor(private options: TouchStrategyOptions) { }
 
-    start = () => {
-        // Touch flow starts on onTouchStart
-    };
+    start = () => { };
 
-    update = () => {
-        // Touch flow updates in onTouchMove
-    };
+    update = () => { };
 
     end = (callback: (range: EventRange) => void) => {
         if (this.options.getState().selectionMode) {

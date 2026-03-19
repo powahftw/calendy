@@ -1,45 +1,45 @@
-import React, { FC, useState, useEffect, useRef } from 'react';
-import { monthNames, EventRange, PlannerEvent, STRIPED_COLOR_INDEX, DOTTED_COLOR_INDEX, TRANSPARENT_COLOR_INDEX } from '../utils/calendarUtils';
+import React, { FC, useState } from 'react';
+import {
+    DOTTED_COLOR_INDEX,
+    EventRange,
+    PlannerEvent,
+    STRIPED_COLOR_INDEX,
+    TRANSPARENT_COLOR_INDEX,
+    formatDateRange,
+    toDateStr
+} from '../utils/calendarUtils';
 import { useTheme } from '../hooks/useTheme';
-
+import { useEscapeKey } from '../hooks/useEscapeKey';
 
 interface EventModalProps {
     range: EventRange;
-    // Optional event prop if editing existing event (not passed currently but good for future)
     event?: PlannerEvent;
     onClose: () => void;
     onSave: (title: string, colorIndex: number, icon?: string) => void;
 }
 
+export const EVENT_ICONS = ['', '⚠️', '❓', '🌍', '🗺️', '🇨🇭', '🇮🇹', '🇬🇧', '🇪🇸'];
+
 const EventModal: FC<EventModalProps> = ({ range, event, onClose, onSave }) => {
     const [title, setTitle] = useState(event?.title || '');
     const [colorIndex, setSelectedIndex] = useState(event?.color || 0);
     const [icon, setIcon] = useState(event?.icon || '');
-
-    const icons = ['', '⚠️', '❓', '🌍', '🗺️', '🇨🇭', '🇮🇹', '🇬🇧', '🇪🇸'];
-    const inputRef = useRef<HTMLInputElement>(null);
     const palette = useTheme();
 
-    const dateStr = `${range.start.day} ${monthNames[range.start.month]} - ${range.end.day} ${monthNames[range.end.month]}`;
+    const startDateStr = toDateStr(range.start.year, range.start.month, range.start.day);
+    const endDateStr = toDateStr(range.end.year, range.end.month, range.end.day);
+    const dateStr = formatDateRange(startDateStr, endDateStr, 'dayMonth');
 
-    useEffect(() => {
-        if (inputRef.current) inputRef.current.focus();
+    useEscapeKey(onClose);
 
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') onClose();
-        };
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [onClose]);
     const handleSave = () => {
         onSave(title, colorIndex, icon);
     };
 
     const cycleIcon = () => {
-        const nextIdx = (icons.indexOf(icon) + 1) % icons.length;
-        setIcon(icons[nextIdx]);
+        const nextIdx = (EVENT_ICONS.indexOf(icon) + 1) % EVENT_ICONS.length;
+        setIcon(EVENT_ICONS[nextIdx]);
     };
-
 
     return (
         <div className="modal-overlay" onClick={onClose}>
@@ -54,11 +54,11 @@ const EventModal: FC<EventModalProps> = ({ range, event, onClose, onSave }) => {
 
                 <div className="input-row">
                     <input
-                        ref={inputRef}
                         type="text"
                         placeholder="Event Name"
                         className="modal-input"
                         value={title}
+                        maxLength={100}
                         onChange={(e) => setTitle(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleSave()}
                         autoFocus
@@ -73,7 +73,6 @@ const EventModal: FC<EventModalProps> = ({ range, event, onClose, onSave }) => {
                         let circleClass = `color-circle ${colorIndex === idx ? 'active' : ''}`;
                         const extraStyle: React.CSSProperties & Record<string, string> = {};
 
-                        // Apply special pattern classes or styles for special indices
                         if (idx === STRIPED_COLOR_INDEX) {
                             circleClass += ' event-striped';
                             extraStyle['--event-color-bg'] = `${c}30`;

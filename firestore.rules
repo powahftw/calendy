@@ -1,0 +1,67 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    function isThrottled() {
+      return resource != null
+        && resource.data.updatedAt is timestamp
+        && request.time < resource.data.updatedAt + duration.value(1, 's');
+    }
+
+    function validEventList() {
+      return request.resource.data.events is list
+        && request.resource.data.events.size() <= 500;
+    }
+
+    function validEventsDocument() {
+      return request.resource.data.keys().hasOnly(['events', 'updatedAt'])
+        && validEventList();
+    }
+
+    function validSettingsDocument() {
+      return request.resource.data.keys().hasOnly([
+        'theme',
+        'highlightToday',
+        'showWeekends',
+        'showDayProgress',
+        'weekdayAlign',
+        'year',
+        'startMonth',
+        'monthsToShow',
+        'updatedAt'
+      ])
+        && request.resource.data.theme is string
+        && request.resource.data.highlightToday is bool
+        && request.resource.data.showWeekends is bool
+        && request.resource.data.showDayProgress is bool
+        && request.resource.data.weekdayAlign is bool
+        && request.resource.data.year is int
+        && request.resource.data.year >= 2000
+        && request.resource.data.year <= 2100
+        && request.resource.data.startMonth is int
+        && request.resource.data.startMonth >= 0
+        && request.resource.data.startMonth <= 11
+        && request.resource.data.monthsToShow is int
+        && request.resource.data.monthsToShow in [3, 6, 12];
+    }
+
+    match /users/{userId}/data/{docId} {
+      allow read, delete: if isOwner(userId) && docId in ['events', 'settings'];
+      allow create: if isOwner(userId)
+        && (
+          (docId == 'events' && validEventsDocument())
+          || (docId == 'settings' && validSettingsDocument())
+        );
+      allow update: if isOwner(userId)
+        && !isThrottled()
+        && (
+          (docId == 'events' && validEventsDocument())
+          || (docId == 'settings' && validSettingsDocument())
+        );
+    }
+  }
+}

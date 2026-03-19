@@ -74,24 +74,18 @@ const DraggableEventChip: FC<{
         touchAction: 'manipulation',
     };
 
-    // dndStyle.right = hasOverflow ? '6px' : '2px';
-    // dndStyle.paddingRight = hasOverflow ? '12px' : '4px';
     dndStyle.paddingLeft = '4px';
 
-    if (isTransparent) {
-        // Transparent events have no background or border by default (css)
-    } else {
-        // Base styles for normal events (overridden by classes for striped/dotted)
+    if (!isTransparent) {
         if (!isStriped && !isDotted) {
             dndStyle.backgroundColor = `${color}15`;
             dndStyle.borderLeft = `2px solid ${color}`;
         } else {
-            // Variables for special styles
-            dndStyle.borderLeft = `2px solid ${color}`; // Border color stays solid
+            dndStyle.borderLeft = `2px solid ${color}`;
             const customProps = dndStyle as React.CSSProperties & Record<string, string>;
             customProps['--event-color-bg'] = `${color}15`;
-            customProps['--event-color-stripe'] = `${color}30`; // Subtle stripe
-            customProps['--event-color-dot'] = `${color}80`; // Visible dot
+            customProps['--event-color-stripe'] = `${color}30`;
+            customProps['--event-color-dot'] = `${color}80`;
         }
     }
 
@@ -126,16 +120,18 @@ const DraggableEventChip: FC<{
     );
 };
 
-const DayCell: FC<DayCellProps> = React.memo((props) => {
-    if (props.type !== 'day') {
-        return <div className="day-cell empty"></div>;
-    }
-
-    const { date, events, appearance, today, interactions } = props;
-    const { year, month, day } = date;
-    const { isHighlighted, isWeekend, showWeekends, activeEventId, dragPreviewEvent } = appearance;
-    const { isToday } = today;
-    const { onEventClick, onMouseDown, onMouseEnter, onTouchStart, onTouchMove, onTouchEnd, onMouseUp } = interactions;
+const InteractiveDayCell: FC<Extract<DayCellProps, { type: 'day' }>> = ({ date, events, appearance, today, interactions }) => {
+    const { date: dayDate, events: dayEvents, appearance: dayAppearance, today: todayState, interactions: dayInteractions } = {
+        date,
+        events,
+        appearance,
+        today,
+        interactions,
+    };
+    const { year, month, day } = dayDate;
+    const { isHighlighted, isWeekend, showWeekends, activeEventId, dragPreviewEvent } = dayAppearance;
+    const { isToday } = todayState;
+    const { onEventClick, onMouseDown, onMouseEnter, onTouchStart, onTouchMove, onTouchEnd, onMouseUp } = dayInteractions;
 
     const currentColors = useTheme();
     const { isOver, setNodeRef } = useDroppable({
@@ -143,12 +139,10 @@ const DayCell: FC<DayCellProps> = React.memo((props) => {
         data: { year, month, day }
     });
 
-    const mainEvent = events[0];
-    // Use the helper to determine which icon/color/text to show
-    // We cast to PlannerEvent because if events[0] exists, getDisplayEvent returns a defined event
-    const displayEvent = React.useMemo(() => getDisplayEvent(events) || mainEvent, [events, mainEvent]);
+    const mainEvent = dayEvents[0];
+    const displayEvent = React.useMemo(() => getDisplayEvent(dayEvents) || mainEvent, [dayEvents, mainEvent]);
 
-    const hiddenEvents = events.slice(1);
+    const hiddenEvents = dayEvents.slice(1);
     const hasOverflow = hiddenEvents.length > 0;
 
     const cellClassName = `day-cell ${isWeekend && showWeekends ? 'weekend' : ''} ${isHighlighted ? 'highlighted' : ''} ${isToday ? 'today today-marker' : ''}`;
@@ -179,7 +173,7 @@ const DayCell: FC<DayCellProps> = React.memo((props) => {
             {dragPreviewEvent && (
                 <EventPreview
                     event={dragPreviewEvent}
-                    hasConflict={events.length > 0}
+                    hasConflict={dayEvents.length > 0}
                     currentColors={currentColors}
                 />
             )}
@@ -202,7 +196,7 @@ const DayCell: FC<DayCellProps> = React.memo((props) => {
                         hasOverflow={hasOverflow}
                         color={currentColors[displayEvent.color] || currentColors[0]}
                         isActive={activeEventId === mainEvent.id}
-                        onClick={(e) => onEventClick(e, events, year, month, day)}
+                        onClick={(e) => onEventClick(e, dayEvents, year, month, day)}
                     />
                 </>
             )}
@@ -211,11 +205,19 @@ const DayCell: FC<DayCellProps> = React.memo((props) => {
                 <OverflowIndicator
                     events={hiddenEvents}
                     currentColors={currentColors}
-                    onClick={(e) => onEventClick(e, events, year, month, day)}
+                    onClick={(e) => onEventClick(e, dayEvents, year, month, day)}
                 />
             )}
         </div>
     );
+};
+
+const DayCell: FC<DayCellProps> = React.memo((props) => {
+    if (props.type !== 'day') {
+        return <div className="day-cell empty"></div>;
+    }
+
+    return <InteractiveDayCell {...props} />;
 });
 
 export default DayCell;

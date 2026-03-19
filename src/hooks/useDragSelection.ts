@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { RangeDate, EventRange } from '../utils/calendarUtils';
-import { isTouchDevice, MouseSelectionStrategy, SelectionStrategy, TouchSelectionStrategy } from '../utils/selectionStrategies';
+import { MouseSelectionStrategy, TouchSelectionStrategy } from '../utils/selectionStrategies';
 
 const TOUCH_MOVE_THRESHOLD = 10;
 
@@ -8,8 +8,6 @@ const useDragSelection = () => {
     const [isDragging, setIsDragging] = useState(false);
     const [dragStart, setDragStart] = useState<RangeDate | null>(null);
     const [dragCurrent, setDragCurrent] = useState<RangeDate | null>(null);
-
-    // Mobile / Touch State
     const [selectionMode, setSelectionMode] = useState(false);
     const stateRef = useRef({
         isDragging: false,
@@ -67,7 +65,6 @@ const useDragSelection = () => {
         finaliseDrag(callback);
     }, [finaliseDrag]);
 
-    // --- Touch Handlers ---
     const getCellFromPoint = useCallback((x: number, y: number): RangeDate | null => {
         const el = document.elementFromPoint(x, y);
         if (!el) return null;

@@ -20,8 +20,6 @@ interface MonthColumnProps {
     onTouchEnd: () => void;
     onMouseUp: () => void;
     dragPreviewEvent?: PlannerEvent | null;
-
-    // Drag Props
     startDrag: (y: number, m: number, d: number) => void;
     updateDrag: (y: number, m: number, d: number) => void;
     isHighlighted: (y: number, m: number, d: number) => boolean;
@@ -30,7 +28,7 @@ interface MonthColumnProps {
 }
 
 const MonthColumn: FC<MonthColumnProps> = ({
-    monthIndex,
+    monthIndex: _monthIndex,
     colYear,
     colMonth,
     onEventClick,

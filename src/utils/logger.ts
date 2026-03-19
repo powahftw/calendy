@@ -1,10 +1,10 @@
 const STORAGE_KEY = 'app_debug_mode';
+const DEBUG_ENABLED_IN_THIS_BUILD = import.meta.env.DEV;
 
 let debugCache: boolean | null = null;
 
-// Helper to check status with caching
 const isDebugEnabled = (): boolean => {
-    if (typeof window === 'undefined') return false;
+    if (!DEBUG_ENABLED_IN_THIS_BUILD || typeof window === 'undefined') return false;
 
     if (debugCache === null) {
         debugCache = localStorage.getItem(STORAGE_KEY) === 'true' || (window as any).DEBUG === true;
@@ -13,7 +13,7 @@ const isDebugEnabled = (): boolean => {
 };
 
 // Listen for storage changes from other tabs/windows
-if (typeof window !== 'undefined') {
+if (DEBUG_ENABLED_IN_THIS_BUILD && typeof window !== 'undefined') {
     window.addEventListener('storage', (e) => {
         if (e.key === STORAGE_KEY) {
             debugCache = e.newValue === 'true';
@@ -21,7 +21,6 @@ if (typeof window !== 'undefined') {
     });
 }
 
-// The Logger Object
 export const logger = {
     info: (message: string, ...args: any[]) => {
         if (isDebugEnabled()) {
@@ -34,7 +33,6 @@ export const logger = {
         }
     },
     error: (message: string, ...args: any[]) => {
-        // Errors usually should always be shown, but you can gate them too if desired
         console.error(`%c[ERROR] ${message}`, 'color: #f44336; font-weight: bold;', ...args);
     },
     group: (label: string) => {
@@ -45,8 +43,7 @@ export const logger = {
     }
 };
 
-// Expose control functions to the Global Window object
-if (typeof window !== 'undefined') {
+if (DEBUG_ENABLED_IN_THIS_BUILD && typeof window !== 'undefined') {
     (window as any).enableDebug = () => {
         localStorage.setItem(STORAGE_KEY, 'true');
         debugCache = true;

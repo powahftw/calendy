@@ -20,13 +20,21 @@ Built upon the idea of [calendar by neatnik](https://source.tube/neatnik/calenda
    - Create a project at [Firebase Console](https://console.firebase.google.com/).
    - Enable **Google Sign-in** in Authentication.
    - Create a **Firestore Database**.
+   - Deploy the bundled `firestore.rules` before exposing the app publicly.
+   - If you want Google Calendar import, enable the **Google Calendar API** in Google Cloud and add your authorized origins/domains.
 2. **Local Configuration**:
-   - Create a `.env.local` file based on `.env.example`.
-   - Fill in your Firebase configuration keys.
+   - Create a `.env.local` file based on `.env.example` if you want Firebase sync.
+   - Without Firebase env vars, the app still runs in guest/local mode.
 3. **Install & Run**:
    ```bash
    npm install
    npm run dev
+   ```
+4. **Quality Checks**:
+   ```bash
+   npm run lint
+   npm run typecheck
+   npm run test:unit
    ```
 
 ## 🛠️ Tech Stack
@@ -36,3 +44,8 @@ Built upon the idea of [calendar by neatnik](https://source.tube/neatnik/calenda
 - **Authentication**: Firebase Auth (Google)
 - **Styling**: Vanilla CSS (Custom Variable System)
 - **Deployment**: GitHub Actions + Firebase Hosting
+
+## Notes
+
+- Firebase web config is client-visible; security comes from Auth, Firestore rules, and your Firebase project settings.
+- For a public hosted instance, consider enabling Firebase App Check and budget alerts on the project.

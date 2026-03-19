@@ -60,6 +60,7 @@ export const plannerReducer = (state: PlannerState, action: Action): PlannerStat
                 }
             };
         case 'USER_CHANGE':
+            {
             logger.info('User Change detected:', action.payload);
             const nextData: PlannerData = {
                 events: action.payload.events ?? state.data.events,
@@ -75,6 +76,7 @@ export const plannerReducer = (state: PlannerState, action: Action): PlannerStat
                     isHydrated: true
                 }
             };
+            }
         case 'UNDO':
             if (state.history.length === 0) {
                 logger.info('Nothing to undo');
@@ -92,6 +94,7 @@ export const plannerReducer = (state: PlannerState, action: Action): PlannerStat
                 }
             };
         case 'REMOTE_UPDATE':
+            {
             // Last-Write-Wins: Only accept if remote is newer
             // Note: If we just hydrated from local, we still want to prefer remote IF it's newer or we have no data.
             const isStale = action.timestamp > 0 && action.timestamp <= state.metadata.updatedAt;
@@ -115,6 +118,7 @@ export const plannerReducer = (state: PlannerState, action: Action): PlannerStat
                     isHydrated: true
                 }
             };
+            }
         case 'RESET':
             logger.info('Resetting state to initial');
             return action.initialState;
