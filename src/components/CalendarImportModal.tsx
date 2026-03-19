@@ -1,9 +1,10 @@
 import React, { FC, useState } from 'react';
-import { CalendarService } from '../services/CalendarService';
-import { usePlanner } from '../context/PlannerContext';
-import { PlannerEvent, TRANSPARENT_COLOR_INDEX, toDateStr, uid } from '../utils/calendarUtils';
 import toast from 'react-hot-toast';
+import { usePlanner } from '../context/PlannerContext';
 import { useGoogleCalendar } from '../hooks/useGoogleCalendar';
+import { CalendarService } from '../services/CalendarService';
+import { isCalendarImportDuplicate, mergeImportedEvents } from '../utils/calendar/importExportUtils';
+import { PlannerEvent, TRANSPARENT_COLOR_INDEX, toDateStr, uid } from '../utils/calendarUtils';
 
 interface CalendarImportModalProps {
     onClose: () => void;
@@ -15,18 +16,10 @@ const CalendarImportModal: FC<CalendarImportModalProps> = ({ onClose }) => {
     const { events: plannerEvents, setEvents } = usePlanner();
     const [step, setStep] = useState<Step>('AUTH');
     const [selectedEventIds, setSelectedEventIds] = useState<Set<string>>(new Set());
-    const { calendars, eligibleEvents, loading, error, signIn, fetchEvents } = useGoogleCalendar();
-
-    const hasMatchingEvent = (candidate: Pick<PlannerEvent, 'title' | 'start' | 'end'>) => (
-        plannerEvents.some((existing) =>
-            existing.title === candidate.title &&
-            existing.start === candidate.start &&
-            existing.end === candidate.end
-        )
-    );
+    const { calendars, eligibleEvents, loading, error, connect, fetchEvents } = useGoogleCalendar();
 
     const handleAuth = async () => {
-        const cals = await signIn();
+        const cals = await connect();
         if (cals) {
             setStep('SELECT_CALENDAR');
         }
@@ -35,81 +28,86 @@ const CalendarImportModal: FC<CalendarImportModalProps> = ({ onClose }) => {
     const handleCalendarSelect = async (calId: string) => {
         const filtered = await fetchEvents(calId);
         if (filtered) {
-            setSelectedEventIds(new Set(filtered.map(e => e.id)));
+            setSelectedEventIds(new Set(filtered.map((event) => event.id)));
             setStep('SELECT_EVENTS');
         }
     };
 
     const toggleEvent = (id: string) => {
-        setSelectedEventIds(prev => {
-            const newSet = new Set(prev);
-            if (newSet.has(id)) newSet.delete(id);
-            else newSet.add(id);
-            return newSet;
+        setSelectedEventIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(id)) {
+                next.delete(id);
+            } else {
+                next.add(id);
+            }
+            return next;
         });
     };
 
     const toggleAll = () => {
-        setSelectedEventIds(prev => {
+        setSelectedEventIds((prev) => {
             if (prev.size === eligibleEvents.length) {
                 return new Set();
-            } else {
-                return new Set(eligibleEvents.map(e => e.id));
             }
+
+            return new Set(eligibleEvents.map((event) => event.id));
         });
     };
 
     const handleImport = () => {
         setStep('IMPORTING');
+
         try {
             const newEvents: PlannerEvent[] = [];
 
-            eligibleEvents.forEach(ev => {
-                if (!selectedEventIds.has(ev.id)) return;
+            eligibleEvents.forEach((event) => {
+                if (!selectedEventIds.has(event.id)) return;
 
-                const startD = ev.start.dateTime ? new Date(ev.start.dateTime) : new Date(ev.start.date!);
-                const endD = ev.end.dateTime ? new Date(ev.end.dateTime) : new Date(ev.end.date!);
+                const start = event.start.dateTime ? new Date(event.start.dateTime) : new Date(event.start.date!);
+                const end = event.end.dateTime ? new Date(event.end.dateTime) : new Date(event.end.date!);
 
-                let effectiveEnd = endD;
-                if (!ev.end.dateTime && ev.end.date) {
-                    // Full day event ends on the next day exclusive in GCal
-                    effectiveEnd = new Date(endD.getTime() - 1000);
+                let effectiveEnd = end;
+                if (!event.end.dateTime && event.end.date) {
+                    // Google Calendar all-day events are returned with an exclusive end date.
+                    effectiveEnd = new Date(end.getTime() - 1000);
                 }
 
-                const startStr = toDateStr(startD.getFullYear(), startD.getMonth(), startD.getDate());
+                const startStr = toDateStr(start.getFullYear(), start.getMonth(), start.getDate());
                 const endStr = toDateStr(effectiveEnd.getFullYear(), effectiveEnd.getMonth(), effectiveEnd.getDate());
-
-                // Keep imported events away from the transparent slot while preserving current palette behavior.
-                const colorIdx = Math.floor(Math.random() * TRANSPARENT_COLOR_INDEX);
+                const color = Math.floor(Math.random() * TRANSPARENT_COLOR_INDEX);
 
                 newEvents.push({
                     id: uid(),
-                    title: ev.summary || '(No Title)',
+                    title: event.summary || '(No Title)',
                     start: startStr,
                     end: endStr,
-                    color: colorIdx
+                    color
                 });
             });
 
-            const uniqueEvents = newEvents.filter((event) => !hasMatchingEvent(event));
-            const duplicates = newEvents.length - uniqueEvents.length;
+            const { uniqueEvents, duplicateCount, mergedEvents } = mergeImportedEvents(
+                newEvents,
+                plannerEvents,
+                isCalendarImportDuplicate
+            );
 
             if (uniqueEvents.length > 0) {
-                setEvents([...plannerEvents, ...uniqueEvents]);
+                setEvents(mergedEvents);
             }
 
-            if (uniqueEvents.length > 0 && duplicates > 0) {
-                toast.success(`Imported ${uniqueEvents.length} events. Skipped ${duplicates} duplicates.`);
+            if (uniqueEvents.length > 0 && duplicateCount > 0) {
+                toast.success(`Imported ${uniqueEvents.length} events. Skipped ${duplicateCount} duplicates.`);
             } else if (uniqueEvents.length > 0) {
                 toast.success(`Imported ${uniqueEvents.length} events successfully!`);
             } else {
-                toast.error(`No new events found. ${duplicates} duplicates skipped.`);
+                toast.error(`No new events found. ${duplicateCount} duplicates skipped.`);
             }
 
             onClose();
         } catch (err) {
             console.error(err);
-            toast.error("Failed to import events.");
+            toast.error('Failed to import events.');
             setStep('SELECT_EVENTS');
         }
     };
@@ -119,7 +117,7 @@ const CalendarImportModal: FC<CalendarImportModalProps> = ({ onClose }) => {
             return (
                 <div style={{ textAlign: 'center', padding: '1rem' }}>
                     <p style={{ marginBottom: '1.5rem', color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.5' }}>
-                        Connect your Google Calendar to import holidays, vacations, or long events Directly into your planner.
+                        Pick a Google account to temporarily read calendar events for this import. This does not change your Calendy sign-in.
                     </p>
                     {error && <div className="error-msg" style={{ color: '#ef4444', marginBottom: '1.5rem', fontSize: '0.9rem' }}>{error}</div>}
                     <button className="login-google-btn" style={{ margin: '0 0 1.5rem 0', width: '100%' }} onClick={handleAuth} disabled={loading}>
@@ -129,10 +127,10 @@ const CalendarImportModal: FC<CalendarImportModalProps> = ({ onClose }) => {
                             <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
                             <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
                         </svg>
-                        {loading ? 'Connecting...' : 'Connect Google Calendar'}
+                        {loading ? 'Opening Google...' : 'Choose Google Account'}
                     </button>
                     <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', opacity: 0.6 }}>
-                        Only your calendar events are accessed.
+                        Access is limited to read-only calendar events for this import session.
                     </div>
                 </div>
             );
@@ -150,15 +148,15 @@ const CalendarImportModal: FC<CalendarImportModalProps> = ({ onClose }) => {
                         </div>
                     ) : (
                         <div className="list-group">
-                            {calendars.map(cal => (
+                            {calendars.map((calendar) => (
                                 <button
-                                    key={cal.id}
+                                    key={calendar.id}
                                     className="list-item-btn"
-                                    onClick={() => handleCalendarSelect(cal.id)}
+                                    onClick={() => handleCalendarSelect(calendar.id)}
                                 >
-                                    <div className="list-item-dot" style={{ backgroundColor: cal.backgroundColor || 'var(--accent-color)' }}></div>
-                                    <span className="list-item-label">{cal.summary}</span>
-                                    {cal.primary && <span className="list-item-meta">Primary</span>}
+                                    <div className="list-item-dot" style={{ backgroundColor: calendar.backgroundColor || 'var(--accent-color)' }}></div>
+                                    <span className="list-item-label">{calendar.summary}</span>
+                                    {calendar.primary && <span className="list-item-meta">Primary</span>}
                                 </button>
                             ))}
                         </div>
@@ -180,27 +178,27 @@ const CalendarImportModal: FC<CalendarImportModalProps> = ({ onClose }) => {
                     </div>
 
                     <div className="event-selection-list">
-                        {eligibleEvents.map(ev => {
-                            const isSelected = selectedEventIds.has(ev.id);
-                            const start = ev.start.dateTime ? new Date(ev.start.dateTime) : new Date(ev.start.date!);
-                            const dateStr = start.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-                            const durDays = Math.max(1, Math.round(CalendarService.getDurationInHours(ev) / 24));
+                        {eligibleEvents.map((event) => {
+                            const isSelected = selectedEventIds.has(event.id);
+                            const start = event.start.dateTime ? new Date(event.start.dateTime) : new Date(event.start.date!);
+                            const dateLabel = start.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+                            const durationDays = Math.max(1, Math.round(CalendarService.getDurationInHours(event) / 24));
 
                             return (
                                 <div
-                                    key={ev.id}
+                                    key={event.id}
                                     className={`event-selection-item ${isSelected ? 'selected' : ''}`}
-                                    onClick={() => toggleEvent(ev.id)}
+                                    onClick={() => toggleEvent(event.id)}
                                 >
                                     <input
                                         type="checkbox"
                                         className="event-selection-checkbox"
                                         checked={isSelected}
-                                        onChange={() => { }} // Handled by parent div
+                                        onChange={() => { }}
                                     />
                                     <div className="event-selection-info">
-                                        <div className="event-selection-title">{ev.summary || '(No Title)'}</div>
-                                        <div className="event-selection-details">{dateStr} • ~{durDays} days</div>
+                                        <div className="event-selection-title">{event.summary || '(No Title)'}</div>
+                                        <div className="event-selection-details">{dateLabel} - ~{durationDays} days</div>
                                     </div>
                                 </div>
                             );
@@ -236,7 +234,7 @@ const CalendarImportModal: FC<CalendarImportModalProps> = ({ onClose }) => {
                     <h3 style={{ fontSize: '1.25rem' }}>Import from Calendar</h3>
                     <button onClick={onClose} className="close-btn">&times;</button>
                 </div>
-                <div className='settings-content' style={{ padding: '24px' }}>
+                <div className="settings-content" style={{ padding: '24px' }}>
                     {renderContent()}
                 </div>
             </div>

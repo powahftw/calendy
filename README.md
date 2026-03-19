@@ -21,9 +21,10 @@ Built upon the idea of [calendar by neatnik](https://source.tube/neatnik/calenda
    - Enable **Google Sign-in** in Authentication.
    - Create a **Firestore Database**.
    - Deploy the bundled `firestore.rules` before exposing the app publicly.
-   - If you want Google Calendar import, enable the **Google Calendar API** in Google Cloud and add your authorized origins/domains.
+   - If you want Google Calendar import, enable the **Google Calendar API** in Google Cloud, create a Web OAuth client, and add your authorized origins/domains.
 2. **Local Configuration**:
    - Create a `.env.local` file based on `.env.example` if you want Firebase sync.
+   - Set `VITE_GOOGLE_CALENDAR_CLIENT_ID` if you want import-only Google Calendar access.
    - Without Firebase env vars, the app still runs in guest/local mode.
 3. **Install & Run**:
    ```bash

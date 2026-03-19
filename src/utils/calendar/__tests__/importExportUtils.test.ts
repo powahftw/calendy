@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { serializeEvents, parseEvents, EXPORT_SEPARATOR, isDuplicate } from '../importExportUtils';
+import {
+    serializeEvents,
+    parseEvents,
+    EXPORT_SEPARATOR,
+    isDuplicate,
+    isCalendarImportDuplicate,
+    mergeImportedEvents
+} from '../importExportUtils';
 import { PlannerEvent } from '../../calendarUtils';
 
 describe('importExportUtils', () => {
@@ -42,6 +49,30 @@ describe('importExportUtils', () => {
         const existing: PlannerEvent[] = [mockEvents[0]];
         expect(isDuplicate(mockEvents[0], existing)).toBe(true);
         expect(isDuplicate(mockEvents[1], existing)).toBe(false);
+    });
+
+    it('should ignore color when checking calendar import duplicates', () => {
+        const existing: PlannerEvent[] = [mockEvents[0]];
+        const recoloredEvent: PlannerEvent = {
+            ...mockEvents[0],
+            id: '3',
+            color: 4
+        };
+
+        expect(isCalendarImportDuplicate(recoloredEvent, existing)).toBe(true);
+    });
+
+    it('should merge imports while skipping duplicates already present or repeated in the batch', () => {
+        const existing: PlannerEvent[] = [mockEvents[0]];
+        const duplicateInBatch: PlannerEvent = { ...mockEvents[1], id: '3' };
+        const imported: PlannerEvent[] = [mockEvents[1], duplicateInBatch, { ...mockEvents[0], id: '4' }];
+
+        const result = mergeImportedEvents(imported, existing);
+
+        expect(result.uniqueEvents).toHaveLength(1);
+        expect(result.duplicateCount).toBe(2);
+        expect(result.mergedEvents).toHaveLength(2);
+        expect(result.mergedEvents[1].title).toBe('Test Event 2 | with pipes');
     });
 
     it('should skip malformed lines and headers', () => {

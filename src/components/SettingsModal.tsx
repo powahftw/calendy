@@ -1,13 +1,13 @@
 import React, { FC, useMemo, useRef, useState } from 'react';
 import CalendarImportModal from './CalendarImportModal';
 import { themes } from '../utils/calendarUtils';
-import { serializeEvents, parseEvents, isDuplicate } from '../utils/calendar/importExportUtils';
+import { serializeEvents, parseEvents, mergeImportedEvents } from '../utils/calendar/importExportUtils';
 import { User } from 'firebase/auth';
 import { usePlanner } from '../context/PlannerContext';
 import toast from 'react-hot-toast';
-import { isFirebaseConfigured } from '../firebase';
 import { useEscapeKey } from '../hooks/useEscapeKey';
 import { showUndoToast } from '../utils/showUndoToast';
+import { isGoogleCalendarImportConfigured } from '../services/CalendarService';
 
 interface SettingsModalProps {
     onClose: () => void;
@@ -69,18 +69,17 @@ const SettingsModal: FC<SettingsModalProps> = ({
             if (text) {
                 const importedEvents = parseEvents(text);
                 if (importedEvents.length > 0) {
-                    const uniques = importedEvents.filter(ev => !isDuplicate(ev, events));
-                    const duplicates = importedEvents.length - uniques.length;
+                    const { uniqueEvents, duplicateCount, mergedEvents } = mergeImportedEvents(importedEvents, events);
 
-                    if (uniques.length > 0) {
-                        setEvents(prev => [...prev, ...uniques]);
-                        if (duplicates > 0) {
-                            toast.success(`Imported ${uniques.length} events. Skipped ${duplicates} duplicates.`);
+                    if (uniqueEvents.length > 0) {
+                        setEvents(mergedEvents);
+                        if (duplicateCount > 0) {
+                            toast.success(`Imported ${uniqueEvents.length} events. Skipped ${duplicateCount} duplicates.`);
                         } else {
-                            toast.success(`Imported ${uniques.length} events!`);
+                            toast.success(`Imported ${uniqueEvents.length} events!`);
                         }
                     } else {
-                        toast.error(`No new events found. ${duplicates} duplicates skipped.`);
+                        toast.error(`No new events found. ${duplicateCount} duplicates skipped.`);
                     }
                 } else {
                     toast.error("No valid events found in file.");
@@ -298,8 +297,8 @@ const SettingsModal: FC<SettingsModalProps> = ({
                         <button
                             className="import-integration-btn"
                             onClick={() => setShowImportModal(true)}
-                            disabled={!isFirebaseConfigured}
-                            title={isFirebaseConfigured ? undefined : 'Configure Firebase to enable Calendar import.'}
+                            disabled={!isGoogleCalendarImportConfigured}
+                            title={isGoogleCalendarImportConfigured ? undefined : 'Add VITE_GOOGLE_CALENDAR_CLIENT_ID to enable Calendar import.'}
                         >
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
@@ -312,7 +311,7 @@ const SettingsModal: FC<SettingsModalProps> = ({
                     </div>
                 </div>
             </div>
-            {showImportModal && isFirebaseConfigured && <CalendarImportModal onClose={() => setShowImportModal(false)} />}
+            {showImportModal && isGoogleCalendarImportConfigured && <CalendarImportModal onClose={() => setShowImportModal(false)} />}
         </div>
     );
 };
