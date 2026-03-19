@@ -1,12 +1,7 @@
-import { db } from '../firebase';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
-import { PlannerEvent, PlannerSettings, ThemeId } from './calendarUtils';
+import { ThemeId } from './calendarUtils';
 import { PlannerData } from '../hooks/usePlannerState';
 import { logger } from './logger';
 
-/**
- * Robustly convert a Firestore Timestamp or number to milliseconds.
- */
 export const getTimestampInMillis = (timestamp: any): number => {
     if (!timestamp) return 0;
     if (typeof timestamp.toMillis === 'function') {
@@ -15,7 +10,7 @@ export const getTimestampInMillis = (timestamp: any): number => {
     return typeof timestamp === 'number' ? timestamp : 0;
 };
 
-const STORAGE_PREFIX = 'planner_v2_';
+export const STORAGE_PREFIX = 'planner_v2_';
 
 export interface LocalStorageState {
     data: PlannerData;
@@ -30,7 +25,7 @@ export const getDefaultData = (): PlannerData => ({
         showWeekends: true,
         showDayProgress: true,
         weekdayAlign: true,
-        year: 2026,
+        year: new Date().getFullYear(),
         startMonth: 0,
         monthsToShow: 12
     }
@@ -43,7 +38,6 @@ export const loadFromLocalStorage = (userId: string): LocalStorageState => {
         if (raw) {
             try {
                 const parsed = JSON.parse(raw);
-                // Check if it's a valid v2 state object
                 if (parsed && typeof parsed === 'object' && 'data' in parsed && parsed.data.events) {
                     return parsed as LocalStorageState;
                 }
@@ -53,7 +47,6 @@ export const loadFromLocalStorage = (userId: string): LocalStorageState => {
             }
         }
 
-        // Return default data if no v2 data found
         return {
             data: getDefaultData(),
             updatedAt: 0

@@ -2,7 +2,6 @@ import React, { createContext, useContext, ReactNode } from 'react';
 import { ThemeId } from '../utils/calendarUtils';
 
 interface PlannerMetaContextValue {
-    // Time
     year: number;
     setYear: (year: number) => void;
     startMonth: number;
@@ -10,8 +9,6 @@ interface PlannerMetaContextValue {
     monthsToShow: number;
     setMonthsToShow: (n: number) => void;
     navigate: (direction: 1 | -1) => void;
-
-    // Appearance
     theme: ThemeId;
     setTheme: (theme: ThemeId) => void;
     highlightToday: boolean;
@@ -22,8 +19,6 @@ interface PlannerMetaContextValue {
     setShowDayProgress: (s: boolean) => void;
     weekdayAlign: boolean;
     setWeekdayAlign: (s: boolean) => void;
-
-    // System
     isInitialLoadDone: boolean;
 }
 

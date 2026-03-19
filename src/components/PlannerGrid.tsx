@@ -5,7 +5,7 @@ import { usePlannerEvents } from '../context/PlannerEventsContext';
 import { usePlannerInteraction } from '../context/PlannerInteractionContext';
 import MonthColumn from './MonthColumn';
 import { daysOfWeek, PlannerEvent, EventRange } from '../utils/calendarUtils';
-import { useEventDragCalculations } from '../hooks/useEventDragCalculations';
+import { DragDataPayload, useEventDragCalculations } from '../hooks/useEventDragCalculations';
 import { useTodayVisibility } from '../hooks/useTodayVisibility';
 import { logger } from '../utils/logger';
 import useDragSelection from '../hooks/useDragSelection';
@@ -22,7 +22,6 @@ const PlannerGrid: React.FC<PlannerGridProps> = ({ onEventClick, setTodayInView,
     const { events, setEvents } = usePlannerEvents();
     const { setActiveEventId } = usePlannerInteraction();
 
-    // Local drag state
     const {
         startDrag,
         updateDrag,
@@ -35,7 +34,7 @@ const PlannerGrid: React.FC<PlannerGridProps> = ({ onEventClick, setTodayInView,
 
     const { calculateNewEventPosition } = useEventDragCalculations(events);
 
-    const maxRows = 37;
+    const MAX_MONTH_ROWS = 37; // 31 days plus up to 6 weekday-alignment spacer rows.
     const todayObj = new Date();
     const todayData = {
         todayYear: todayObj.getFullYear(),
@@ -55,7 +54,6 @@ const PlannerGrid: React.FC<PlannerGridProps> = ({ onEventClick, setTodayInView,
         endSelectionDrag(onRangeSelection);
     };
 
-    // Dnd Sensors
     const sensors = useSensors(
         useSensor(MouseSensor, {
             activationConstraint: {
@@ -70,13 +68,12 @@ const PlannerGrid: React.FC<PlannerGridProps> = ({ onEventClick, setTodayInView,
         })
     );
 
-    // State to suppress click after drag
     const isDragJustFinishedRef = useRef(false);
     const [dragPreviewEvent, setDragPreviewEvent] = React.useState<PlannerEvent | null>(null);
 
     const handleDragStart = (event: DragStartEvent) => {
         isDragJustFinishedRef.current = false;
-        const activeData = event.active.data.current as any;
+        const activeData = event.active.data.current as DragDataPayload | undefined;
         if (activeData?.event) {
             logger.info('Drag started for event:', activeData.event);
             setActiveEventId(activeData.event.id);
@@ -146,7 +143,7 @@ const PlannerGrid: React.FC<PlannerGridProps> = ({ onEventClick, setTodayInView,
                     {weekdayAlign && (
                         <div className="legend-col">
                             <div className="month-header unselectable"></div>
-                            {Array.from({ length: maxRows }).map((_, i) => (
+                            {Array.from({ length: MAX_MONTH_ROWS }).map((_, i) => (
                                 <div key={i} className="day-cell legend-cell">
                                     {daysOfWeek[i % 7]}
                                 </div>
@@ -166,10 +163,8 @@ const PlannerGrid: React.FC<PlannerGridProps> = ({ onEventClick, setTodayInView,
                                 colMonth={colMonth}
                                 dragPreviewEvent={dragPreviewEvent}
                                 onEventClick={handleEventClickWrapped}
-                                maxRows={maxRows}
+                                maxRows={MAX_MONTH_ROWS}
                                 today={todayData}
-
-                                // Drag props
                                 startDrag={startDrag}
                                 updateDrag={updateDrag}
                                 isHighlighted={isHighlighted}

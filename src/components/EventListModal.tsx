@@ -1,6 +1,7 @@
-import React, { FC, useEffect } from 'react';
+import React, { FC } from 'react';
 import { formatDateRange, monthNames, PlannerEvent, RangeDate } from '../utils/calendarUtils';
 import { useTheme } from '../hooks/useTheme';
+import { useEscapeKey } from '../hooks/useEscapeKey';
 
 
 interface EventListModalProps {
@@ -14,16 +15,9 @@ interface EventListModalProps {
 
 const EventListModal: FC<EventListModalProps> = ({ events, date, onClose, onDelete, onUpdate, onAdd }) => {
     const palette = useTheme();
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') onClose();
-        };
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [onClose]);
+    useEscapeKey(onClose);
 
     const cycleColor = (event: PlannerEvent) => {
-        // Event color is now an index
         const currentIndex = event.color;
         const nextIndex = (currentIndex + 1) % palette.length;
         onUpdate({ ...event, color: nextIndex });
@@ -56,6 +50,7 @@ const EventListModal: FC<EventListModalProps> = ({ events, date, onClose, onDele
                                             className="event-title-input"
                                             defaultValue={ev.title}
                                             placeholder={ev.icon ? "(Icon only)" : "Untitled Event"}
+                                            maxLength={100}
                                             style={{ flex: 1 }}
                                             onBlur={(e) => {
                                                 if (e.target.value !== ev.title) {

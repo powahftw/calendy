@@ -34,7 +34,7 @@ const FeatureItem: FC<{ icon: string; text: string }> = ({ icon, text }) => (
 );
 
 const LoginScreen: FC<{ onGuestLogin: () => void }> = ({ onGuestLogin }) => {
-    const { signInWithGoogle } = useAuth();
+    const { signInWithGoogle, isFirebaseAvailable } = useAuth();
 
     return (
         <div className="login-screen">
@@ -53,9 +53,9 @@ const LoginScreen: FC<{ onGuestLogin: () => void }> = ({ onGuestLogin }) => {
                     <FeatureItem icon="📅" text="Year-at-a-glance" />
                 </div>
 
-                <button className="login-google-btn" onClick={signInWithGoogle}>
+                <button className="login-google-btn" onClick={signInWithGoogle} disabled={!isFirebaseAvailable}>
                     <GoogleIcon />
-                    Continue with Google
+                    {isFirebaseAvailable ? 'Continue with Google' : 'Firebase Sync Unavailable'}
                 </button>
 
                 <div className="or-divider">
@@ -69,6 +69,9 @@ const LoginScreen: FC<{ onGuestLogin: () => void }> = ({ onGuestLogin }) => {
 
                 <div className="login-footer">
                     <p>Plan your year, one day at a time.</p>
+                    {!isFirebaseAvailable && (
+                        <p>Guest mode works without Firebase config.</p>
+                    )}
                 </div>
             </div>
         </div>

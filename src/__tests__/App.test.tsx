@@ -2,12 +2,15 @@ import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import App from '../App';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { User } from 'firebase/auth';
+import { STRIPED_COLOR_INDEX, TRANSPARENT_COLOR_INDEX } from '../utils/calendarUtils';
+import { STORAGE_PREFIX } from '../utils/persistence';
+import { EVENT_ICONS } from '../components/EventModal';
 
 // Mock Firebase
 vi.mock('../firebase', () => ({
     db: {},
     auth: {},
-    googleProvider: {}
+    isFirebaseConfigured: true
 }));
 
 // Mock react-firebase-hooks
@@ -20,6 +23,7 @@ vi.mock('react-firebase-hooks/auth', () => ({
 const mockAuthValue = {
     user: null as User | null,
     loading: false,
+    isFirebaseAvailable: true,
     signOut: vi.fn(),
     signInWithGoogle: vi.fn(),
 };
@@ -51,7 +55,7 @@ vi.setConfig({ testTimeout: 15000 });
 
 const waitForPlanner = async () => {
     // Wait for the year and at least one day cell to appear
-    await screen.findByText('2026', {}, { timeout: 15000 });
+    await screen.findByText(String(new Date().getFullYear()), {}, { timeout: 15000 });
     await screen.findAllByText('15', {}, { timeout: 15000 });
 };
 
@@ -165,7 +169,7 @@ describe('App Integration', () => {
 
         // Select 6th color (Index 5 - Striped)
         const colorOptions = screen.getByText('Save').parentElement?.parentElement?.querySelectorAll('.color-circle');
-        fireEvent.click(colorOptions![5]);
+        fireEvent.click(colorOptions![STRIPED_COLOR_INDEX]);
 
         fireEvent.click(screen.getByRole('button', { name: /Save/i }));
         await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
@@ -183,7 +187,7 @@ describe('App Integration', () => {
 
         // Click cycle button to select Swiss Flag (index 5 in ['', '⚠️', '❓', '🌍', '🗺️', '🇨🇭', ...])
         const cycleBtn = screen.getByTitle('Cycle Icon');
-        for (let i = 0; i < 5; i++) fireEvent.click(cycleBtn);
+        for (let i = 0; i < EVENT_ICONS.indexOf('🇨🇭'); i++) fireEvent.click(cycleBtn);
 
         // Verify icon updated in UI
         expect(screen.getByText('🇨🇭')).toBeInTheDocument();
@@ -191,7 +195,7 @@ describe('App Integration', () => {
         // Select 8th color (Index 7 - Transparent)
         // Need to re-query color options as modal refreshed
         const colorOptions2 = screen.getByText('Save').parentElement?.parentElement?.querySelectorAll('.color-circle');
-        fireEvent.click(colorOptions2![7]);
+        fireEvent.click(colorOptions2![TRANSPARENT_COLOR_INDEX]);
 
         fireEvent.click(screen.getByRole('button', { name: /Save/i }));
         await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument(), { timeout: 3000 });
@@ -254,7 +258,7 @@ describe('Storage Persistence', () => {
             },
             updatedAt: Date.now()
         };
-        localStorage.setItem('planner_v2_guest', JSON.stringify(state));
+        localStorage.setItem(`${STORAGE_PREFIX}guest`, JSON.stringify(state));
 
         render(<App />);
 
@@ -273,7 +277,7 @@ describe('Storage Persistence', () => {
             },
             updatedAt: Date.now()
         };
-        localStorage.setItem('planner_v2_user-1', JSON.stringify(state1));
+        localStorage.setItem(`${STORAGE_PREFIX}user-1`, JSON.stringify(state1));
 
         mockAuthValue.user = user1;
         const { rerender } = render(<App />);
@@ -307,7 +311,7 @@ describe('Firebase Sync Logic', () => {
             },
             updatedAt: now - 10000
         };
-        localStorage.setItem('planner_v2_test-user', JSON.stringify(localState));
+        localStorage.setItem(`${STORAGE_PREFIX}test-user`, JSON.stringify(localState));
 
         mockLoadEvents.mockResolvedValue({
             events: [{ id: '2', title: 'Remote Event', start: '2026-01-16', end: '2026-01-16', color: 1 }],
@@ -334,7 +338,17 @@ describe('Firebase Sync Logic', () => {
     it('should override local events with empty remote state if remote is newer (deletion sync)', async () => {
         const user = { uid: 'test-user' } as User;
         const now = Date.now();
-        let resolveRemoteEvents: ((value: { events: never[]; updatedAt: number }) => void) | null = null;
+        type EmptyRemoteEventsPayload = {
+            events: {
+                id: string;
+                title: string;
+                start: string;
+                end: string;
+                color: number;
+            }[];
+            updatedAt: number;
+        };
+        let resolveRemoteEvents: ((value: EmptyRemoteEventsPayload) => void) | null = null;
 
         const localState = {
             data: {
@@ -343,10 +357,10 @@ describe('Firebase Sync Logic', () => {
             },
             updatedAt: now - 5000
         };
-        localStorage.setItem('planner_v2_test-user', JSON.stringify(localState));
+        localStorage.setItem(`${STORAGE_PREFIX}test-user`, JSON.stringify(localState));
 
         mockLoadEvents.mockImplementation(() => {
-            return new Promise((resolve) => {
+            return new Promise<EmptyRemoteEventsPayload>((resolve) => {
                 resolveRemoteEvents = resolve;
             });
         });
@@ -358,7 +372,8 @@ describe('Firebase Sync Logic', () => {
         expect(await screen.findByText('Local Event')).toBeInTheDocument();
 
         // Then it should be cleared when remote data (which is newer and empty) arrives
-        resolveRemoteEvents?.({
+        expect(resolveRemoteEvents).not.toBeNull();
+        resolveRemoteEvents!({
             events: [],
             updatedAt: now
         });
@@ -385,7 +400,7 @@ describe('Firebase Sync Logic', () => {
             },
             updatedAt: now
         };
-        localStorage.setItem('planner_v2_test-user', JSON.stringify(localState));
+        localStorage.setItem(`${STORAGE_PREFIX}test-user`, JSON.stringify(localState));
 
         mockAuthValue.user = user;
         render(<App />);
@@ -460,7 +475,7 @@ describe('Multi-Device Sync', () => {
         mockAuthValue.user = user;
 
         const { unmount } = render(<App />);
-        expect(await screen.findByText('2026', {}, { timeout: 10000 })).toBeInTheDocument();
+        expect(await screen.findByText(String(new Date().getFullYear()), {}, { timeout: 10000 })).toBeInTheDocument();
 
         const dayCells = screen.getAllByText('15');
         const dayCell = dayCells[0].closest('.day-cell');
@@ -492,7 +507,7 @@ describe('Edge Cases', () => {
     });
 
     it('should handle corrupted localStorage gracefully', async () => {
-        localStorage.setItem('planner_v2_guest', 'invalid json {{{');
+        localStorage.setItem(`${STORAGE_PREFIX}guest`, 'invalid json {{{');
         render(<App />);
         // The app detects guest usage intent (via item presence) and defaults to empty state if parse fails
         await waitForPlanner();
@@ -507,7 +522,7 @@ describe('Edge Cases', () => {
             },
             updatedAt: Date.now()
         };
-        localStorage.setItem('planner_v2_test-user', JSON.stringify(state));
+        localStorage.setItem(`${STORAGE_PREFIX}test-user`, JSON.stringify(state));
 
         mockLoadEvents.mockRejectedValue(new Error('Network error'));
         mockAuthValue.user = user;

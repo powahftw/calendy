@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
+import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
@@ -11,9 +11,12 @@ const firebaseConfig = {
     appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const provider = new GoogleAuthProvider();
+const isFirebaseConfigured = Object.values(firebaseConfig).every(
+    (value) => typeof value === "string" && value.trim().length > 0
+);
 
-export { auth, db, provider, signInWithPopup, signOut };
+const app = isFirebaseConfigured ? initializeApp(firebaseConfig) : null;
+const auth = app ? getAuth(app) : null;
+const db = app ? getFirestore(app) : null;
+
+export { auth, db, isFirebaseConfigured };

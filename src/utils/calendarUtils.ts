@@ -52,7 +52,6 @@ export interface PlannerSettings {
 export const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 export const daysOfWeek = ["M", "T", "W", "T", "F", "S", "S"];
 
-// Theme Definitions
 export const themes: Theme[] = [
     { id: 'blue', name: 'Modern Blue', primary: '#3b82f6' },
     { id: 'forest', name: 'Forest', primary: '#8d8172' },
@@ -64,18 +63,14 @@ export const defaultBluePalette = ["#3b82f6", "#10b981", "#db2777", "#f59e0b", "
 
 export const getThemeColors = (themeId: ThemeId): string[] => {
     if (themeId === 'forest') {
-        // Earthy / Sepia Tones
         return ["#5C7886", "#627264", "#8B5E5E", "#BC9663", "#7A728A", "#646E82", "#A65D57", "transparent"];
     }
     if (themeId === 'pastel') {
-        // Pastel Rainbow Fantasy
         return ["#a0c4ff", "#baffc9", "#ffb3ba", "#ffdfba", "#eecbff", "#bae1ff", "#ffb3e6", "transparent"];
     }
     if (themeId === 'dark') {
-        // Vivid/Neon for Dark Mode
         return ["#60a5fa", "#34d399", "#f472b6", "#fbbf24", "#a78bfa", "#818cf8", "#f87171", "transparent"];
     }
-    // Default Blue / Modern
     return defaultBluePalette;
 };
 
@@ -136,6 +131,9 @@ export type DateRangeFormat = 'monthDay' | 'dayMonth';
 
 export const formatDateRange = (startStr: string, endStr: string, format: DateRangeFormat): string => {
     const formatter = format === 'monthDay' ? formatMonthDay : formatDayMonth;
+    if (startStr === endStr) {
+        return formatter(startStr);
+    }
     return `${formatter(startStr)} - ${formatter(endStr)}`;
 };
 
@@ -200,16 +198,12 @@ export const getDisplayEvent = (events: PlannerEvent[]): PlannerEvent | undefine
 
     const mainEvent = events[0];
 
-    // 1. Icon Selection: First event with an icon
     const eventWithIcon = events.find(e => e.icon && e.icon.trim() !== '');
     const icon = eventWithIcon ? eventWithIcon.icon : mainEvent.icon;
 
-
-    // 2. Color Selection: First event with non-transparent color
     const eventWithColor = events.find(e => e.color !== TRANSPARENT_COLOR_INDEX);
     const color = eventWithColor ? eventWithColor.color : mainEvent.color;
 
-    // 3. Title Selection: First event with non-empty title
     const eventWithTitle = events.find(e => e.title && e.title.trim() !== '');
     const title = eventWithTitle ? eventWithTitle.title : mainEvent.title;
 

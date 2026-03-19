@@ -1,7 +1,6 @@
 import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { auth } from '../firebase';
 
-const CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar.events.readonly';
 const CALENDAR_READ_SCOPE = 'https://www.googleapis.com/auth/calendar.readonly';
 
 export interface GoogleCalendar {
@@ -22,6 +21,10 @@ export class CalendarService {
     private token: string | null = null;
 
     async authenticate(): Promise<string> {
+        if (!auth) {
+            throw new Error("Firebase Auth is not configured");
+        }
+
         const provider = new GoogleAuthProvider();
         provider.addScope(CALENDAR_READ_SCOPE);
 
@@ -65,12 +68,12 @@ export class CalendarService {
     async listEvents(calendarId: string): Promise<GoogleEvent[]> {
         if (!this.token) throw new Error("Not authenticated");
 
-        const now = new Date();
-        const nextYear = new Date();
-        nextYear.setFullYear(now.getFullYear() + 1);
+        const startOfCurrentYear = new Date(new Date().getFullYear(), 0, 1);
+        const nextYear = new Date(startOfCurrentYear);
+        nextYear.setFullYear(startOfCurrentYear.getFullYear() + 1);
 
         const params = new URLSearchParams({
-            timeMin: now.toISOString(),
+            timeMin: startOfCurrentYear.toISOString(),
             timeMax: nextYear.toISOString(),
             singleEvents: 'true',
             orderBy: 'startTime',
@@ -88,10 +91,8 @@ export class CalendarService {
 
         const data = await response.json();
         return data.items || [];
-        // Filtering will be done in the UI/Logic layer to allow flexibility
     }
 
-    // Helper to calculate duration in hours
     static getDurationInHours(event: GoogleEvent): number {
         const start = event.start.dateTime ? new Date(event.start.dateTime) : new Date(event.start.date!);
         const end = event.end.dateTime ? new Date(event.end.dateTime) : new Date(event.end.date!);

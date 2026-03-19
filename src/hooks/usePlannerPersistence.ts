@@ -1,11 +1,10 @@
 import { useEffect, useRef, useCallback, useReducer } from 'react';
 import { User } from 'firebase/auth';
-import { serverTimestamp, Timestamp } from 'firebase/firestore';
+import { serverTimestamp } from 'firebase/firestore';
 import { PlannerEvent, PlannerSettings, ThemeId } from '../utils/calendarUtils';
 import {
     plannerReducer,
-    PlannerState,
-    PlannerData
+    PlannerState
 } from './usePlannerState';
 import {
     loadFromLocalStorage,
@@ -42,11 +41,9 @@ const usePlannerPersistence = (user: User | null) => {
     const syncSettingsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const localStorageTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    // === PHASE 1: HYDRATION (runs once per user) ===
     useEffect(() => {
         const userId = user?.uid ?? 'guest';
 
-        // User switched or first load
         if (currentUserRef.current !== userId || isFirstLoad.current) {
             logger.info('User switched or first load, resetting state', { from: currentUserRef.current, to: userId });
             currentUserRef.current = userId;
@@ -63,7 +60,6 @@ const usePlannerPersistence = (user: User | null) => {
         }
     }, [user?.uid]);
 
-    // === PHASE 2: FIRESTORE LISTENER (only for logged-in users) ===
     useEffect(() => {
         if (!user) return;
 
@@ -122,7 +118,6 @@ const usePlannerPersistence = (user: User | null) => {
         };
     }, [user?.uid]);
 
-    // === PHASE 3: PERSISTENCE (saves when needed) ===
     useEffect(() => {
         const { lastActionType, isHydrated, updatedAt } = state.metadata;
 
@@ -131,22 +126,18 @@ const usePlannerPersistence = (user: User | null) => {
 
         const userId = user?.uid ?? 'guest';
 
-        // Debounce LocalStorage writes (50ms) to prevent blocking during rapid changes like dragging
         if (localStorageTimeoutRef.current) clearTimeout(localStorageTimeoutRef.current);
         localStorageTimeoutRef.current = setTimeout(() => {
             logger.info('Saving state to LocalStorage for user:', userId);
             saveToLocalStorage(userId, state.data, updatedAt);
         }, 50);
 
-        // Save to Firestore ONLY on user changes and if logged in
         if (user && (lastActionType === 'USER_CHANGE' || lastActionType === 'UNDO')) {
-            // Debounce Events Sync (300ms)
             if (syncEventsTimeoutRef.current) clearTimeout(syncEventsTimeoutRef.current);
             syncEventsTimeoutRef.current = setTimeout(() => {
                 syncEvents(user.uid, state.data.events, serverTimestamp());
             }, 300);
 
-            // Debounce Settings Sync (300ms)
             if (syncSettingsTimeoutRef.current) clearTimeout(syncSettingsTimeoutRef.current);
             syncSettingsTimeoutRef.current = setTimeout(() => {
                 syncSettings(user.uid, state.data.settings, serverTimestamp());
@@ -161,7 +152,6 @@ const usePlannerPersistence = (user: User | null) => {
         };
     }, [state.data, user?.uid, state.metadata.lastActionType, state.metadata.isHydrated, state.metadata.updatedAt]);
 
-    // === PHASE 4: OFFLINE SUPPORT ===
     useEffect(() => {
         const handleOnline = () => {
             if (user && state.metadata.isHydrated) {
@@ -174,8 +164,6 @@ const usePlannerPersistence = (user: User | null) => {
         window.addEventListener('online', handleOnline);
         return () => window.removeEventListener('online', handleOnline);
     }, [user, state.data, state.metadata.isHydrated]);
-
-    // === PUBLIC API (Setters) ===
 
     const updateState = useCallback((payload: { events?: PlannerEvent[]; settings?: Partial<PlannerSettings> }) => {
         dispatch({
@@ -236,12 +224,9 @@ const usePlannerPersistence = (user: User | null) => {
     }, []);
 
     return {
-        // Data
         events: state.data.events,
         ...state.data.settings,
         canUndo: state.history.length > 0,
-
-        // Setters
         setEvents,
         setTheme,
         setHighlightToday,
@@ -253,8 +238,6 @@ const usePlannerPersistence = (user: User | null) => {
         setMonthsToShow,
         navigate,
         undo,
-
-        // Metadata
         isInitialLoadDone: state.metadata.isHydrated
     };
 };

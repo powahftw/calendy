@@ -14,7 +14,6 @@ export const AppProvider: React.FC<AppProviderProps> = ({ user, children }) => {
     const persistence = usePlannerPersistence(user);
     const [activeEventId, setActiveEventId] = useState<string | null>(null);
 
-    // 1. Meta Context (Time, Theme, System, Display Settings)
     const metaValue = useMemo(() => ({
         year: persistence.year,
         setYear: persistence.setYear,
@@ -47,7 +46,6 @@ export const AppProvider: React.FC<AppProviderProps> = ({ user, children }) => {
         persistence.showDayProgress,
         persistence.weekdayAlign,
         persistence.isInitialLoadDone,
-        // Setters are stable
         persistence.setYear,
         persistence.setStartMonth,
         persistence.setMonthsToShow,
@@ -59,8 +57,6 @@ export const AppProvider: React.FC<AppProviderProps> = ({ user, children }) => {
         persistence.setWeekdayAlign,
     ]);
 
-    // 2. Events Context (Data, CRUD, Undo)
-    // Needs year and monthsToShow for internal filtering
     const eventsValue = useMemo(() => ({
         events: persistence.events,
         setEvents: persistence.setEvents,
@@ -79,7 +75,6 @@ export const AppProvider: React.FC<AppProviderProps> = ({ user, children }) => {
         persistence.setEvents
     ]);
 
-    // 3. Interaction Context (Selection)
     const interactionValue = useMemo(() => ({
         activeEventId,
         setActiveEventId,

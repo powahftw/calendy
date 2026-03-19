@@ -2,12 +2,12 @@ import { useCallback } from 'react';
 import { PlannerEvent, toLocalDate, toDateStr } from '../utils/calendarUtils';
 import { Active, Over } from '@dnd-kit/core';
 
-interface DragDataPayload {
+export interface DragDataPayload {
     event: PlannerEvent;
     current: { day: number; month: number; year: number };
 }
 
-interface DropTargetData {
+export interface DropTargetData {
     year: number;
     month: number;
     day: number;
@@ -18,8 +18,8 @@ export function useEventDragCalculations(events: PlannerEvent[]) {
         active: Active,
         over: Over
     ): PlannerEvent | null => {
-        const activeData = active.data.current as DragDataPayload;
-        const overData = over.data.current as DropTargetData;
+        const activeData = active.data.current as DragDataPayload | undefined;
+        const overData = over.data.current as DropTargetData | undefined;
 
         if (!activeData || !overData) return null;
 

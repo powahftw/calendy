@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { User } from 'firebase/auth';
+import { STORAGE_PREFIX } from '../utils/persistence';
 
 const GUEST_MODE_KEY = 'planner_guest_mode';
-const GUEST_EVENTS_KEY = 'planner_v2_guest';
+const GUEST_EVENTS_KEY = `${STORAGE_PREFIX}guest`;
 
 const getInitialGuestMode = () => {
   if (typeof window === 'undefined') return false;

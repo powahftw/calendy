@@ -18,7 +18,6 @@ export const usePlannerModals = () => {
 
     const close = () => setModalState({ type: 'NONE' });
 
-    // Helper to update list events if currently open
     const updateListEvents = (updatedEvents: PlannerEvent[]) => {
         if (modalState.type === 'LIST') {
             setModalState({

@@ -1,43 +1,12 @@
+import type { Dispatch, SetStateAction } from 'react';
 import { PlannerEvent, EventDraft, uid, toDateStr } from '../utils/calendarUtils';
 import { logger } from '../utils/logger';
-import toast from 'react-hot-toast';
-import React from 'react';
+import { showUndoToast } from '../utils/showUndoToast';
 
 export const useEventOperations = (
-    setEvents: React.Dispatch<React.SetStateAction<PlannerEvent[]>>,
+    setEvents: Dispatch<SetStateAction<PlannerEvent[]>>,
     undo: () => void
 ) => {
-
-    const showUndoToast = (message: string) => {
-        toast.custom((t) => (
-            <div
-                className="custom-toast undo-toast"
-                onClick={() => toast.dismiss(t.id)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault();
-                        toast.dismiss(t.id);
-                    }
-                }}
-            >
-                <span>{message} </span>
-                < button
-                    type="button"
-                    onClick={(event) => {
-                        event.stopPropagation();
-                        undo();
-                        toast.dismiss(t.id);
-                    }}
-                    className="undo-toast-action"
-                >
-                    Undo
-                </button>
-            </div>
-        ), { duration: 5000 });
-    };
-
     const createDraftEvent = ({ title, start, end, color, icon }: EventDraft): PlannerEvent => {
         // Allow empty title if an icon is present (Icon-only event)
         // Otherwise default to 'New Event'
@@ -68,7 +37,7 @@ export const useEventOperations = (
     const deleteEvent = (id: string, onSuccess?: () => void) => {
         logger.info('Deleting event ID:', id);
         setEvents(prevEvents => prevEvents.filter(ev => ev.id !== id));
-        showUndoToast('Event deleted.');
+        showUndoToast('Event deleted.', undo);
         if (onSuccess) onSuccess();
     };
 

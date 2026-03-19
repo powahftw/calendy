@@ -4,11 +4,7 @@ import { PlannerEvent, getDatesInRange, getDateKey } from '../utils/calendarUtil
 interface PlannerEventsContextValue {
     events: PlannerEvent[];
     setEvents: (events: PlannerEvent[] | ((prev: PlannerEvent[]) => PlannerEvent[])) => void;
-
-    // Derived state
     eventMap: Map<string, PlannerEvent[]>;
-
-    // History / Undo
     canUndo: boolean;
     undo: () => void;
 }
@@ -33,9 +29,6 @@ interface PlannerEventsProviderProps {
 }
 
 export const PlannerEventsProvider: React.FC<PlannerEventsProviderProps> = ({ value, children }) => {
-    // Calculate eventMap here to avoid passing it from the top
-    // It needs year and monthsToShow to filter effectively, which is why we pass them in props, 
-    // even though they come from Meta context usually.
     const eventMap = useMemo(() => {
         const map = new Map<string, PlannerEvent[]>();
         const { events, year, startMonth, monthsToShow } = value;

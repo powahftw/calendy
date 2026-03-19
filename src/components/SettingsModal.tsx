@@ -1,10 +1,13 @@
-import React, { FC, useEffect, useState, useRef } from 'react';
+import React, { FC, useMemo, useRef, useState } from 'react';
 import CalendarImportModal from './CalendarImportModal';
-import { formatDateRange, PlannerEvent, themes, toLocalDate } from '../utils/calendarUtils';
+import { themes } from '../utils/calendarUtils';
 import { serializeEvents, parseEvents, isDuplicate } from '../utils/calendar/importExportUtils';
 import { User } from 'firebase/auth';
 import { usePlanner } from '../context/PlannerContext';
 import toast from 'react-hot-toast';
+import { isFirebaseConfigured } from '../firebase';
+import { useEscapeKey } from '../hooks/useEscapeKey';
+import { showUndoToast } from '../utils/showUndoToast';
 
 interface SettingsModalProps {
     onClose: () => void;
@@ -32,45 +35,11 @@ const SettingsModal: FC<SettingsModalProps> = ({
         undo
     } = usePlanner();
 
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') onClose();
-        };
-        window.addEventListener('keydown', handleKeyDown);
-        return () => {
-            window.removeEventListener('keydown', handleKeyDown);
-        };
-    }, [onClose]);
+    useEscapeKey(onClose);
 
     const handleClearAll = () => {
         setEvents([]);
-        toast.custom((t) => (
-            <div
-                className="custom-toast undo-toast"
-                onClick={() => toast.dismiss(t.id)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault();
-                        toast.dismiss(t.id);
-                    }
-                }}
-            >
-                <span>All events cleared.</span>
-                <button
-                    type="button"
-                    onClick={(event) => {
-                        event.stopPropagation();
-                        undo();
-                        toast.dismiss(t.id);
-                    }}
-                    className="undo-toast-action"
-                >
-                    Undo
-                </button>
-            </div>
-        ), { duration: 5000 });
+        showUndoToast('All events cleared.', undo);
     };
 
     const handleExport = () => {
@@ -141,32 +110,41 @@ const SettingsModal: FC<SettingsModalProps> = ({
         setIsDragOver(false);
     };
 
-    const checkboxSettings = [
+    const checkboxSettings = useMemo(() => ([
         {
             id: 'alignWs',
             label: 'Align Weekdays',
             checked: weekdayAlign,
-            onChange: (checked: boolean) => setWeekdayAlign(checked)
+            onChange: setWeekdayAlign
         },
         {
             id: 'hlToday',
             label: 'Highlight Current Day',
             checked: highlightToday,
-            onChange: (checked: boolean) => setHighlightToday(checked)
+            onChange: setHighlightToday
         },
         {
             id: 'shwWeekends',
             label: 'Highlight Weekends',
             checked: showWeekends,
-            onChange: (checked: boolean) => setShowWeekends(checked)
+            onChange: setShowWeekends
         },
         {
             id: 'shwDayProg',
             label: 'Show Day Progress (Day X / 365)',
             checked: showDayProgress,
-            onChange: (checked: boolean) => setShowDayProgress(checked)
+            onChange: setShowDayProgress
         }
-    ];
+    ]), [
+        weekdayAlign,
+        highlightToday,
+        showWeekends,
+        showDayProgress,
+        setWeekdayAlign,
+        setHighlightToday,
+        setShowWeekends,
+        setShowDayProgress
+    ]);
 
     return (
         <div
@@ -180,8 +158,6 @@ const SettingsModal: FC<SettingsModalProps> = ({
                     <button onClick={onClose} className="close-btn">&times;</button>
                 </div>
                 <div className='settings-content'>
-
-                    {/* Theme Grid */}
                     <div className="settings-section">
                         <h4>Appearance</h4>
                         <div className="theme-grid">
@@ -295,11 +271,6 @@ const SettingsModal: FC<SettingsModalProps> = ({
                             </button>
                         </div>
                     </div>
-
-
-
-
-                    {/* Account Section */}
                     <div className="settings-section">
                         <h4>Account</h4>
                         <div className="account-info">
@@ -327,6 +298,8 @@ const SettingsModal: FC<SettingsModalProps> = ({
                         <button
                             className="import-integration-btn"
                             onClick={() => setShowImportModal(true)}
+                            disabled={!isFirebaseConfigured}
+                            title={isFirebaseConfigured ? undefined : 'Configure Firebase to enable Calendar import.'}
                         >
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
@@ -339,7 +312,7 @@ const SettingsModal: FC<SettingsModalProps> = ({
                     </div>
                 </div>
             </div>
-            {showImportModal && <CalendarImportModal onClose={() => setShowImportModal(false)} />}
+            {showImportModal && isFirebaseConfigured && <CalendarImportModal onClose={() => setShowImportModal(false)} />}
         </div>
     );
 };
