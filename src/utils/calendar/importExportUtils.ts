@@ -62,15 +62,6 @@ export const isDuplicate = (newEvent: PlannerEvent, existingEvents: PlannerEvent
     return existingEvents.some(ex =>
         ex.start === newEvent.start &&
         ex.end === newEvent.end &&
-        ex.title === newEvent.title &&
-        ex.color === newEvent.color
-    );
-};
-
-export const isCalendarImportDuplicate = (newEvent: PlannerEvent, existingEvents: PlannerEvent[]): boolean => {
-    return existingEvents.some(ex =>
-        ex.start === newEvent.start &&
-        ex.end === newEvent.end &&
         ex.title === newEvent.title
     );
 };

@@ -3,7 +3,7 @@ import toast from 'react-hot-toast';
 import { usePlanner } from '../context/PlannerContext';
 import { useGoogleCalendar } from '../hooks/useGoogleCalendar';
 import { CalendarService } from '../services/CalendarService';
-import { isCalendarImportDuplicate, mergeImportedEvents } from '../utils/calendar/importExportUtils';
+import { mergeImportedEvents } from '../utils/calendar/importExportUtils';
 import { PlannerEvent, TRANSPARENT_COLOR_INDEX, toDateStr, uid } from '../utils/calendarUtils';
 
 interface CalendarImportModalProps {
@@ -86,11 +86,7 @@ const CalendarImportModal: FC<CalendarImportModalProps> = ({ onClose }) => {
                 });
             });
 
-            const { uniqueEvents, duplicateCount, mergedEvents } = mergeImportedEvents(
-                newEvents,
-                plannerEvents,
-                isCalendarImportDuplicate
-            );
+            const { uniqueEvents, duplicateCount, mergedEvents } = mergeImportedEvents(newEvents, plannerEvents);
 
             if (uniqueEvents.length > 0) {
                 setEvents(mergedEvents);

@@ -4,7 +4,6 @@ import {
     parseEvents,
     EXPORT_SEPARATOR,
     isDuplicate,
-    isCalendarImportDuplicate,
     mergeImportedEvents
 } from '../importExportUtils';
 import { PlannerEvent } from '../../calendarUtils';
@@ -51,7 +50,7 @@ describe('importExportUtils', () => {
         expect(isDuplicate(mockEvents[1], existing)).toBe(false);
     });
 
-    it('should ignore color when checking calendar import duplicates', () => {
+    it('should ignore color when checking import duplicates', () => {
         const existing: PlannerEvent[] = [mockEvents[0]];
         const recoloredEvent: PlannerEvent = {
             ...mockEvents[0],
@@ -59,7 +58,7 @@ describe('importExportUtils', () => {
             color: 4
         };
 
-        expect(isCalendarImportDuplicate(recoloredEvent, existing)).toBe(true);
+        expect(isDuplicate(recoloredEvent, existing)).toBe(true);
     });
 
     it('should merge imports while skipping duplicates already present or repeated in the batch', () => {
