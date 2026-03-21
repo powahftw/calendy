@@ -1,7 +1,94 @@
-import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { auth } from '../firebase';
-
 const CALENDAR_READ_SCOPE = 'https://www.googleapis.com/auth/calendar.readonly';
+const GOOGLE_IDENTITY_SCRIPT_SRC = 'https://accounts.google.com/gsi/client';
+const GOOGLE_CALENDAR_CLIENT_ID = import.meta.env.VITE_GOOGLE_CALENDAR_CLIENT_ID?.trim() || '';
+
+export const isGoogleCalendarImportConfigured = GOOGLE_CALENDAR_CLIENT_ID.length > 0;
+
+interface GoogleTokenResponse {
+    access_token?: string;
+    error?: string;
+    error_description?: string;
+}
+
+interface GoogleTokenError {
+    type: 'popup_failed_to_open' | 'popup_closed' | 'unknown';
+}
+
+interface GoogleTokenClientConfig {
+    client_id: string;
+    scope: string;
+    include_granted_scopes?: boolean;
+    prompt?: string;
+    callback: (response: GoogleTokenResponse) => void;
+    error_callback?: (error: GoogleTokenError) => void;
+}
+
+interface GoogleTokenClient {
+    requestAccessToken: (overrideConfig?: { prompt?: string }) => void;
+}
+
+interface GoogleIdentityApi {
+    accounts: {
+        oauth2: {
+            initTokenClient: (config: GoogleTokenClientConfig) => GoogleTokenClient;
+        };
+    };
+}
+
+declare global {
+    interface Window {
+        google?: GoogleIdentityApi;
+    }
+}
+
+let googleIdentityScriptPromise: Promise<GoogleIdentityApi> | null = null;
+
+const loadGoogleIdentityApi = async (): Promise<GoogleIdentityApi> => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') {
+        throw new Error('Google Calendar import is only available in the browser.');
+    }
+
+    if (window.google?.accounts?.oauth2) {
+        return window.google;
+    }
+
+    if (!googleIdentityScriptPromise) {
+        googleIdentityScriptPromise = new Promise((resolve, reject) => {
+            const existingScript = document.querySelector<HTMLScriptElement>(`script[src="${GOOGLE_IDENTITY_SCRIPT_SRC}"]`);
+
+            const handleLoad = () => {
+                if (window.google?.accounts?.oauth2) {
+                    resolve(window.google);
+                    return;
+                }
+
+                googleIdentityScriptPromise = null;
+                reject(new Error('Google Identity Services did not initialize.'));
+            };
+
+            const handleError = () => {
+                googleIdentityScriptPromise = null;
+                reject(new Error('Failed to load Google Identity Services.'));
+            };
+
+            if (existingScript) {
+                existingScript.addEventListener('load', handleLoad, { once: true });
+                existingScript.addEventListener('error', handleError, { once: true });
+                return;
+            }
+
+            const script = document.createElement('script');
+            script.src = GOOGLE_IDENTITY_SCRIPT_SRC;
+            script.async = true;
+            script.defer = true;
+            script.addEventListener('load', handleLoad, { once: true });
+            script.addEventListener('error', handleError, { once: true });
+            document.head.appendChild(script);
+        });
+    }
+
+    return googleIdentityScriptPromise;
+};
 
 export interface GoogleCalendar {
     id: string;
@@ -21,30 +108,53 @@ export class CalendarService {
     private token: string | null = null;
 
     async authenticate(): Promise<string> {
-        if (!auth) {
-            throw new Error("Firebase Auth is not configured");
+        if (!isGoogleCalendarImportConfigured) {
+            throw new Error('Google Calendar import is not configured.');
         }
 
-        const provider = new GoogleAuthProvider();
-        provider.addScope(CALENDAR_READ_SCOPE);
+        const google = await loadGoogleIdentityApi();
 
-        try {
-            const result = await signInWithPopup(auth, provider);
-            const credential = GoogleAuthProvider.credentialFromResult(result);
-            this.token = credential?.accessToken || null;
+        return new Promise((resolve, reject) => {
+            const tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: GOOGLE_CALENDAR_CLIENT_ID,
+                scope: CALENDAR_READ_SCOPE,
+                include_granted_scopes: false,
+                prompt: 'select_account',
+                callback: (response) => {
+                    if (response.error) {
+                        reject(new Error(response.error_description || response.error));
+                        return;
+                    }
 
-            if (!this.token) {
-                throw new Error("No access token found");
-            }
-            return this.token;
-        } catch (error) {
-            console.error("Error authenticating for calendar:", error);
-            throw error;
-        }
+                    if (!response.access_token) {
+                        reject(new Error('No access token found.'));
+                        return;
+                    }
+
+                    this.token = response.access_token;
+                    resolve(this.token);
+                },
+                error_callback: (error) => {
+                    if (error.type === 'popup_closed') {
+                        reject(new Error('Google account picker was closed.'));
+                        return;
+                    }
+
+                    if (error.type === 'popup_failed_to_open') {
+                        reject(new Error('Google account picker could not be opened.'));
+                        return;
+                    }
+
+                    reject(new Error('Google account picker failed.'));
+                }
+            });
+
+            tokenClient.requestAccessToken({ prompt: 'select_account' });
+        });
     }
 
     async listCalendars(): Promise<GoogleCalendar[]> {
-        if (!this.token) throw new Error("Not authenticated");
+        if (!this.token) throw new Error('Not authenticated');
 
         const response = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', {
             headers: { Authorization: `Bearer ${this.token}` }
@@ -57,7 +167,7 @@ export class CalendarService {
         }
 
         const data = await response.json();
-        return data.items.map((item: any) => ({
+        return (data.items || []).map((item: any) => ({
             id: item.id,
             summary: item.summary,
             primary: item.primary,
@@ -66,7 +176,7 @@ export class CalendarService {
     }
 
     async listEvents(calendarId: string): Promise<GoogleEvent[]> {
-        if (!this.token) throw new Error("Not authenticated");
+        if (!this.token) throw new Error('Not authenticated');
 
         const startOfCurrentYear = new Date(new Date().getFullYear(), 0, 1);
         const nextYear = new Date(startOfCurrentYear);
@@ -104,5 +214,3 @@ export class CalendarService {
         return diffMs / (1000 * 60 * 60);
     }
 }
-
-export const calendarService = new CalendarService();

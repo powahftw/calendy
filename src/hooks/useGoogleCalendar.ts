@@ -1,14 +1,15 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import { calendarService, CalendarService, GoogleCalendar, GoogleEvent } from '../services/CalendarService';
+import { CalendarService, GoogleCalendar, GoogleEvent } from '../services/CalendarService';
 
 export const useGoogleCalendar = () => {
+    const calendarService = useMemo(() => new CalendarService(), []);
     const [calendars, setCalendars] = useState<GoogleCalendar[]>([]);
     const [eligibleEvents, setEligibleEvents] = useState<GoogleEvent[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const signIn = async () => {
+    const connect = async () => {
         setLoading(true);
         setError(null);
         try {
@@ -18,8 +19,9 @@ export const useGoogleCalendar = () => {
             return cals;
         } catch (err) {
             console.error(err);
-            setError('Failed to connect to Google Calendar. Please try again.');
-            toast.error('Failed to connect to Google Calendar.');
+            const message = err instanceof Error ? err.message : 'Failed to connect to Google Calendar. Please try again.';
+            setError(message);
+            toast.error(message);
             return null;
         } finally {
             setLoading(false);
@@ -57,7 +59,7 @@ export const useGoogleCalendar = () => {
         eligibleEvents,
         loading,
         error,
-        signIn,
+        connect,
         fetchEvents
     };
 };

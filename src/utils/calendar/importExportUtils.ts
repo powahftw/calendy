@@ -2,6 +2,8 @@ import { PlannerEvent } from '../calendarUtils';
 
 export const EXPORT_SEPARATOR = "|";
 
+export type DuplicateMatcher = (newEvent: PlannerEvent, existingEvents: PlannerEvent[]) => boolean;
+
 export const serializeEvents = (events: PlannerEvent[]): string => {
     // Sort events by start date, excluding events with no title (e.g. icon-only markers)
     const sorted = [...events]
@@ -60,8 +62,33 @@ export const isDuplicate = (newEvent: PlannerEvent, existingEvents: PlannerEvent
     return existingEvents.some(ex =>
         ex.start === newEvent.start &&
         ex.end === newEvent.end &&
-        ex.title === newEvent.title &&
-        ex.color === newEvent.color
+        ex.title === newEvent.title
     );
+};
+
+export const mergeImportedEvents = (
+    importedEvents: PlannerEvent[],
+    existingEvents: PlannerEvent[],
+    isEventDuplicate: DuplicateMatcher = isDuplicate
+) => {
+    const uniqueEvents: PlannerEvent[] = [];
+    let duplicateCount = 0;
+
+    importedEvents.forEach((event) => {
+        const comparisonPool = [...existingEvents, ...uniqueEvents];
+
+        if (isEventDuplicate(event, comparisonPool)) {
+            duplicateCount += 1;
+            return;
+        }
+
+        uniqueEvents.push(event);
+    });
+
+    return {
+        uniqueEvents,
+        duplicateCount,
+        mergedEvents: [...existingEvents, ...uniqueEvents]
+    };
 };
 
