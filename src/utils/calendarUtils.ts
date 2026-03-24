@@ -81,7 +81,7 @@ export const getDayOfWeekIndex = (year: number, month: number, day: number): num
     return (d + 6) % 7;
 };
 
-export const uid = (): string => Date.now().toString(36) + Math.random().toString(36).substr(2);
+export const uid = (): string => Date.now().toString(36) + Math.random().toString(36).substring(2);
 
 export const toDateStr = (year: number, month: number, day: number): string => {
     const mm = String(month + 1).padStart(2, '0');

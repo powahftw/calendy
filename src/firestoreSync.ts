@@ -54,7 +54,7 @@ export const subscribeToEvents = (uid: string, callback: (payload: RemoteEventsP
             callback({ events: data.events || [], updatedAt });
         }
     }, (error) => {
-        console.error('Error subscribing to events:', error);
+        logger.error('Error subscribing to events:', error);
     });
 };
 
@@ -76,7 +76,7 @@ export const loadEvents = async (uid: string): Promise<RemoteEventsPayload | nul
         }
         return null;
     } catch (error) {
-        console.error('Error loading events:', error);
+        logger.error('Error loading events:', error);
         return null;
     }
 };
@@ -137,7 +137,7 @@ export const loadSettings = async (uid: string): Promise<(Partial<PlannerSetting
         }
         return null;
     } catch (error) {
-        console.error('Error loading settings:', error);
+        logger.error('Error loading settings:', error);
         return null;
     }
 };
