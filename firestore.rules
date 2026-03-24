@@ -12,9 +12,35 @@ service cloud.firestore {
         && request.time < resource.data.updatedAt + duration.value(1, 's');
     }
 
+    function validDateString(value) {
+      return value is string
+        && value.matches('^\\d{4}-\\d{2}-\\d{2}$');
+    }
+
+    function validEvent(event) {
+      return event is map
+        && event.keys().hasAll(['id', 'title', 'start', 'end', 'color'])
+        && event.keys().hasOnly(['id', 'title', 'start', 'end', 'color', 'icon'])
+        && event.id is string
+        && event.id.size() > 0
+        && event.id.size() <= 200
+        && event.title is string
+        && event.title.size() <= 500
+        && validDateString(event.start)
+        && validDateString(event.end)
+        && event.color is int
+        && event.color >= 0
+        && event.color <= 10
+        && (
+          !event.keys().hasAny(['icon'])
+          || (event.icon is string && event.icon.size() <= 100)
+        );
+    }
+
     function validEventList() {
       return request.resource.data.events is list
-        && request.resource.data.events.size() <= 500;
+        && request.resource.data.events.size() <= 500
+        && request.resource.data.events.all(event, validEvent(event));
     }
 
     function validEventsDocument() {
