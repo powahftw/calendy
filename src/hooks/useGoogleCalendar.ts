@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { CalendarService, GoogleCalendar, GoogleEvent } from '../services/CalendarService';
+import { getUserFacingErrorMessage } from '../utils/userFacingErrors';
 
 export const useGoogleCalendar = () => {
     const calendarService = useMemo(() => new CalendarService(), []);
@@ -19,7 +20,7 @@ export const useGoogleCalendar = () => {
             return cals;
         } catch (err) {
             console.error(err);
-            const message = err instanceof Error ? err.message : 'Failed to connect to Google Calendar. Please try again.';
+            const message = getUserFacingErrorMessage(err, 'Failed to connect to Google Calendar. Please try again.');
             setError(message);
             toast.error(message);
             return null;
@@ -46,8 +47,9 @@ export const useGoogleCalendar = () => {
             return filtered;
         } catch (err) {
             console.error(err);
-            setError('Failed to fetch events.');
-            toast.error('Failed to fetch events.');
+            const message = getUserFacingErrorMessage(err, 'Failed to fetch events. Please try again.');
+            setError(message);
+            toast.error(message);
             return null;
         } finally {
             setLoading(false);

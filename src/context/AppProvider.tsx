@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { User } from 'firebase/auth';
 import usePlannerPersistence from '../hooks/usePlannerPersistence';
-import { PlannerMetaProvider } from './PlannerMetaContext';
+import { PlannerMetaProvider, type PlannerMetaContextValue } from './PlannerMetaContext';
 import { PlannerEventsProvider } from './PlannerEventsContext';
 import { PlannerInteractionProvider } from './PlannerInteractionContext';
 
@@ -14,7 +14,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ user, children }) => {
     const persistence = usePlannerPersistence(user);
     const [activeEventId, setActiveEventId] = useState<string | null>(null);
 
-    const metaValue = useMemo(() => ({
+    const metaValue = useMemo<PlannerMetaContextValue>(() => ({
         year: persistence.year,
         setYear: persistence.setYear,
         startMonth: persistence.startMonth,
@@ -36,6 +36,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ user, children }) => {
         setWeekdayAlign: persistence.setWeekdayAlign,
 
         isInitialLoadDone: persistence.isInitialLoadDone,
+        syncStatus: persistence.syncStatus as PlannerMetaContextValue['syncStatus'],
     }), [
         persistence.year,
         persistence.startMonth,
@@ -46,6 +47,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ user, children }) => {
         persistence.showDayProgress,
         persistence.weekdayAlign,
         persistence.isInitialLoadDone,
+        persistence.syncStatus,
         persistence.setYear,
         persistence.setStartMonth,
         persistence.setMonthsToShow,

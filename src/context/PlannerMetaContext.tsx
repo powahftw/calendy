@@ -1,7 +1,9 @@
 import React, { createContext, useContext, ReactNode } from 'react';
 import { ThemeId } from '../utils/calendarUtils';
 
-interface PlannerMetaContextValue {
+export type SyncStatus = 'local-only' | 'synced' | 'pending' | 'offline';
+
+export interface PlannerMetaContextValue {
     year: number;
     setYear: (year: number) => void;
     startMonth: number;
@@ -20,6 +22,7 @@ interface PlannerMetaContextValue {
     weekdayAlign: boolean;
     setWeekdayAlign: (s: boolean) => void;
     isInitialLoadDone: boolean;
+    syncStatus: SyncStatus;
 }
 
 const PlannerMetaContext = createContext<PlannerMetaContextValue | undefined>(undefined);
