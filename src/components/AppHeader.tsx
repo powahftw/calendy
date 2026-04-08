@@ -8,7 +8,7 @@ interface AppHeaderProps {
 }
 
 const AppHeader: React.FC<AppHeaderProps> = ({ todayInView, onSettingsClick }) => {
-    const { year, startMonth, showDayProgress, monthsToShow, navigate, setYear, setStartMonth } = usePlanner();
+    const { year, startMonth, showDayProgress, monthsToShow, navigate, setYear, setStartMonth, syncStatus } = usePlanner();
     const [showPercentage, setShowPercentage] = useState(false);
     const [isNavPinnedOpen, setIsNavPinnedOpen] = useState(false);
     const [shouldScrollToToday, setShouldScrollToToday] = useState(false);
@@ -85,18 +85,35 @@ const AppHeader: React.FC<AppHeaderProps> = ({ todayInView, onSettingsClick }) =
         }
     }
 
+    const showSyncDot = syncStatus === 'offline' || syncStatus === 'pending';
+    const syncTitle = syncStatus === 'offline'
+        ? 'Offline. Changes are saved locally and will sync when you reconnect.'
+        : syncStatus === 'pending'
+            ? 'Online again, syncing your local changes.'
+            : undefined;
+
     return (
         <div className="app-header">
             <div className="header-spacer left">
-                {showDayProgress && (
-                    <span
-                        className="day-progress"
-                        onClick={() => setShowPercentage(!showPercentage)}
-                        title="Click to toggle %"
-                    >
-                        {dayProgressStr}
-                    </span>
-                )}
+                <div className="header-status-cluster" title={syncTitle}>
+                    {showDayProgress && (
+                        <span
+                            className="day-progress"
+                            onClick={() => setShowPercentage(!showPercentage)}
+                            title="Click to toggle %"
+                        >
+                            {dayProgressStr}
+                        </span>
+                    )}
+                    {showSyncDot && (
+                        <span
+                            className="sync-status-dot"
+                            role="status"
+                            aria-live="polite"
+                            aria-label={syncTitle}
+                        />
+                    )}
+                </div>
             </div>
             <div
                 ref={yearNavRef}

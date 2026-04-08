@@ -20,9 +20,9 @@ export interface RemoteEventsPayload {
 /**
  * Save events to Firestore.
  */
-export const syncEvents = async (uid: string, events: PlannerEvent[], timestamp?: number | FieldValue) => {
+export const syncEvents = async (uid: string, events: PlannerEvent[], timestamp?: number | FieldValue): Promise<boolean> => {
     const firestore = db;
-    if (!uid || !firestore) return;
+    if (!uid || !firestore) return false;
 
     try {
         logger.info('Syncing Events to Firestore...', { count: events.length });
@@ -32,8 +32,10 @@ export const syncEvents = async (uid: string, events: PlannerEvent[], timestamp?
             updatedAt: timestamp || serverTimestamp()
         }, { merge: true });
         logger.info('Events synced to Firestore successfully');
+        return true;
     } catch (error) {
         logger.error('Error syncing events:', error);
+        return false;
     }
 };
 
@@ -81,9 +83,9 @@ export const loadEvents = async (uid: string): Promise<RemoteEventsPayload | nul
     }
 };
 
-export const syncSettings = async (uid: string, settings: PlannerSettings, timestamp?: number | FieldValue) => {
+export const syncSettings = async (uid: string, settings: PlannerSettings, timestamp?: number | FieldValue): Promise<boolean> => {
     const firestore = db;
-    if (!uid || !firestore) return;
+    if (!uid || !firestore) return false;
 
     try {
         logger.info('Syncing Settings to Firestore...', settings);
@@ -93,8 +95,10 @@ export const syncSettings = async (uid: string, settings: PlannerSettings, times
             updatedAt: timestamp || serverTimestamp()
         }, { merge: true });
         logger.info('Settings synced to Firestore successfully');
+        return true;
     } catch (error) {
         logger.error('Error syncing settings:', error);
+        return false;
     }
 };
 
