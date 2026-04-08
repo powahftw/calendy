@@ -417,6 +417,39 @@ describe('Firebase Sync Logic', () => {
         expect(screen.getByText('Local Event')).toBeInTheDocument();
     });
 
+    it('should sync pending local changes after reopening online', async () => {
+        const user = { uid: 'test-user' } as User;
+        const now = Date.now();
+
+        localStorage.setItem(`${STORAGE_PREFIX}test-user`, JSON.stringify({
+            data: {
+                events: [{ id: '1', title: 'Offline Edit', start: '2026-01-15', end: '2026-01-15', color: 0 }],
+                settings: {
+                    theme: 'blue',
+                    highlightToday: true,
+                    showWeekends: true,
+                    showDayProgress: true,
+                    weekdayAlign: true,
+                    year: 2026,
+                    startMonth: 0,
+                    monthsToShow: 12
+                }
+            },
+            updatedAt: now,
+            pendingSync: true
+        }));
+
+        mockAuthValue.user = user;
+        render(<App />);
+
+        expect(await screen.findByText('Offline Edit')).toBeInTheDocument();
+
+        await waitFor(() => {
+            expect(mockSyncEvents).toHaveBeenCalled();
+            expect(mockSyncSettings).toHaveBeenCalled();
+        });
+    });
+
     it('should debounce Firebase sync on rapid changes', async () => {
         const user = { uid: 'test-user' } as User;
 

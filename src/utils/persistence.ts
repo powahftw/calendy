@@ -15,6 +15,7 @@ export const STORAGE_PREFIX = 'planner_v2_';
 export interface LocalStorageState {
     data: PlannerData;
     updatedAt: number;
+    pendingSync: boolean;
 }
 
 export const getDefaultData = (): PlannerData => ({
@@ -38,8 +39,17 @@ export const loadFromLocalStorage = (userId: string): LocalStorageState => {
         if (raw) {
             try {
                 const parsed = JSON.parse(raw);
-                if (parsed && typeof parsed === 'object' && 'data' in parsed && parsed.data.events) {
-                    return parsed as LocalStorageState;
+                if (
+                    parsed &&
+                    typeof parsed === 'object' &&
+                    'data' in parsed &&
+                    parsed.data &&
+                    Array.isArray(parsed.data.events)
+                ) {
+                    return {
+                        ...(parsed as LocalStorageState),
+                        pendingSync: Boolean(parsed.pendingSync),
+                    };
                 }
                 logger.warn('localStorage data missing required "data" or "events" fields');
             } catch (e) {
@@ -49,7 +59,8 @@ export const loadFromLocalStorage = (userId: string): LocalStorageState => {
 
         return {
             data: getDefaultData(),
-            updatedAt: 0
+            updatedAt: 0,
+            pendingSync: false,
         };
 
 
@@ -57,15 +68,16 @@ export const loadFromLocalStorage = (userId: string): LocalStorageState => {
         logger.error('Failed to load from localStorage:', error);
         return {
             data: getDefaultData(),
-            updatedAt: 0
+            updatedAt: 0,
+            pendingSync: false,
         };
     }
 };
 
-export const saveToLocalStorage = (userId: string, data: PlannerData, updatedAt: number) => {
+export const saveToLocalStorage = (userId: string, data: PlannerData, updatedAt: number, pendingSync = false) => {
     try {
         const key = `${STORAGE_PREFIX}${userId}`;
-        const state: LocalStorageState = { data, updatedAt };
+        const state: LocalStorageState = { data, updatedAt, pendingSync };
         localStorage.setItem(key, JSON.stringify(state));
     } catch (error) {
         logger.error('Failed to save to localStorage:', error);

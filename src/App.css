@@ -119,6 +119,40 @@ body {
   user-select: none;
 }
 
+.header-status-cluster {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 80px;
+}
+
+.sync-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ef4444;
+  box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.32);
+  animation: sync-status-pulse 1.8s ease-out infinite;
+  flex-shrink: 0;
+}
+
+@keyframes sync-status-pulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.32);
+  }
+
+  70% {
+    transform: scale(1.08);
+    box-shadow: 0 0 0 5px rgba(239, 68, 68, 0);
+  }
+
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
+}
+
 .custom-toast {
   background: var(--bg-color);
   color: var(--text-primary);

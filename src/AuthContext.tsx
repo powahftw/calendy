@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import toast from 'react-hot-toast';
 import { auth, isFirebaseConfigured } from './firebase';
 import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut as fbSignOut, User } from 'firebase/auth';
+import { getUserFacingErrorMessage } from './utils/userFacingErrors';
 
 interface AuthContextType {
     user: User | null;
@@ -37,6 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             await signInWithPopup(auth, provider);
         } catch (error) {
             console.error("Error signing in with Google", error);
+            toast.error(getUserFacingErrorMessage(error, 'Failed to sign in with Google. Please try again.'));
         }
     };
 
@@ -47,6 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             await fbSignOut(auth);
         } catch (error) {
             console.error("Error signing out", error);
+            toast.error(getUserFacingErrorMessage(error, 'Failed to sign out. Please try again.'));
         }
     };
 
