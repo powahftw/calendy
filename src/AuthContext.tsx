@@ -14,7 +14,13 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const shouldUseRedirectSignIn = () => {
+const isSameOriginAuthDomain = (authDomain: string | undefined) => {
+    if (typeof window === 'undefined' || !authDomain) return false;
+
+    return authDomain === window.location.hostname || authDomain === window.location.host;
+};
+
+const shouldUseRedirectSignIn = (authDomain: string | undefined) => {
     if (typeof navigator === 'undefined') return false;
 
     const userAgent = navigator.userAgent || '';
@@ -22,7 +28,7 @@ const shouldUseRedirectSignIn = () => {
     const isIpadOs = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
     const isMobileBrowser = /Android|webOS|BlackBerry|IEMobile|Opera Mini|Mobile/i.test(userAgent);
 
-    return isIphoneOrIpad || isIpadOs || isMobileBrowser;
+    return (isIphoneOrIpad || isIpadOs || isMobileBrowser) && isSameOriginAuthDomain(authDomain);
 };
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -35,17 +41,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             return;
         }
 
+        let isMounted = true;
+        const stopLoading = () => {
+            if (isMounted) setLoading(false);
+        };
+
+        const loadingTimeout = window.setTimeout(stopLoading, 8000);
+
         const unsubscribe = onAuthStateChanged(auth, (user) => {
+            if (!isMounted) return;
             setUser(user);
-            setLoading(false);
+            stopLoading();
         });
 
-        getRedirectResult(auth).catch((error) => {
-            console.error("Error completing Google redirect sign-in", error);
-            toast.error(getUserFacingErrorMessage(error, 'Failed to finish Google sign-in. Please try again.'));
-        });
+        getRedirectResult(auth)
+            .then((result) => {
+                if (!isMounted || !result?.user) return;
+                setUser(result.user);
+            })
+            .catch((error) => {
+                console.error("Error completing Google redirect sign-in", error);
+                toast.error(getUserFacingErrorMessage(error, 'Failed to finish Google sign-in. Please try again.'));
+            })
+            .finally(stopLoading);
 
-        return unsubscribe;
+        return () => {
+            isMounted = false;
+            window.clearTimeout(loadingTimeout);
+            unsubscribe();
+        };
     }, []);
 
     const signInWithGoogle = async () => {
@@ -55,7 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const provider = new GoogleAuthProvider();
             provider.setCustomParameters({ prompt: 'select_account' });
 
-            if (shouldUseRedirectSignIn()) {
+            if (shouldUseRedirectSignIn(auth.config.authDomain)) {
                 await signInWithRedirect(auth, provider);
                 return;
             }
