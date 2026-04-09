@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import toast from 'react-hot-toast';
 import { auth, isFirebaseConfigured } from './firebase';
-import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut as fbSignOut, User } from 'firebase/auth';
+import { GoogleAuthProvider, getRedirectResult, onAuthStateChanged, signInWithPopup, signInWithRedirect, signOut as fbSignOut, User } from 'firebase/auth';
 import { getUserFacingErrorMessage } from './utils/userFacingErrors';
 
 interface AuthContextType {
@@ -13,6 +13,17 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+const shouldUseRedirectSignIn = () => {
+    if (typeof navigator === 'undefined') return false;
+
+    const userAgent = navigator.userAgent || '';
+    const isIphoneOrIpad = /iPad|iPhone|iPod/.test(userAgent);
+    const isIpadOs = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+    const isMobileBrowser = /Android|webOS|BlackBerry|IEMobile|Opera Mini|Mobile/i.test(userAgent);
+
+    return isIphoneOrIpad || isIpadOs || isMobileBrowser;
+};
 
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
@@ -28,6 +39,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setUser(user);
             setLoading(false);
         });
+
+        getRedirectResult(auth).catch((error) => {
+            console.error("Error completing Google redirect sign-in", error);
+            toast.error(getUserFacingErrorMessage(error, 'Failed to finish Google sign-in. Please try again.'));
+        });
+
         return unsubscribe;
     }, []);
 
@@ -36,6 +53,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         try {
             const provider = new GoogleAuthProvider();
+            provider.setCustomParameters({ prompt: 'select_account' });
+
+            if (shouldUseRedirectSignIn()) {
+                await signInWithRedirect(auth, provider);
+                return;
+            }
+
             await signInWithPopup(auth, provider);
         } catch (error) {
             console.error("Error signing in with Google", error);
