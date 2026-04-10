@@ -44,6 +44,7 @@ export default defineConfig({
         cleanupOutdatedCaches: true,
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
         navigateFallback: 'index.html',
+        navigateFallbackDenylist: [/^\/__\//],
       },
       devOptions: {
         enabled: false,

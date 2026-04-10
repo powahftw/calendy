@@ -746,8 +746,12 @@ body[data-theme='dark'] .day-cell.highlighted {
 }
 
 .modal.settings-modal {
+  display: flex;
+  flex-direction: column;
   width: 450px;
   max-width: 95vw;
+  max-height: min(90vh, 720px);
+  max-height: min(90dvh, 720px);
 }
 
 @keyframes bounceIn {
@@ -817,6 +821,10 @@ body[data-theme='dark'] .day-cell.highlighted {
   display: flex;
   flex-direction: column;
   gap: 25px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .settings-section h4 {
@@ -1035,12 +1043,6 @@ body[data-theme='dark'] .day-cell.highlighted {
 @media (max-width: 480px) {
   .modal.settings-modal {
     width: 94vw;
-    max-height: 90vh;
-  }
-
-  .settings-content {
-    max-height: calc(90vh - 72px);
-    overflow-y: auto;
   }
 
   .settings-actions-grid {
