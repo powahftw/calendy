@@ -1,10 +1,18 @@
 import { useEffect, RefObject, useState } from 'react';
 import { useIntersectionObserver } from './useIntersectionObserver';
 
+interface TodayVisibilityOptions {
+    year: number;
+    startMonth: number;
+    monthsToShow: number;
+    highlightToday: boolean;
+    eventCount: number;
+}
+
 export function useTodayVisibility(
     scrollRef: RefObject<HTMLDivElement | null>,
     setTodayInView: (inView: boolean) => void,
-    dependencies: any[]
+    { year, startMonth, monthsToShow, highlightToday, eventCount }: TodayVisibilityOptions
 ) {
     const [target, setTarget] = useState<Element | null>(null);
 
@@ -26,5 +34,5 @@ export function useTodayVisibility(
         if (!todayEl) {
             setTodayInView(false);
         }
-    }, dependencies);
+    }, [eventCount, highlightToday, monthsToShow, scrollRef, setTodayInView, startMonth, year]);
 }

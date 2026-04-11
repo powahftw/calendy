@@ -44,7 +44,13 @@ const PlannerGrid: React.FC<PlannerGridProps> = ({ onEventClick, setTodayInView,
 
     const scrollAreaRef = useRef<HTMLDivElement>(null);
 
-    useTodayVisibility(scrollAreaRef, setTodayInView, [year, startMonth, monthsToShow, highlightToday, events]);
+    useTodayVisibility(scrollAreaRef, setTodayInView, {
+        year,
+        startMonth,
+        monthsToShow,
+        highlightToday,
+        eventCount: events.length
+    });
 
     const handleTouchEndWrapped = () => {
         onTouchEndSelection(onRangeSelection);

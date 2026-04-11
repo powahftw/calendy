@@ -417,6 +417,66 @@ describe('Firebase Sync Logic', () => {
         expect(screen.getByText('Local Event')).toBeInTheDocument();
     });
 
+    it('should apply newer remote settings even when local events changed more recently', async () => {
+        const user = { uid: 'test-user' } as User;
+        const baseTime = 1000;
+        let settingsCallback: any = null;
+
+        mockSubscribeToSettings.mockImplementation((uid: string, callback: any) => {
+            settingsCallback = callback;
+            return () => { };
+        });
+
+        localStorage.setItem(`${STORAGE_PREFIX}test-user`, JSON.stringify({
+            data: {
+                events: [],
+                settings: {
+                    theme: 'blue',
+                    highlightToday: true,
+                    showWeekends: true,
+                    showDayProgress: true,
+                    weekdayAlign: true,
+                    year: 2026,
+                    startMonth: 0,
+                    monthsToShow: 12
+                }
+            },
+            updatedAt: baseTime,
+            pendingSync: false
+        }));
+
+        mockAuthValue.user = user;
+        render(<App />);
+        await waitForPlanner();
+
+        const dateNowSpy = vi.spyOn(Date, 'now').mockReturnValue(baseTime + 1000);
+
+        const dayCells = screen.getAllByText('15');
+        const dayCell = dayCells[0].closest('.day-cell');
+        fireEvent.mouseDown(dayCell!);
+        fireEvent.mouseUp(dayCell!);
+
+        const titleInput = await screen.findByPlaceholderText(/Event Name/i);
+        fireEvent.change(titleInput, { target: { value: 'Local Event' } });
+        fireEvent.click(screen.getByText(/Save/i));
+
+        expect(await screen.findByText('Local Event')).toBeInTheDocument();
+
+        dateNowSpy.mockRestore();
+
+        await act(async () => {
+            settingsCallback?.({
+                theme: 'dark',
+                updatedAt: baseTime + 500
+            });
+        });
+
+        await waitFor(() => {
+            expect(document.body.getAttribute('data-theme')).toBe('dark');
+        });
+        expect(screen.getByText('Local Event')).toBeInTheDocument();
+    });
+
     it('should sync pending local changes after reopening online', async () => {
         const user = { uid: 'test-user' } as User;
         const now = Date.now();
@@ -450,7 +510,7 @@ describe('Firebase Sync Logic', () => {
         });
     });
 
-    it('should debounce Firebase sync on rapid changes', async () => {
+    it('should debounce Firebase sync on rapid changes and only sync changed documents', async () => {
         const user = { uid: 'test-user' } as User;
 
         mockAuthValue.user = user;
@@ -459,40 +519,38 @@ describe('Firebase Sync Logic', () => {
         // Wait for initial render with real timers
         await waitForPlanner();
 
-        // Switch to fake timers
         vi.useFakeTimers();
 
-        for (let i = 0; i < 3; i++) {
-            // Use getBy to be synchronous and rely on the fact that waitForPlanner ensured elements are there
-            const dayCells = screen.getAllByText('15');
-            const dayCell = dayCells[0].closest('.day-cell');
+        try {
+            for (let i = 0; i < 3; i++) {
+                const dayCells = screen.getAllByText('15');
+                const dayCell = dayCells[0].closest('.day-cell');
 
-            fireEvent.mouseDown(dayCell!);
-            fireEvent.mouseUp(dayCell!);
+                fireEvent.mouseDown(dayCell!);
+                fireEvent.mouseUp(dayCell!);
 
-            // Synchronous query - modal should be open immediately on mouseUp
-            const titleInput = screen.getByPlaceholderText(/Event Name/i);
-            fireEvent.change(titleInput, { target: { value: `Event ${i}` } });
+                const titleInput = screen.getByPlaceholderText(/Event Name/i);
+                fireEvent.change(titleInput, { target: { value: `Event ${i}` } });
 
-            const saveBtn = screen.getByText(/Save/i);
-            fireEvent.click(saveBtn);
+                const saveBtn = screen.getByText(/Save/i);
+                fireEvent.click(saveBtn);
 
-            // Allow immediate effects (like modal closing) to process
-            // advancing by a small amount safely handles any immediate timeouts without triggering the sync (300ms)
+                await act(async () => {
+                    vi.advanceTimersByTime(50);
+                });
+            }
+
+            expect(mockSyncSettings).not.toHaveBeenCalled();
+
             await act(async () => {
-                vi.advanceTimersByTime(50);
+                vi.advanceTimersByTime(2000);
             });
+
+            expect(mockSyncEvents).toHaveBeenCalledTimes(1);
+            expect(mockSyncSettings).not.toHaveBeenCalled();
+        } finally {
+            vi.useRealTimers();
         }
-
-        expect(mockSyncEvents).not.toHaveBeenCalled();
-
-        await act(async () => {
-            vi.advanceTimersByTime(2000);
-        });
-
-        expect(mockSyncEvents).toHaveBeenCalled();
-
-        vi.useRealTimers();
     });
 });
 

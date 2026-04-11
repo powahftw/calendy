@@ -178,12 +178,13 @@ export class CalendarService {
     async listEvents(calendarId: string): Promise<GoogleEvent[]> {
         if (!this.token) throw new Error('Not authenticated');
 
-        const startOfCurrentYear = new Date(new Date().getFullYear(), 0, 1);
-        const nextYear = new Date(startOfCurrentYear);
-        nextYear.setFullYear(startOfCurrentYear.getFullYear() + 1);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const nextYear = new Date(today);
+        nextYear.setFullYear(nextYear.getFullYear() + 1);
 
         const params = new URLSearchParams({
-            timeMin: startOfCurrentYear.toISOString(),
+            timeMin: today.toISOString(),
             timeMax: nextYear.toISOString(),
             singleEvents: 'true',
             orderBy: 'startTime',

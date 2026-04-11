@@ -22,12 +22,20 @@ import {
 } from '../firestoreSync';
 import { logger } from '../utils/logger';
 
+const FIRESTORE_SYNC_DELAY_MS = 500;
+
 const initialState: PlannerState = {
     data: getDefaultData(),
     history: [],
     metadata: {
         lastActionType: null,
         updatedAt: 0,
+        eventsUpdatedAt: 0,
+        settingsUpdatedAt: 0,
+        dirtySlices: {
+            events: false,
+            settings: false
+        },
         isHydrated: false
     }
 };
@@ -39,15 +47,19 @@ const getInitialOnlineState = () => (
 const usePlannerPersistence = (user: User | null) => {
     const [state, dispatch] = useReducer(plannerReducer, initialState);
     const [isOnline, setIsOnline] = useState(getInitialOnlineState);
-    const [hasPendingSync, setHasPendingSync] = useState(false);
+    const userUid = user?.uid ?? null;
     const currentUserRef = useRef<string>(user?.uid ?? 'guest');
     const isFirstLoad = useRef(true);
 
-    const syncEventsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const localStorageTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const hasPendingSync = state.metadata.dirtySlices.events || state.metadata.dirtySlices.settings;
+    const isHydrated = state.metadata.isHydrated;
+    const updatedAt = state.metadata.updatedAt;
+    const lastActionType = state.metadata.lastActionType;
 
     useEffect(() => {
-        const userId = user?.uid ?? 'guest';
+        const userId = userUid ?? 'guest';
 
         if (currentUserRef.current !== userId || isFirstLoad.current) {
             logger.info('User switched or first load, resetting state', { from: currentUserRef.current, to: userId });
@@ -57,25 +69,25 @@ const usePlannerPersistence = (user: User | null) => {
             dispatch({ type: 'RESET', initialState });
 
             const localState = loadFromLocalStorage(userId);
-            setHasPendingSync(Boolean(user && localState.pendingSync));
             dispatch({
                 type: 'HYDRATE_LOCAL',
                 payload: localState.data,
-                timestamp: localState.updatedAt || 0
+                timestamp: localState.updatedAt || 0,
+                pendingSync: Boolean(userUid && localState.pendingSync)
             });
         }
-    }, [user?.uid]);
+    }, [userUid]);
 
     useEffect(() => {
-        if (!user) return;
+        if (!userUid) return;
 
-        logger.info('Setting up Firestore listeners for', user.uid);
+        logger.info('Setting up Firestore listeners for', userUid);
 
         const initRemoteData = async () => {
             try {
                 const [remoteEvents, remoteSettings] = await Promise.all([
-                    loadEvents(user.uid),
-                    loadSettings(user.uid)
+                    loadEvents(userUid),
+                    loadSettings(userUid)
                 ]);
 
                 if (remoteEvents) {
@@ -101,7 +113,7 @@ const usePlannerPersistence = (user: User | null) => {
 
         initRemoteData();
 
-        const unsubEvents = subscribeToEvents(user.uid, (remotePayload) => {
+        const unsubEvents = subscribeToEvents(userUid, (remotePayload) => {
             dispatch({
                 type: 'REMOTE_UPDATE',
                 payload: { events: remotePayload.events },
@@ -109,7 +121,7 @@ const usePlannerPersistence = (user: User | null) => {
             });
         });
 
-        const unsubSettings = subscribeToSettings(user.uid, (remoteSettings) => {
+        const unsubSettings = subscribeToSettings(userUid, (remoteSettings) => {
             const { updatedAt, ...settings } = remoteSettings;
             dispatch({
                 type: 'REMOTE_UPDATE',
@@ -122,82 +134,75 @@ const usePlannerPersistence = (user: User | null) => {
             unsubEvents();
             unsubSettings();
         };
-    }, [user?.uid]);
+    }, [userUid]);
 
     const performRemoteSync = useCallback(async () => {
-        if (!user || !state.metadata.isHydrated) return false;
+        if (!userUid || !isHydrated) return false;
+        if (!state.metadata.dirtySlices.events && !state.metadata.dirtySlices.settings) return true;
 
-        logger.info('Syncing local planner state to Firestore');
+        logger.info('Syncing local planner state to Firestore', state.metadata.dirtySlices);
+
         const [eventsSynced, settingsSynced] = await Promise.all([
-            syncEvents(user.uid, state.data.events, serverTimestamp()),
-            syncSettings(user.uid, state.data.settings, serverTimestamp())
+            state.metadata.dirtySlices.events
+                ? syncEvents(userUid, state.data.events, serverTimestamp())
+                : Promise.resolve(true),
+            state.metadata.dirtySlices.settings
+                ? syncSettings(userUid, state.data.settings, serverTimestamp())
+                : Promise.resolve(true)
         ]);
 
-        const didSync = eventsSynced !== false && settingsSynced !== false;
+        const syncedSlices = {
+            events: state.metadata.dirtySlices.events && eventsSynced !== false,
+            settings: state.metadata.dirtySlices.settings && settingsSynced !== false
+        };
 
-        if (didSync) {
-            setHasPendingSync(false);
-            return true;
+        if (syncedSlices.events || syncedSlices.settings) {
+            dispatch({
+                type: 'SYNC_CONFIRMED',
+                slices: syncedSlices
+            });
         }
 
-        setHasPendingSync(true);
-        return false;
-    }, [state.data.events, state.data.settings, state.metadata.isHydrated, user]);
+        return eventsSynced !== false && settingsSynced !== false;
+    }, [isHydrated, state.data.events, state.data.settings, state.metadata.dirtySlices, userUid]);
 
     useEffect(() => {
-        const { lastActionType, isHydrated, updatedAt } = state.metadata;
-        const needsRemoteSync = Boolean(user && (lastActionType === 'USER_CHANGE' || lastActionType === 'UNDO'));
-
-        // Don't save if not hydrated yet
         if (!isHydrated) return;
 
-        const userId = user?.uid ?? 'guest';
-
-        if (needsRemoteSync && !hasPendingSync) {
-            setHasPendingSync(true);
-        }
+        const userId = userUid ?? 'guest';
 
         if (localStorageTimeoutRef.current) clearTimeout(localStorageTimeoutRef.current);
         localStorageTimeoutRef.current = setTimeout(() => {
             logger.info('Saving state to LocalStorage for user:', userId);
-            saveToLocalStorage(userId, state.data, updatedAt, needsRemoteSync || hasPendingSync);
+            saveToLocalStorage(userId, state.data, updatedAt, hasPendingSync);
         }, 50);
 
-        if (user && needsRemoteSync && isOnline) {
-            if (syncEventsTimeoutRef.current) clearTimeout(syncEventsTimeoutRef.current);
-            syncEventsTimeoutRef.current = setTimeout(() => {
+        if (userUid && hasPendingSync && isOnline) {
+            if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+            syncTimeoutRef.current = setTimeout(() => {
                 void performRemoteSync();
-            }, 300);
+            }, FIRESTORE_SYNC_DELAY_MS);
         }
 
-
         return () => {
-            if (syncEventsTimeoutRef.current) clearTimeout(syncEventsTimeoutRef.current);
+            if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
             if (localStorageTimeoutRef.current) clearTimeout(localStorageTimeoutRef.current);
         };
     }, [
         state.data,
-        user?.uid,
-        state.metadata.lastActionType,
-        state.metadata.isHydrated,
-        state.metadata.updatedAt,
+        isHydrated,
+        updatedAt,
         hasPendingSync,
         isOnline,
         performRemoteSync,
-        user
+        userUid
     ]);
-
-    useEffect(() => {
-        if (state.metadata.lastActionType === 'REMOTE_UPDATE' && hasPendingSync) {
-            setHasPendingSync(false);
-        }
-    }, [hasPendingSync, state.metadata.lastActionType]);
 
     useEffect(() => {
         const handleOnline = () => {
             setIsOnline(true);
 
-            if (user && state.metadata.isHydrated && hasPendingSync) {
+            if (userUid && isHydrated && hasPendingSync) {
                 logger.info('Back online with pending local changes. Syncing to Firestore...');
                 void performRemoteSync();
             }
@@ -213,14 +218,14 @@ const usePlannerPersistence = (user: User | null) => {
             window.removeEventListener('online', handleOnline);
             window.removeEventListener('offline', handleOffline);
         };
-    }, [hasPendingSync, performRemoteSync, state.metadata.isHydrated, user]);
+    }, [hasPendingSync, isHydrated, performRemoteSync, userUid]);
 
     useEffect(() => {
-        if (!user || !state.metadata.isHydrated || !hasPendingSync || !isOnline) {
+        if (!userUid || !isHydrated || !hasPendingSync || !isOnline) {
             return;
         }
 
-        if (state.metadata.lastActionType === 'USER_CHANGE' || state.metadata.lastActionType === 'UNDO') {
+        if (lastActionType === 'USER_CHANGE' || lastActionType === 'UNDO') {
             return;
         }
 
@@ -229,10 +234,10 @@ const usePlannerPersistence = (user: User | null) => {
     }, [
         hasPendingSync,
         isOnline,
+        isHydrated,
+        lastActionType,
         performRemoteSync,
-        state.metadata.isHydrated,
-        state.metadata.lastActionType,
-        user
+        userUid
     ]);
 
     const updateState = useCallback((payload: { events?: PlannerEvent[]; settings?: Partial<PlannerSettings> }) => {
@@ -308,8 +313,8 @@ const usePlannerPersistence = (user: User | null) => {
         setMonthsToShow,
         navigate,
         undo,
-        isInitialLoadDone: state.metadata.isHydrated,
-        syncStatus: !user ? 'local-only' : !isOnline ? 'offline' : hasPendingSync ? 'pending' : 'synced'
+        isInitialLoadDone: isHydrated,
+        syncStatus: !userUid ? 'local-only' : !isOnline ? 'offline' : hasPendingSync ? 'pending' : 'synced'
     };
 };
 

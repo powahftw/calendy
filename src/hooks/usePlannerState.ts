@@ -6,6 +6,7 @@ export type ActionType =
     | 'HYDRATE_REMOTE'
     | 'USER_CHANGE'
     | 'REMOTE_UPDATE'
+    | 'SYNC_CONFIRMED'
     | 'RESET'
     | 'UNDO';
 
@@ -14,40 +15,69 @@ export interface PlannerData {
     settings: PlannerSettings;
 }
 
+export interface PendingSyncState {
+    events: boolean;
+    settings: boolean;
+}
+
+export interface SliceTimestamps {
+    events: number;
+    settings: number;
+}
+
 export interface PlannerState {
     data: PlannerData;
     history: PlannerData[];
     metadata: {
         lastActionType: ActionType | null;
         updatedAt: number;
+        eventsUpdatedAt: number;
+        settingsUpdatedAt: number;
+        dirtySlices: PendingSyncState;
         isHydrated: boolean;
     };
 }
 
 export type Action =
-    | { type: 'HYDRATE_LOCAL'; payload: PlannerData; timestamp: number }
-    | { type: 'HYDRATE_REMOTE'; payload: PlannerData; timestamp: number }
+    | { type: 'HYDRATE_LOCAL'; payload: PlannerData; timestamp: number; pendingSync: boolean }
+    | { type: 'HYDRATE_REMOTE'; payload: PlannerData; timestamps: SliceTimestamps }
     | { type: 'USER_CHANGE'; payload: { events?: PlannerEvent[]; settings?: Partial<PlannerSettings> }; timestamp: number }
     | { type: 'REMOTE_UPDATE'; payload: { events?: PlannerEvent[]; settings?: Partial<PlannerSettings> }; timestamp: number }
+    | { type: 'SYNC_CONFIRMED'; slices: PendingSyncState }
     | { type: 'RESET'; initialState: PlannerState }
     | { type: 'UNDO' };
 
 const MAX_HISTORY_LENGTH = 20;
+const EMPTY_PENDING_SYNC: PendingSyncState = { events: false, settings: false };
+const getUpdatedAt = (timestamps: SliceTimestamps) => Math.max(timestamps.events, timestamps.settings);
 
 export const plannerReducer = (state: PlannerState, action: Action): PlannerState => {
     switch (action.type) {
         case 'HYDRATE_LOCAL':
             if (state.metadata.isHydrated) return state;
             logger.info('Hydrating from LocalStorage', action.payload);
-            return {
-                data: action.payload,
-                history: [],
-                metadata: {
-                    lastActionType: 'HYDRATE_LOCAL',
-                    updatedAt: action.timestamp,
-                    isHydrated: true
-                }
-            };
+            {
+                const timestamps = {
+                    events: action.timestamp,
+                    settings: action.timestamp
+                };
+                const dirtySlices = action.pendingSync
+                    ? { events: true, settings: true }
+                    : EMPTY_PENDING_SYNC;
+
+                return {
+                    data: action.payload,
+                    history: [],
+                    metadata: {
+                        lastActionType: 'HYDRATE_LOCAL',
+                        updatedAt: getUpdatedAt(timestamps),
+                        eventsUpdatedAt: timestamps.events,
+                        settingsUpdatedAt: timestamps.settings,
+                        dirtySlices,
+                        isHydrated: true
+                    }
+                };
+            }
         case 'HYDRATE_REMOTE':
             logger.info('Hydrating from Remote (Firestore)', action.payload);
             return {
@@ -55,13 +85,22 @@ export const plannerReducer = (state: PlannerState, action: Action): PlannerStat
                 history: [],
                 metadata: {
                     lastActionType: 'HYDRATE_REMOTE',
-                    updatedAt: action.timestamp,
+                    updatedAt: getUpdatedAt(action.timestamps),
+                    eventsUpdatedAt: action.timestamps.events,
+                    settingsUpdatedAt: action.timestamps.settings,
+                    dirtySlices: EMPTY_PENDING_SYNC,
                     isHydrated: true
                 }
             };
         case 'USER_CHANGE':
             {
             logger.info('User Change detected:', action.payload);
+            const changedEvents = action.payload.events !== undefined;
+            const changedSettings = action.payload.settings !== undefined;
+            const nextTimestamps = {
+                events: changedEvents ? action.timestamp : state.metadata.eventsUpdatedAt,
+                settings: changedSettings ? action.timestamp : state.metadata.settingsUpdatedAt
+            };
             const nextData: PlannerData = {
                 events: action.payload.events ?? state.data.events,
                 settings: action.payload.settings ? { ...state.data.settings, ...action.payload.settings } : state.data.settings
@@ -72,7 +111,13 @@ export const plannerReducer = (state: PlannerState, action: Action): PlannerStat
                 history: nextHistory,
                 metadata: {
                     lastActionType: 'USER_CHANGE',
-                    updatedAt: action.timestamp,
+                    updatedAt: getUpdatedAt(nextTimestamps),
+                    eventsUpdatedAt: nextTimestamps.events,
+                    settingsUpdatedAt: nextTimestamps.settings,
+                    dirtySlices: {
+                        events: state.metadata.dirtySlices.events || changedEvents,
+                        settings: state.metadata.dirtySlices.settings || changedSettings
+                    },
                     isHydrated: true
                 }
             };
@@ -84,38 +129,81 @@ export const plannerReducer = (state: PlannerState, action: Action): PlannerStat
             }
 
             logger.info('Undoing last action');
+            {
+                const timestamp = Date.now();
+                const timestamps = { events: timestamp, settings: timestamp };
+
             return {
                 data: state.history[state.history.length - 1],
                 history: state.history.slice(0, -1),
                 metadata: {
                     lastActionType: 'UNDO',
-                    updatedAt: Date.now(),
+                    updatedAt: getUpdatedAt(timestamps),
+                    eventsUpdatedAt: timestamps.events,
+                    settingsUpdatedAt: timestamps.settings,
+                    dirtySlices: {
+                        events: true,
+                        settings: true
+                    },
                     isHydrated: true
                 }
             };
+            }
         case 'REMOTE_UPDATE':
             {
-            // Last-Write-Wins: Only accept if remote is newer
-            // Note: If we just hydrated from local, we still want to prefer remote IF it's newer or we have no data.
-            const isStale = action.timestamp > 0 && action.timestamp <= state.metadata.updatedAt;
+            const hasEventsUpdate = action.payload.events !== undefined;
+            const hasSettingsUpdate = action.payload.settings !== undefined;
+            const applyEvents = hasEventsUpdate && action.timestamp > state.metadata.eventsUpdatedAt;
+            const applySettings = hasSettingsUpdate && action.timestamp > state.metadata.settingsUpdatedAt;
 
-            if (isStale) {
-                logger.info('Ignoring stale remote update', { remote: action.timestamp, local: state.metadata.updatedAt });
+            if (!applyEvents && !applySettings) {
+                logger.info('Ignoring stale remote update', {
+                    remote: action.timestamp,
+                    localEvents: state.metadata.eventsUpdatedAt,
+                    localSettings: state.metadata.settingsUpdatedAt
+                });
                 return state;
             }
 
-
             logger.info('Applying Remote Update', action.payload);
+            const nextTimestamps = {
+                events: applyEvents ? action.timestamp : state.metadata.eventsUpdatedAt,
+                settings: applySettings ? action.timestamp : state.metadata.settingsUpdatedAt
+            };
             return {
                 data: {
-                    events: action.payload.events ?? state.data.events,
-                    settings: action.payload.settings ? { ...state.data.settings, ...action.payload.settings } : state.data.settings
+                    events: applyEvents ? action.payload.events ?? state.data.events : state.data.events,
+                    settings: applySettings && action.payload.settings
+                        ? { ...state.data.settings, ...action.payload.settings }
+                        : state.data.settings
                 },
                 history: state.history,
                 metadata: {
                     lastActionType: 'REMOTE_UPDATE',
-                    updatedAt: action.timestamp,
+                    updatedAt: getUpdatedAt(nextTimestamps),
+                    eventsUpdatedAt: nextTimestamps.events,
+                    settingsUpdatedAt: nextTimestamps.settings,
+                    dirtySlices: {
+                        events: applyEvents ? false : state.metadata.dirtySlices.events,
+                        settings: applySettings ? false : state.metadata.dirtySlices.settings
+                    },
                     isHydrated: true
+                }
+            };
+            }
+        case 'SYNC_CONFIRMED':
+            {
+            const dirtySlices = {
+                events: action.slices.events ? false : state.metadata.dirtySlices.events,
+                settings: action.slices.settings ? false : state.metadata.dirtySlices.settings
+            };
+
+            return {
+                ...state,
+                metadata: {
+                    ...state.metadata,
+                    lastActionType: 'SYNC_CONFIRMED',
+                    dirtySlices
                 }
             };
             }
