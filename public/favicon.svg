@@ -10,5 +10,5 @@
   <rect x="144" y="300" width="64" height="56" rx="16" fill="#BFDBFE"/>
   <rect x="224" y="300" width="64" height="56" rx="16" fill="#2563EB"/>
   <rect x="304" y="300" width="64" height="56" rx="16" fill="#DBEAFE"/>
-  <circle cx="378" cy="136" r="22" fill="#EF4444"/>
+  <circle cx="336" cy="256" r="18" fill="#EF4444"/>
 </svg>
