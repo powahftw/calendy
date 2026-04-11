@@ -552,6 +552,66 @@ describe('Firebase Sync Logic', () => {
             vi.useRealTimers();
         }
     });
+
+    it('should keep newer event changes dirty while an older sync is still in flight', async () => {
+        const user = { uid: 'test-user' } as User;
+        let resolveFirstSync: ((value: boolean) => void) | null = null;
+
+        mockSyncEvents
+            .mockImplementationOnce(() => new Promise<boolean>((resolve) => {
+                resolveFirstSync = resolve;
+            }))
+            .mockResolvedValue(true);
+
+        mockAuthValue.user = user;
+        render(<App />);
+        await waitForPlanner();
+
+        vi.useFakeTimers();
+
+        try {
+            const createEvent = async (title: string) => {
+                const dayCells = screen.getAllByText('15');
+                const dayCell = dayCells[0].closest('.day-cell');
+
+                fireEvent.mouseDown(dayCell!);
+                fireEvent.mouseUp(dayCell!);
+
+                const titleInput = screen.getByPlaceholderText(/Event Name/i);
+                fireEvent.change(titleInput, { target: { value: title } });
+                fireEvent.click(screen.getByText(/Save/i));
+
+                await act(async () => {
+                    vi.advanceTimersByTime(50);
+                });
+            };
+
+            await createEvent('Event 1');
+
+            await act(async () => {
+                vi.advanceTimersByTime(500);
+            });
+
+            expect(mockSyncEvents).toHaveBeenCalledTimes(1);
+            expect(resolveFirstSync).not.toBeNull();
+
+            await createEvent('Event 2');
+
+            await act(async () => {
+                resolveFirstSync?.(true);
+                await Promise.resolve();
+            });
+
+            await act(async () => {
+                vi.advanceTimersByTime(500);
+            });
+
+            expect(mockSyncEvents).toHaveBeenCalledTimes(2);
+            expect(mockSyncSettings).not.toHaveBeenCalled();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
 });
 
 describe('Multi-Device Sync', () => {

@@ -43,9 +43,9 @@ export type Action =
     | { type: 'HYDRATE_REMOTE'; payload: PlannerData; timestamps: SliceTimestamps }
     | { type: 'USER_CHANGE'; payload: { events?: PlannerEvent[]; settings?: Partial<PlannerSettings> }; timestamp: number }
     | { type: 'REMOTE_UPDATE'; payload: { events?: PlannerEvent[]; settings?: Partial<PlannerSettings> }; timestamp: number }
-    | { type: 'SYNC_CONFIRMED'; slices: PendingSyncState }
+    | { type: 'SYNC_CONFIRMED'; slices: { events: number | null; settings: number | null } }
     | { type: 'RESET'; initialState: PlannerState }
-    | { type: 'UNDO' };
+    | { type: 'UNDO'; timestamp: number };
 
 const MAX_HISTORY_LENGTH = 20;
 const EMPTY_PENDING_SYNC: PendingSyncState = { events: false, settings: false };
@@ -130,7 +130,7 @@ export const plannerReducer = (state: PlannerState, action: Action): PlannerStat
 
             logger.info('Undoing last action');
             {
-                const timestamp = Date.now();
+                const timestamp = action.timestamp;
                 const timestamps = { events: timestamp, settings: timestamp };
 
             return {
@@ -194,8 +194,8 @@ export const plannerReducer = (state: PlannerState, action: Action): PlannerStat
         case 'SYNC_CONFIRMED':
             {
             const dirtySlices = {
-                events: action.slices.events ? false : state.metadata.dirtySlices.events,
-                settings: action.slices.settings ? false : state.metadata.dirtySlices.settings
+                events: action.slices.events === state.metadata.eventsUpdatedAt ? false : state.metadata.dirtySlices.events,
+                settings: action.slices.settings === state.metadata.settingsUpdatedAt ? false : state.metadata.dirtySlices.settings
             };
 
             return {

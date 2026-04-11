@@ -141,6 +141,8 @@ const usePlannerPersistence = (user: User | null) => {
         if (!state.metadata.dirtySlices.events && !state.metadata.dirtySlices.settings) return true;
 
         logger.info('Syncing local planner state to Firestore', state.metadata.dirtySlices);
+        const eventsTimestamp = state.metadata.eventsUpdatedAt;
+        const settingsTimestamp = state.metadata.settingsUpdatedAt;
 
         const [eventsSynced, settingsSynced] = await Promise.all([
             state.metadata.dirtySlices.events
@@ -152,11 +154,11 @@ const usePlannerPersistence = (user: User | null) => {
         ]);
 
         const syncedSlices = {
-            events: state.metadata.dirtySlices.events && eventsSynced !== false,
-            settings: state.metadata.dirtySlices.settings && settingsSynced !== false
+            events: state.metadata.dirtySlices.events && eventsSynced !== false ? eventsTimestamp : null,
+            settings: state.metadata.dirtySlices.settings && settingsSynced !== false ? settingsTimestamp : null
         };
 
-        if (syncedSlices.events || syncedSlices.settings) {
+        if (syncedSlices.events !== null || syncedSlices.settings !== null) {
             dispatch({
                 type: 'SYNC_CONFIRMED',
                 slices: syncedSlices
@@ -164,7 +166,15 @@ const usePlannerPersistence = (user: User | null) => {
         }
 
         return eventsSynced !== false && settingsSynced !== false;
-    }, [isHydrated, state.data.events, state.data.settings, state.metadata.dirtySlices, userUid]);
+    }, [
+        isHydrated,
+        state.data.events,
+        state.data.settings,
+        state.metadata.dirtySlices,
+        state.metadata.eventsUpdatedAt,
+        state.metadata.settingsUpdatedAt,
+        userUid
+    ]);
 
     useEffect(() => {
         if (!isHydrated) return;
@@ -295,7 +305,7 @@ const usePlannerPersistence = (user: User | null) => {
     }, [state.data.settings, updateSettings]);
 
     const undo = useCallback(() => {
-        dispatch({ type: 'UNDO' });
+        dispatch({ type: 'UNDO', timestamp: Date.now() });
     }, []);
 
     return {
