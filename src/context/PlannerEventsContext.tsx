@@ -29,9 +29,10 @@ interface PlannerEventsProviderProps {
 }
 
 export const PlannerEventsProvider: React.FC<PlannerEventsProviderProps> = ({ value, children }) => {
+    const { events, setEvents, canUndo, undo, year, startMonth, monthsToShow } = value;
+
     const eventMap = useMemo(() => {
         const map = new Map<string, PlannerEvent[]>();
-        const { events, year, startMonth, monthsToShow } = value;
 
         const startMonthTotal = year * 12 + startMonth;
         const endMonthTotal = startMonthTotal + monthsToShow;
@@ -54,15 +55,15 @@ export const PlannerEventsProvider: React.FC<PlannerEventsProviderProps> = ({ va
             }
         }
         return map;
-    }, [value.events, value.year, value.startMonth, value.monthsToShow]);
+    }, [events, year, startMonth, monthsToShow]);
 
     const memoizedValue = useMemo(() => ({
-        events: value.events,
-        setEvents: value.setEvents,
-        canUndo: value.canUndo,
-        undo: value.undo,
+        events,
+        setEvents,
+        canUndo,
+        undo,
         eventMap
-    }), [value.events, value.setEvents, value.canUndo, value.undo, eventMap]);
+    }), [events, setEvents, canUndo, undo, eventMap]);
 
     return (
         <PlannerEventsContext.Provider value={memoizedValue}>

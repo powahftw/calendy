@@ -9,7 +9,7 @@ service cloud.firestore {
     function isThrottled() {
       return resource != null
         && resource.data.updatedAt is timestamp
-        && request.time < resource.data.updatedAt + duration.value(1, 's');
+        && request.time < resource.data.updatedAt + duration.value(500, 'ms');
     }
 
     function validDateString(value) {
@@ -45,6 +45,7 @@ service cloud.firestore {
 
     function validEventsDocument() {
       return request.resource.data.keys().hasOnly(['events', 'updatedAt'])
+        && request.resource.data.updatedAt is timestamp
         && validEventList();
     }
 
@@ -65,6 +66,7 @@ service cloud.firestore {
         && request.resource.data.showWeekends is bool
         && request.resource.data.showDayProgress is bool
         && request.resource.data.weekdayAlign is bool
+        && request.resource.data.updatedAt is timestamp
         && request.resource.data.year is int
         && request.resource.data.year >= 2000
         && request.resource.data.year <= 2100
