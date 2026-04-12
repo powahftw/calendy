@@ -291,6 +291,107 @@ describe('Storage Persistence', () => {
             expect(screen.queryByText('User 1 Event')).not.toBeInTheDocument();
         }, { timeout: 10000 });
     });
+
+    it('should sync local-only changes across tabs via storage events', async () => {
+        render(<App />);
+        fireEvent.click(await screen.findByText(/Continue as Guest/i));
+        await waitForPlanner();
+
+        const incomingState = {
+            data: {
+                events: [{ id: '1', title: 'Cross Tab Event', start: '2026-01-15', end: '2026-01-15', color: 0 }],
+                settings: {
+                    theme: 'blue',
+                    highlightToday: true,
+                    showWeekends: true,
+                    showDayProgress: true,
+                    weekdayAlign: true,
+                    year: 2026,
+                    startMonth: 0,
+                    monthsToShow: 12
+                }
+            },
+            updatedAt: 1000,
+            timestamps: {
+                events: 1000,
+                settings: 1000
+            },
+            pendingSync: false,
+            pendingSyncSlices: {
+                events: false,
+                settings: false
+            }
+        };
+
+        await act(async () => {
+            window.dispatchEvent(new StorageEvent('storage', {
+                key: `${STORAGE_PREFIX}guest`,
+                newValue: JSON.stringify(incomingState),
+                storageArea: window.localStorage
+            }));
+        });
+
+        expect(await screen.findByText('Cross Tab Event', {}, { timeout: 10000 })).toBeInTheDocument();
+    });
+
+    it('should merge only the newer localStorage slice from another tab', async () => {
+        render(<App />);
+        fireEvent.click(await screen.findByText(/Continue as Guest/i));
+        await waitForPlanner();
+
+        const dateNowSpy = vi.spyOn(Date, 'now').mockReturnValue(2000);
+
+        const dayCells = screen.getAllByText('15');
+        const dayCell = dayCells[0].closest('.day-cell');
+        fireEvent.mouseDown(dayCell!);
+        fireEvent.mouseUp(dayCell!);
+
+        const titleInput = await screen.findByPlaceholderText(/Event Name/i);
+        fireEvent.change(titleInput, { target: { value: 'Local Event' } });
+        fireEvent.click(screen.getByText(/Save/i));
+
+        expect(await screen.findByText('Local Event')).toBeInTheDocument();
+        dateNowSpy.mockRestore();
+
+        const incomingState = {
+            data: {
+                events: [],
+                settings: {
+                    theme: 'dark',
+                    highlightToday: true,
+                    showWeekends: true,
+                    showDayProgress: true,
+                    weekdayAlign: true,
+                    year: 2026,
+                    startMonth: 0,
+                    monthsToShow: 12
+                }
+            },
+            updatedAt: 1500,
+            timestamps: {
+                events: 1000,
+                settings: 1500
+            },
+            pendingSync: false,
+            pendingSyncSlices: {
+                events: false,
+                settings: false
+            }
+        };
+
+        await act(async () => {
+            window.dispatchEvent(new StorageEvent('storage', {
+                key: `${STORAGE_PREFIX}guest`,
+                newValue: JSON.stringify(incomingState),
+                storageArea: window.localStorage
+            }));
+        });
+
+        await waitFor(() => {
+            expect(document.body.getAttribute('data-theme')).toBe('dark');
+        });
+        expect(screen.getByText('Local Event')).toBeInTheDocument();
+    });
 });
 
 describe('Firebase Sync Logic', () => {

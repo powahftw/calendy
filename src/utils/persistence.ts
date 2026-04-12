@@ -1,5 +1,5 @@
 import { ThemeId } from './calendarUtils';
-import { PlannerData } from '../hooks/usePlannerState';
+import { PendingSyncState, PlannerData, SliceTimestamps } from '../hooks/usePlannerState';
 import { logger } from './logger';
 
 export const getTimestampInMillis = (timestamp: any): number => {
@@ -11,11 +11,30 @@ export const getTimestampInMillis = (timestamp: any): number => {
 };
 
 export const STORAGE_PREFIX = 'planner_v2_';
+const EMPTY_PENDING_SYNC: PendingSyncState = { events: false, settings: false };
+
+const isObject = (value: unknown): value is Record<string, unknown> => (
+    typeof value === 'object' && value !== null
+);
+
+const isSliceTimestamps = (value: unknown): value is SliceTimestamps => (
+    isObject(value)
+    && typeof value.events === 'number'
+    && typeof value.settings === 'number'
+);
+
+const isPendingSyncState = (value: unknown): value is PendingSyncState => (
+    isObject(value)
+    && typeof value.events === 'boolean'
+    && typeof value.settings === 'boolean'
+);
 
 export interface LocalStorageState {
     data: PlannerData;
     updatedAt: number;
     pendingSync: boolean;
+    timestamps: SliceTimestamps;
+    pendingSyncSlices: PendingSyncState;
 }
 
 export const getDefaultData = (): PlannerData => ({
@@ -32,37 +51,69 @@ export const getDefaultData = (): PlannerData => ({
     }
 });
 
+export const getLocalStorageKey = (userId: string) => `${STORAGE_PREFIX}${userId}`;
+
+export const parseLocalStorageState = (raw: string | null): LocalStorageState | null => {
+    if (!raw) return null;
+
+    try {
+        const parsed = JSON.parse(raw);
+
+        if (
+            !parsed
+            || typeof parsed !== 'object'
+            || !('data' in parsed)
+            || !parsed.data
+            || !Array.isArray((parsed.data as PlannerData).events)
+        ) {
+            logger.warn('localStorage data missing required "data" or "events" fields');
+            return null;
+        }
+
+        const updatedAt = typeof parsed.updatedAt === 'number' ? parsed.updatedAt : 0;
+        const timestamps = isSliceTimestamps(parsed.timestamps)
+            ? parsed.timestamps
+            : {
+                events: updatedAt,
+                settings: updatedAt
+            };
+        const pendingSyncSlices = isPendingSyncState(parsed.pendingSyncSlices)
+            ? parsed.pendingSyncSlices
+            : parsed.pendingSync
+                ? { events: true, settings: true }
+                : EMPTY_PENDING_SYNC;
+
+        return {
+            data: parsed.data as PlannerData,
+            updatedAt: Math.max(timestamps.events, timestamps.settings),
+            pendingSync: pendingSyncSlices.events || pendingSyncSlices.settings,
+            timestamps,
+            pendingSyncSlices
+        };
+    } catch (e) {
+        logger.error('Failed to parse localStorage data:', e);
+        return null;
+    }
+};
+
 export const loadFromLocalStorage = (userId: string): LocalStorageState => {
     try {
-        const key = `${STORAGE_PREFIX}${userId}`;
-        const raw = localStorage.getItem(key);
-        if (raw) {
-            try {
-                const parsed = JSON.parse(raw);
-                if (
-                    parsed &&
-                    typeof parsed === 'object' &&
-                    'data' in parsed &&
-                    parsed.data &&
-                    Array.isArray(parsed.data.events)
-                ) {
-                    return {
-                        ...(parsed as LocalStorageState),
-                        pendingSync: Boolean(parsed.pendingSync),
-                    };
-                }
-                logger.warn('localStorage data missing required "data" or "events" fields');
-            } catch (e) {
-                logger.error('Failed to parse localStorage data:', e);
-            }
+        const raw = localStorage.getItem(getLocalStorageKey(userId));
+        const parsed = parseLocalStorageState(raw);
+        if (parsed) {
+            return parsed;
         }
 
         return {
             data: getDefaultData(),
             updatedAt: 0,
             pendingSync: false,
+            timestamps: {
+                events: 0,
+                settings: 0
+            },
+            pendingSyncSlices: EMPTY_PENDING_SYNC,
         };
-
 
     } catch (error) {
         logger.error('Failed to load from localStorage:', error);
@@ -70,15 +121,30 @@ export const loadFromLocalStorage = (userId: string): LocalStorageState => {
             data: getDefaultData(),
             updatedAt: 0,
             pendingSync: false,
+            timestamps: {
+                events: 0,
+                settings: 0
+            },
+            pendingSyncSlices: EMPTY_PENDING_SYNC,
         };
     }
 };
 
-export const saveToLocalStorage = (userId: string, data: PlannerData, updatedAt: number, pendingSync = false) => {
+export const saveToLocalStorage = (
+    userId: string,
+    data: PlannerData,
+    timestamps: SliceTimestamps,
+    pendingSyncSlices: PendingSyncState = EMPTY_PENDING_SYNC
+) => {
     try {
-        const key = `${STORAGE_PREFIX}${userId}`;
-        const state: LocalStorageState = { data, updatedAt, pendingSync };
-        localStorage.setItem(key, JSON.stringify(state));
+        const state: LocalStorageState = {
+            data,
+            updatedAt: Math.max(timestamps.events, timestamps.settings),
+            pendingSync: pendingSyncSlices.events || pendingSyncSlices.settings,
+            timestamps,
+            pendingSyncSlices
+        };
+        localStorage.setItem(getLocalStorageKey(userId), JSON.stringify(state));
     } catch (error) {
         logger.error('Failed to save to localStorage:', error);
     }

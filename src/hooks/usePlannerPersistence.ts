@@ -10,7 +10,9 @@ import {
     loadFromLocalStorage,
     saveToLocalStorage,
     getDefaultData,
-    getTimestampInMillis
+    getLocalStorageKey,
+    getTimestampInMillis,
+    parseLocalStorageState
 } from '../utils/persistence';
 import {
     syncEvents,
@@ -23,6 +25,7 @@ import {
 import { logger } from '../utils/logger';
 
 const FIRESTORE_SYNC_DELAY_MS = 500;
+const EMPTY_PENDING_SYNC = { events: false, settings: false };
 
 const initialState: PlannerState = {
     data: getDefaultData(),
@@ -54,8 +57,10 @@ const usePlannerPersistence = (user: User | null) => {
     const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const localStorageTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const hasPendingSync = state.metadata.dirtySlices.events || state.metadata.dirtySlices.settings;
+    const dirtySlices = state.metadata.dirtySlices;
+    const eventsUpdatedAt = state.metadata.eventsUpdatedAt;
+    const settingsUpdatedAt = state.metadata.settingsUpdatedAt;
     const isHydrated = state.metadata.isHydrated;
-    const updatedAt = state.metadata.updatedAt;
     const lastActionType = state.metadata.lastActionType;
 
     useEffect(() => {
@@ -72,8 +77,8 @@ const usePlannerPersistence = (user: User | null) => {
             dispatch({
                 type: 'HYDRATE_LOCAL',
                 payload: localState.data,
-                timestamp: localState.updatedAt || 0,
-                pendingSync: Boolean(userUid && localState.pendingSync)
+                timestamps: localState.timestamps,
+                pendingSync: userUid ? localState.pendingSyncSlices : EMPTY_PENDING_SYNC
             });
         }
     }, [userUid]);
@@ -184,7 +189,10 @@ const usePlannerPersistence = (user: User | null) => {
         if (localStorageTimeoutRef.current) clearTimeout(localStorageTimeoutRef.current);
         localStorageTimeoutRef.current = setTimeout(() => {
             logger.info('Saving state to LocalStorage for user:', userId);
-            saveToLocalStorage(userId, state.data, updatedAt, hasPendingSync);
+            saveToLocalStorage(userId, state.data, {
+                events: eventsUpdatedAt,
+                settings: settingsUpdatedAt
+            }, dirtySlices);
         }, 50);
 
         if (userUid && hasPendingSync && isOnline) {
@@ -200,13 +208,45 @@ const usePlannerPersistence = (user: User | null) => {
         };
     }, [
         state.data,
+        dirtySlices,
+        eventsUpdatedAt,
         isHydrated,
-        updatedAt,
         hasPendingSync,
         isOnline,
         performRemoteSync,
+        settingsUpdatedAt,
         userUid
     ]);
+
+    useEffect(() => {
+        if (!isHydrated) return;
+
+        const userId = userUid ?? 'guest';
+        const storageKey = getLocalStorageKey(userId);
+
+        const handleStorage = (event: StorageEvent) => {
+            if (event.key !== storageKey || event.newValue === null) return;
+            if (event.storageArea && event.storageArea !== localStorage) return;
+
+            const incomingState = parseLocalStorageState(event.newValue);
+            if (!incomingState) {
+                logger.warn('Ignoring invalid planner LocalStorage update from another tab');
+                return;
+            }
+
+            dispatch({
+                type: 'LOCAL_STORAGE_UPDATE',
+                payload: incomingState.data,
+                timestamps: incomingState.timestamps,
+                pendingSync: userUid ? incomingState.pendingSyncSlices : EMPTY_PENDING_SYNC
+            });
+        };
+
+        window.addEventListener('storage', handleStorage);
+        return () => {
+            window.removeEventListener('storage', handleStorage);
+        };
+    }, [isHydrated, userUid]);
 
     useEffect(() => {
         const handleOnline = () => {

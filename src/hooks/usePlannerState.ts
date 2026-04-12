@@ -4,6 +4,7 @@ import { logger } from '../utils/logger';
 export type ActionType =
     | 'HYDRATE_LOCAL'
     | 'HYDRATE_REMOTE'
+    | 'LOCAL_STORAGE_UPDATE'
     | 'USER_CHANGE'
     | 'REMOTE_UPDATE'
     | 'SYNC_CONFIRMED'
@@ -39,8 +40,9 @@ export interface PlannerState {
 }
 
 export type Action =
-    | { type: 'HYDRATE_LOCAL'; payload: PlannerData; timestamp: number; pendingSync: boolean }
+    | { type: 'HYDRATE_LOCAL'; payload: PlannerData; timestamps: SliceTimestamps; pendingSync: PendingSyncState }
     | { type: 'HYDRATE_REMOTE'; payload: PlannerData; timestamps: SliceTimestamps }
+    | { type: 'LOCAL_STORAGE_UPDATE'; payload: PlannerData; timestamps: SliceTimestamps; pendingSync: PendingSyncState }
     | { type: 'USER_CHANGE'; payload: { events?: PlannerEvent[]; settings?: Partial<PlannerSettings> }; timestamp: number }
     | { type: 'REMOTE_UPDATE'; payload: { events?: PlannerEvent[]; settings?: Partial<PlannerSettings> }; timestamp: number }
     | { type: 'SYNC_CONFIRMED'; slices: { events: number | null; settings: number | null } }
@@ -57,23 +59,15 @@ export const plannerReducer = (state: PlannerState, action: Action): PlannerStat
             if (state.metadata.isHydrated) return state;
             logger.info('Hydrating from LocalStorage', action.payload);
             {
-                const timestamps = {
-                    events: action.timestamp,
-                    settings: action.timestamp
-                };
-                const dirtySlices = action.pendingSync
-                    ? { events: true, settings: true }
-                    : EMPTY_PENDING_SYNC;
-
                 return {
                     data: action.payload,
                     history: [],
                     metadata: {
                         lastActionType: 'HYDRATE_LOCAL',
-                        updatedAt: getUpdatedAt(timestamps),
-                        eventsUpdatedAt: timestamps.events,
-                        settingsUpdatedAt: timestamps.settings,
-                        dirtySlices,
+                        updatedAt: getUpdatedAt(action.timestamps),
+                        eventsUpdatedAt: action.timestamps.events,
+                        settingsUpdatedAt: action.timestamps.settings,
+                        dirtySlices: action.pendingSync,
                         isHydrated: true
                     }
                 };
@@ -92,6 +86,46 @@ export const plannerReducer = (state: PlannerState, action: Action): PlannerStat
                     isHydrated: true
                 }
             };
+        case 'LOCAL_STORAGE_UPDATE':
+            {
+            const applyEvents = action.timestamps.events > state.metadata.eventsUpdatedAt;
+            const applySettings = action.timestamps.settings > state.metadata.settingsUpdatedAt;
+
+            if (!applyEvents && !applySettings) {
+                logger.info('Ignoring stale LocalStorage update', {
+                    incomingEvents: action.timestamps.events,
+                    incomingSettings: action.timestamps.settings,
+                    localEvents: state.metadata.eventsUpdatedAt,
+                    localSettings: state.metadata.settingsUpdatedAt
+                });
+                return state;
+            }
+
+            logger.info('Applying LocalStorage update from another tab', action.payload);
+            const nextTimestamps = {
+                events: applyEvents ? action.timestamps.events : state.metadata.eventsUpdatedAt,
+                settings: applySettings ? action.timestamps.settings : state.metadata.settingsUpdatedAt
+            };
+
+            return {
+                data: {
+                    events: applyEvents ? action.payload.events : state.data.events,
+                    settings: applySettings ? action.payload.settings : state.data.settings
+                },
+                history: state.history,
+                metadata: {
+                    lastActionType: 'LOCAL_STORAGE_UPDATE',
+                    updatedAt: getUpdatedAt(nextTimestamps),
+                    eventsUpdatedAt: nextTimestamps.events,
+                    settingsUpdatedAt: nextTimestamps.settings,
+                    dirtySlices: {
+                        events: applyEvents ? action.pendingSync.events : state.metadata.dirtySlices.events,
+                        settings: applySettings ? action.pendingSync.settings : state.metadata.dirtySlices.settings
+                    },
+                    isHydrated: true
+                }
+            };
+            }
         case 'USER_CHANGE':
             {
             logger.info('User Change detected:', action.payload);
