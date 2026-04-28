@@ -367,7 +367,8 @@ body[data-theme='dark'] .header-settings-btn:hover {
   /* Make month headers sticky during vertical scroll */
   position: sticky;
   top: 0;
-  z-index: 40;
+  /* Keep sticky month labels above icon-only transparent event chips. */
+  z-index: 55;
   background-color: var(--bg-color);
   transition: background-color 0.3s ease;
 }
