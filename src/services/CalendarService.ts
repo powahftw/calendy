@@ -1,11 +1,12 @@
-const CALENDAR_READ_SCOPE = 'https://www.googleapis.com/auth/calendar.readonly';
+const CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar';
 const GOOGLE_IDENTITY_SCRIPT_SRC = 'https://accounts.google.com/gsi/client';
 const GOOGLE_CALENDAR_CLIENT_ID = import.meta.env.VITE_GOOGLE_CALENDAR_CLIENT_ID?.trim() || '';
 
-export const isGoogleCalendarImportConfigured = GOOGLE_CALENDAR_CLIENT_ID.length > 0;
+export const isGoogleCalendarSyncConfigured = GOOGLE_CALENDAR_CLIENT_ID.length > 0;
 
 interface GoogleTokenResponse {
     access_token?: string;
+    expires_in?: number;
     error?: string;
     error_description?: string;
 }
@@ -45,7 +46,7 @@ let googleIdentityScriptPromise: Promise<GoogleIdentityApi> | null = null;
 
 const loadGoogleIdentityApi = async (): Promise<GoogleIdentityApi> => {
     if (typeof window === 'undefined' || typeof document === 'undefined') {
-        throw new Error('Google Calendar import is only available in the browser.');
+        throw new Error('Google Calendar sync is only available in the browser.');
     }
 
     if (window.google?.accounts?.oauth2) {
@@ -99,27 +100,50 @@ export interface GoogleCalendar {
 
 export interface GoogleEvent {
     id: string;
-    summary: string;
-    start: { dateTime?: string; date?: string };
-    end: { dateTime?: string; date?: string };
+    summary?: string;
+    status?: 'confirmed' | 'tentative' | 'cancelled';
+    start?: { dateTime?: string; date?: string };
+    end?: { dateTime?: string; date?: string };
+}
+
+export interface GoogleEventsPage {
+    items: GoogleEvent[];
+    nextPageToken?: string;
+    nextSyncToken?: string;
+}
+
+export class CalendarApiError extends Error {
+    status: number;
+
+    constructor(status: number, message: string) {
+        super(message);
+        this.name = 'CalendarApiError';
+        this.status = status;
+    }
 }
 
 export class CalendarService {
     private token: string | null = null;
+    private tokenExpiresAt = 0;
 
-    async authenticate(): Promise<string> {
-        if (!isGoogleCalendarImportConfigured) {
-            throw new Error('Google Calendar import is not configured.');
+    async authenticate(options: { prompt?: '' | 'select_account' | 'consent' } = {}): Promise<string> {
+        if (!isGoogleCalendarSyncConfigured) {
+            throw new Error('Google Calendar sync is not configured.');
+        }
+
+        if (this.token && Date.now() < this.tokenExpiresAt - 60_000 && !options.prompt) {
+            return this.token;
         }
 
         const google = await loadGoogleIdentityApi();
+        const prompt = options.prompt ?? 'select_account';
 
         return new Promise((resolve, reject) => {
             const tokenClient = google.accounts.oauth2.initTokenClient({
                 client_id: GOOGLE_CALENDAR_CLIENT_ID,
-                scope: CALENDAR_READ_SCOPE,
+                scope: CALENDAR_SCOPE,
                 include_granted_scopes: false,
-                prompt: 'select_account',
+                prompt,
                 callback: (response) => {
                     if (response.error) {
                         reject(new Error(response.error_description || response.error));
@@ -132,6 +156,7 @@ export class CalendarService {
                     }
 
                     this.token = response.access_token;
+                    this.tokenExpiresAt = Date.now() + (response.expires_in ?? 3600) * 1000;
                     resolve(this.token);
                 },
                 error_callback: (error) => {
@@ -149,69 +174,95 @@ export class CalendarService {
                 }
             });
 
-            tokenClient.requestAccessToken({ prompt: 'select_account' });
+            tokenClient.requestAccessToken({ prompt });
         });
     }
 
-    async listCalendars(): Promise<GoogleCalendar[]> {
-        if (!this.token) throw new Error('Not authenticated');
+    private async request<T>(url: string, init: RequestInit = {}): Promise<T> {
+        await this.authenticate({ prompt: '' });
 
-        const response = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', {
-            headers: { Authorization: `Bearer ${this.token}` }
+        const response = await fetch(url, {
+            ...init,
+            headers: {
+                ...(init.headers || {}),
+                Authorization: `Bearer ${this.token}`
+            }
         });
 
         if (!response.ok) {
             const errorBody = await response.text();
-            console.error('Calendar API Error:', response.status, errorBody);
-            throw new Error(`Failed to list calendars: ${response.status} ${errorBody}`);
+            throw new CalendarApiError(response.status, errorBody || response.statusText);
         }
 
-        const data = await response.json();
-        return (data.items || []).map((item: any) => ({
-            id: item.id,
-            summary: item.summary,
-            primary: item.primary,
-            backgroundColor: item.backgroundColor
-        }));
+        if (response.status === 204) {
+            return undefined as T;
+        }
+
+        return response.json();
     }
 
-    async listEvents(calendarId: string): Promise<GoogleEvent[]> {
-        if (!this.token) throw new Error('Not authenticated');
+    async createCalendar(summary: string): Promise<GoogleCalendar> {
+        const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        const data = await this.request<GoogleCalendar>('https://www.googleapis.com/calendar/v3/calendars', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ summary, timeZone })
+        });
+        return data;
+    }
 
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const nextYear = new Date(today);
-        nextYear.setFullYear(nextYear.getFullYear() + 1);
-
+    async listEventsPage(calendarId: string, options: { syncToken?: string; pageToken?: string } = {}): Promise<GoogleEventsPage> {
         const params = new URLSearchParams({
-            timeMin: today.toISOString(),
-            timeMax: nextYear.toISOString(),
             singleEvents: 'true',
-            orderBy: 'startTime',
-            maxResults: '2500' // Reasonable limit
+            showDeleted: 'true',
+            maxResults: '2500'
         });
 
-        const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?${params}`, {
-            headers: { Authorization: `Bearer ${this.token}` }
-        });
+        if (options.syncToken) params.set('syncToken', options.syncToken);
+        if (options.pageToken) params.set('pageToken', options.pageToken);
 
-        if (!response.ok) {
-            const errorBody = await response.text();
-            throw new Error(`Failed to list events: ${response.status} ${errorBody}`);
-        }
+        const data = await this.request<GoogleEventsPage>(
+            `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?${params}`
+        );
 
-        const data = await response.json();
-        return data.items || [];
+        return {
+            items: data.items || [],
+            nextPageToken: data.nextPageToken,
+            nextSyncToken: data.nextSyncToken
+        };
     }
 
-    static getDurationInHours(event: GoogleEvent): number {
-        const start = event.start.dateTime ? new Date(event.start.dateTime) : new Date(event.start.date!);
-        const end = event.end.dateTime ? new Date(event.end.dateTime) : new Date(event.end.date!);
+    async insertEvent(calendarId: string, event: { summary: string; start: string; end: string }): Promise<GoogleEvent> {
+        return this.request<GoogleEvent>(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                summary: event.summary,
+                start: { date: event.start },
+                end: { date: event.end }
+            })
+        });
+    }
 
-        // Handle all-day events (often just dates without times)
-        // If it's pure dates, the difference might be exactly 24h, 48h etc.
+    async patchEvent(calendarId: string, eventId: string, event: { summary: string; start: string; end: string }): Promise<GoogleEvent> {
+        return this.request<GoogleEvent>(
+            `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`,
+            {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    summary: event.summary,
+                    start: { date: event.start },
+                    end: { date: event.end }
+                })
+            }
+        );
+    }
 
-        const diffMs = end.getTime() - start.getTime();
-        return diffMs / (1000 * 60 * 60);
+    async deleteEvent(calendarId: string, eventId: string): Promise<void> {
+        await this.request<void>(
+            `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`,
+            { method: 'DELETE' }
+        );
     }
 }

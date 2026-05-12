@@ -20,7 +20,7 @@ service cloud.firestore {
     function validEvent(event) {
       return event is map
         && event.keys().hasAll(['id', 'title', 'start', 'end', 'color'])
-        && event.keys().hasOnly(['id', 'title', 'start', 'end', 'color', 'icon'])
+        && event.keys().hasOnly(['id', 'title', 'start', 'end', 'color', 'icon', 'gcalEventId'])
         && event.id is string
         && event.id.size() > 0
         && event.id.size() <= 200
@@ -34,6 +34,10 @@ service cloud.firestore {
         && (
           !event.keys().hasAny(['icon'])
           || (event.icon is string && event.icon.size() <= 100)
+        )
+        && (
+          !event.keys().hasAny(['gcalEventId'])
+          || (event.gcalEventId is string && event.gcalEventId.size() > 0 && event.gcalEventId.size() <= 500)
         );
     }
 
@@ -59,22 +63,42 @@ service cloud.firestore {
         'year',
         'startMonth',
         'monthsToShow',
+        'googleSyncSettings',
         'updatedAt'
       ])
-        && request.resource.data.theme is string
-        && request.resource.data.highlightToday is bool
-        && request.resource.data.showWeekends is bool
-        && request.resource.data.showDayProgress is bool
-        && request.resource.data.weekdayAlign is bool
         && request.resource.data.updatedAt is timestamp
-        && request.resource.data.year is int
-        && request.resource.data.year >= 2000
-        && request.resource.data.year <= 2100
-        && request.resource.data.startMonth is int
-        && request.resource.data.startMonth >= 0
-        && request.resource.data.startMonth <= 11
-        && request.resource.data.monthsToShow is int
-        && request.resource.data.monthsToShow in [3, 6, 12];
+        && (!request.resource.data.keys().hasAny(['theme']) || request.resource.data.theme is string)
+        && (!request.resource.data.keys().hasAny(['highlightToday']) || request.resource.data.highlightToday is bool)
+        && (!request.resource.data.keys().hasAny(['showWeekends']) || request.resource.data.showWeekends is bool)
+        && (!request.resource.data.keys().hasAny(['showDayProgress']) || request.resource.data.showDayProgress is bool)
+        && (!request.resource.data.keys().hasAny(['weekdayAlign']) || request.resource.data.weekdayAlign is bool)
+        && (
+          !request.resource.data.keys().hasAny(['year'])
+          || (request.resource.data.year is int && request.resource.data.year >= 2000 && request.resource.data.year <= 2100)
+        )
+        && (
+          !request.resource.data.keys().hasAny(['startMonth'])
+          || (request.resource.data.startMonth is int && request.resource.data.startMonth >= 0 && request.resource.data.startMonth <= 11)
+        )
+        && (
+          !request.resource.data.keys().hasAny(['monthsToShow'])
+          || (request.resource.data.monthsToShow is int && request.resource.data.monthsToShow in [3, 6, 12])
+        )
+        && (
+          !request.resource.data.keys().hasAny(['googleSyncSettings'])
+          || (
+            request.resource.data.googleSyncSettings is map
+            && request.resource.data.googleSyncSettings.keys().hasOnly(['enabled', 'calendarId', 'syncToken', 'lastSyncedAt'])
+            && request.resource.data.googleSyncSettings.enabled is bool
+            && request.resource.data.googleSyncSettings.calendarId is string
+            && request.resource.data.googleSyncSettings.calendarId.size() > 0
+            && request.resource.data.googleSyncSettings.calendarId.size() <= 500
+            && request.resource.data.googleSyncSettings.syncToken is string
+            && request.resource.data.googleSyncSettings.syncToken.size() <= 2000
+            && request.resource.data.googleSyncSettings.lastSyncedAt is int
+            && request.resource.data.googleSyncSettings.lastSyncedAt >= 0
+          )
+        );
     }
 
     match /users/{userId}/data/{docId} {

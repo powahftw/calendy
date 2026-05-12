@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { User } from 'firebase/auth';
 import usePlannerPersistence from '../hooks/usePlannerPersistence';
+import { useGoogleCalendarSync } from '../hooks/useGoogleCalendarSync';
 import { PlannerMetaProvider, type PlannerMetaContextValue } from './PlannerMetaContext';
 import { PlannerEventsProvider } from './PlannerEventsContext';
 import { PlannerInteractionProvider } from './PlannerInteractionContext';
@@ -12,6 +13,12 @@ export interface AppProviderProps {
 
 export const AppProvider: React.FC<AppProviderProps> = ({ user, children }) => {
     const persistence = usePlannerPersistence(user);
+    const googleSync = useGoogleCalendarSync(
+        user,
+        persistence.events,
+        persistence.setEvents,
+        persistence.isInitialLoadDone
+    );
     const [activeEventId, setActiveEventId] = useState<string | null>(null);
 
     const metaValue = useMemo<PlannerMetaContextValue>(() => ({
@@ -61,12 +68,13 @@ export const AppProvider: React.FC<AppProviderProps> = ({ user, children }) => {
 
     const eventsValue = useMemo(() => ({
         events: persistence.events,
-        setEvents: persistence.setEvents,
+        setEvents: googleSync.setEventsWithGoogleSync,
         year: persistence.year,
         startMonth: persistence.startMonth,
         monthsToShow: persistence.monthsToShow,
         canUndo: persistence.canUndo,
         undo: persistence.undo,
+        googleSync: googleSync.googleSync,
     }), [
         persistence.events,
         persistence.year,
@@ -74,7 +82,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({ user, children }) => {
         persistence.monthsToShow,
         persistence.canUndo,
         persistence.undo,
-        persistence.setEvents
+        googleSync.googleSync,
+        googleSync.setEventsWithGoogleSync
     ]);
 
     const interactionValue = useMemo(() => ({

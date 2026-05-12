@@ -28,6 +28,7 @@ export interface PlannerEvent {
     end: string;
     color: number;
     icon?: string;
+    gcalEventId?: string;
 }
 
 export interface EventDraft {
