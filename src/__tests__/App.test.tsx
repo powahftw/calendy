@@ -40,6 +40,8 @@ const mockSubscribeToEvents = vi.fn().mockReturnValue(() => { });
 const mockSyncSettings = vi.fn();
 const mockLoadSettings = vi.fn().mockResolvedValue(null);
 const mockSubscribeToSettings = vi.fn().mockReturnValue(() => { });
+const mockLoadGoogleSyncSettings = vi.fn().mockResolvedValue(null);
+const mockSaveGoogleSyncSettings = vi.fn().mockResolvedValue(true);
 
 vi.mock('../firestoreSync', () => ({
     syncEvents: (...args: any[]) => mockSyncEvents(...args),
@@ -48,6 +50,8 @@ vi.mock('../firestoreSync', () => ({
     syncSettings: (...args: any[]) => mockSyncSettings(...args),
     subscribeToSettings: (...args: any[]) => mockSubscribeToSettings(...args),
     loadSettings: (...args: any[]) => mockLoadSettings(...args),
+    loadGoogleSyncSettings: (...args: any[]) => mockLoadGoogleSyncSettings(...args),
+    saveGoogleSyncSettings: (...args: any[]) => mockSaveGoogleSyncSettings(...args),
 }));
 
 // Mock matchMedia is in setup

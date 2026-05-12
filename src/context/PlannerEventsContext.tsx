@@ -1,5 +1,6 @@
 import React, { createContext, useContext, ReactNode, useMemo } from 'react';
 import { PlannerEvent, getDatesInRange, getDateKey } from '../utils/calendarUtils';
+import type { GoogleCalendarSyncControls } from '../hooks/useGoogleCalendarSync';
 
 interface PlannerEventsContextValue {
     events: PlannerEvent[];
@@ -7,6 +8,7 @@ interface PlannerEventsContextValue {
     eventMap: Map<string, PlannerEvent[]>;
     canUndo: boolean;
     undo: () => void;
+    googleSync: GoogleCalendarSyncControls;
 }
 
 const PlannerEventsContext = createContext<PlannerEventsContextValue | undefined>(undefined);
@@ -29,7 +31,16 @@ interface PlannerEventsProviderProps {
 }
 
 export const PlannerEventsProvider: React.FC<PlannerEventsProviderProps> = ({ value, children }) => {
-    const { events, setEvents, canUndo, undo, year, startMonth, monthsToShow } = value;
+    const {
+        events,
+        setEvents,
+        canUndo,
+        undo,
+        year,
+        startMonth,
+        monthsToShow,
+        googleSync
+    } = value;
 
     const eventMap = useMemo(() => {
         const map = new Map<string, PlannerEvent[]>();
@@ -62,8 +73,16 @@ export const PlannerEventsProvider: React.FC<PlannerEventsProviderProps> = ({ va
         setEvents,
         canUndo,
         undo,
-        eventMap
-    }), [events, setEvents, canUndo, undo, eventMap]);
+        eventMap,
+        googleSync
+    }), [
+        events,
+        setEvents,
+        canUndo,
+        undo,
+        eventMap,
+        googleSync
+    ]);
 
     return (
         <PlannerEventsContext.Provider value={memoizedValue}>
