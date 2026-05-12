@@ -1,5 +1,4 @@
-import { PlannerEvent, TRANSPARENT_COLOR_INDEX, uid } from './calendarUtils';
-import type { GoogleEvent } from '../services/CalendarService';
+import { PlannerEvent } from './calendarUtils';
 
 const EMOJI_PATTERN = /\p{Emoji}/gu;
 
@@ -29,30 +28,3 @@ export const toGoogleAllDayRange = (event: PlannerEvent) => ({
     start: event.start,
     end: shiftDate(event.end, 1)
 });
-
-export const fromGoogleAllDayRange = (event: GoogleEvent): { start: string; end: string } | null => {
-    const start = event.start?.date;
-    const googleEnd = event.end?.date;
-
-    if (!start || !googleEnd) return null;
-
-    const end = shiftDate(googleEnd, -1);
-    // ISO date strings compare lexicographically in chronological order.
-    return start <= end ? { start, end } : null;
-};
-
-export const googleEventToPlannerEvent = (event: GoogleEvent): PlannerEvent | null => {
-    const range = fromGoogleAllDayRange(event);
-    const title = event.summary?.trim() ?? '';
-
-    if (!range || !event.id || !hasRealTitle(title)) return null;
-
-    return {
-        id: uid(),
-        title,
-        start: range.start,
-        end: range.end,
-        color: Math.floor(Math.random() * TRANSPARENT_COLOR_INDEX),
-        gcalEventId: event.id
-    };
-};

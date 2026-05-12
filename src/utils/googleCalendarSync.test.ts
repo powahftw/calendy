@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PlannerEvent } from './calendarUtils';
 import {
-    fromGoogleAllDayRange,
     hasRealTitle,
     isGoogleSyncEligible,
     toGoogleAllDayRange
@@ -16,20 +15,10 @@ const event: PlannerEvent = {
 };
 
 describe('googleCalendarSync', () => {
-    it('keeps Calendy inclusive ends and Google exclusive all-day ends aligned', () => {
+    it('converts Calendy inclusive ends to Google exclusive all-day ends', () => {
         expect(toGoogleAllDayRange(event)).toEqual({
             start: '2026-05-10',
             end: '2026-05-13'
-        });
-
-        expect(fromGoogleAllDayRange({
-            id: 'gcal-1',
-            summary: 'Trip',
-            start: { date: '2026-05-10' },
-            end: { date: '2026-05-13' }
-        })).toEqual({
-            start: '2026-05-10',
-            end: '2026-05-12'
         });
     });
 
@@ -40,31 +29,12 @@ describe('googleCalendarSync', () => {
             start: '2026-05-10',
             end: '2026-05-11'
         });
-
-        expect(fromGoogleAllDayRange({
-            id: 'gcal-2',
-            summary: 'Doctor',
-            start: { date: '2026-05-10' },
-            end: { date: '2026-05-11' }
-        })).toEqual({
-            start: '2026-05-10',
-            end: '2026-05-10'
-        });
     });
 
     it('syncs titled all-day events and skips emoji-only titles', () => {
         expect(isGoogleSyncEligible(event)).toBe(true);
         expect(isGoogleSyncEligible({ ...event, start: '2026-05-10', end: '2026-05-10' })).toBe(true);
-        expect(isGoogleSyncEligible({ ...event, title: '🎉✨' })).toBe(false);
-        expect(hasRealTitle('  🎉 Party  ')).toBe(true);
-    });
-
-    it('ignores timed Google events', () => {
-        expect(fromGoogleAllDayRange({
-            id: 'timed-1',
-            summary: 'Timed meeting',
-            start: { dateTime: '2026-05-10T09:00:00+02:00' },
-            end: { dateTime: '2026-05-10T10:00:00+02:00' }
-        })).toBeNull();
+        expect(isGoogleSyncEligible({ ...event, title: '\u{1F389}\u2728' })).toBe(false);
+        expect(hasRealTitle('  \u{1F389} Party  ')).toBe(true);
     });
 });

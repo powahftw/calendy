@@ -106,12 +106,6 @@ export interface GoogleEvent {
     end?: { dateTime?: string; date?: string };
 }
 
-export interface GoogleEventsPage {
-    items: GoogleEvent[];
-    nextPageToken?: string;
-    nextSyncToken?: string;
-}
-
 export class CalendarApiError extends Error {
     status: number;
 
@@ -122,17 +116,28 @@ export class CalendarApiError extends Error {
     }
 }
 
+export class GoogleAuthPopupBlockedError extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = 'GoogleAuthPopupBlockedError';
+    }
+}
+
 export class CalendarService {
     private token: string | null = null;
     private tokenExpiresAt = 0;
+
+    hasFreshToken(): boolean {
+        return Boolean(this.token && Date.now() < this.tokenExpiresAt - 60_000);
+    }
 
     async authenticate(options: { prompt?: '' | 'select_account' | 'consent' } = {}): Promise<string> {
         if (!isGoogleCalendarSyncConfigured) {
             throw new Error('Google Calendar sync is not configured.');
         }
 
-        if (this.token && Date.now() < this.tokenExpiresAt - 60_000 && !options.prompt) {
-            return this.token;
+        if (this.hasFreshToken() && !options.prompt) {
+            return this.token as string;
         }
 
         const google = await loadGoogleIdentityApi();
@@ -166,7 +171,7 @@ export class CalendarService {
                     }
 
                     if (error.type === 'popup_failed_to_open') {
-                        reject(new Error('Google account picker could not be opened.'));
+                        reject(new GoogleAuthPopupBlockedError('Google account picker could not be opened.'));
                         return;
                     }
 
@@ -211,25 +216,27 @@ export class CalendarService {
         return data;
     }
 
-    async listEventsPage(calendarId: string, options: { syncToken?: string; pageToken?: string } = {}): Promise<GoogleEventsPage> {
-        const params = new URLSearchParams({
-            singleEvents: 'true',
-            showDeleted: 'true',
-            maxResults: '2500'
-        });
+    async listEvents(calendarId: string): Promise<GoogleEvent[]> {
+        let pageToken: string | undefined;
+        const events: GoogleEvent[] = [];
 
-        if (options.syncToken) params.set('syncToken', options.syncToken);
-        if (options.pageToken) params.set('pageToken', options.pageToken);
+        do {
+            const params = new URLSearchParams({
+                singleEvents: 'true',
+                maxResults: '2500'
+            });
 
-        const data = await this.request<GoogleEventsPage>(
-            `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?${params}`
-        );
+            if (pageToken) params.set('pageToken', pageToken);
 
-        return {
-            items: data.items || [],
-            nextPageToken: data.nextPageToken,
-            nextSyncToken: data.nextSyncToken
-        };
+            const data = await this.request<{ items?: GoogleEvent[]; nextPageToken?: string }>(
+                `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?${params}`
+            );
+
+            events.push(...(data.items || []));
+            pageToken = data.nextPageToken;
+        } while (pageToken);
+
+        return events;
     }
 
     async insertEvent(calendarId: string, event: { summary: string; start: string; end: string }): Promise<GoogleEvent> {

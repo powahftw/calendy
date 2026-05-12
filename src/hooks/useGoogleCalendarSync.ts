@@ -1,7 +1,7 @@
 import { Dispatch, SetStateAction, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { User } from 'firebase/auth';
 import toast from 'react-hot-toast';
-import { CalendarApiError, CalendarService, GoogleEvent } from '../services/CalendarService';
+import { CalendarApiError, CalendarService, GoogleAuthPopupBlockedError } from '../services/CalendarService';
 import {
     loadGoogleSyncSettings,
     saveGoogleSyncSettings
@@ -9,9 +9,6 @@ import {
 import { PlannerEvent } from '../utils/calendarUtils';
 import {
     GoogleSyncSettings,
-    fromGoogleAllDayRange,
-    googleEventToPlannerEvent,
-    hasRealTitle,
     isGoogleSyncEligible,
     toGoogleAllDayRange
 } from '../utils/googleCalendarSync';
@@ -21,6 +18,7 @@ import { getUserFacingErrorMessage } from '../utils/userFacingErrors';
 type SetEvents = Dispatch<SetStateAction<PlannerEvent[]>>;
 
 const SYNC_FOCUS_DEBOUNCE_MS = 2000;
+const MAX_BACKGROUND_GOOGLE_WRITES = 25;
 
 export interface GoogleCalendarSyncControls {
     settings: GoogleSyncSettings | null;
@@ -50,6 +48,14 @@ const toGooglePayload = (event: PlannerEvent) => {
         end: range.end
     };
 };
+
+const isMissingGoogleEventError = (err: unknown) => (
+    err instanceof CalendarApiError && (err.status === 404 || err.status === 410)
+);
+
+const isRateLimitError = (err: unknown) => (
+    err instanceof CalendarApiError && err.status === 403 && err.message.includes('rateLimitExceeded')
+);
 
 export const useGoogleCalendarSync = (
     user: User | null,
@@ -110,7 +116,7 @@ export const useGoogleCalendarSync = (
     }, [userUid]);
 
     const commitEventsIfChanged = useCallback((nextEvents: PlannerEvent[]) => {
-        // applyGoogleChanges returns the same reference when nothing changed,
+        // The Google mirror returns the same reference when no local gcal ids changed,
         // so this is a meaningful early exit, not just a performance hint.
         if (nextEvents === eventsRef.current) return;
 
@@ -118,20 +124,51 @@ export const useGoogleCalendarSync = (
         eventsRef.current = nextEvents;
     }, [rawSetEvents]);
 
-    const insertLocalEventToGoogle = useCallback(async (calendarId: string, event: PlannerEvent) => {
-        const googleEvent = await calendarService.insertEvent(calendarId, toGooglePayload(event));
-        if (!googleEvent.id) return;
+    const updateLocalGoogleEventId = useCallback((eventId: string, gcalEventId: string | undefined) => {
+        rawSetEvents((current) => {
+            const nextEvents = current.map((item) => (
+                item.id === eventId && item.gcalEventId !== gcalEventId
+                    ? { ...item, gcalEventId }
+                    : item
+            ));
+            eventsRef.current = nextEvents;
+            return nextEvents;
+        });
+    }, [rawSetEvents]);
 
-        rawSetEvents((current) => current.map((item) => (
-            item.id === event.id && item.gcalEventId !== googleEvent.id
-                ? { ...item, gcalEventId: googleEvent.id }
-                : item
-        )));
-    }, [calendarService, rawSetEvents]);
+    const deleteGoogleEventIfPresent = useCallback(async (calendarId: string, eventId: string) => {
+        try {
+            await calendarService.deleteEvent(calendarId, eventId);
+        } catch (err) {
+            if (!isMissingGoogleEventError(err)) throw err;
+        }
+    }, [calendarService]);
+
+    const upsertLocalEventToGoogle = useCallback(async (calendarId: string, event: PlannerEvent) => {
+        if (event.gcalEventId) {
+            try {
+                await calendarService.patchEvent(calendarId, event.gcalEventId, toGooglePayload(event));
+                return event.gcalEventId;
+            } catch (err) {
+                if (!isMissingGoogleEventError(err)) throw err;
+            }
+        }
+
+        const googleEvent = await calendarService.insertEvent(calendarId, toGooglePayload(event));
+        return googleEvent.id;
+    }, [calendarService]);
+
+    const syncLocalEventToGoogle = useCallback(async (calendarId: string, event: PlannerEvent) => {
+        const gcalEventId = await upsertLocalEventToGoogle(calendarId, event);
+        if (gcalEventId && gcalEventId !== event.gcalEventId) {
+            updateLocalGoogleEventId(event.id, gcalEventId);
+        }
+    }, [updateLocalGoogleEventId, upsertLocalEventToGoogle]);
 
     const syncLocalChangeToGoogle = useCallback(async (previousEvents: PlannerEvent[], nextEvents: PlannerEvent[]) => {
         const currentSettings = settingsRef.current;
         if (!currentSettings?.enabled || !userUid) return;
+        if (!calendarService.hasFreshToken()) return;
 
         const { calendarId } = currentSettings;
         const previousById = new Map(previousEvents.map((event) => [event.id, event]));
@@ -139,7 +176,7 @@ export const useGoogleCalendarSync = (
 
         for (const previous of previousEvents) {
             if (!nextIds.has(previous.id) && previous.gcalEventId) {
-                fireAndForget(calendarService.deleteEvent(calendarId, previous.gcalEventId), 'delete');
+                fireAndForget(deleteGoogleEventIfPresent(calendarId, previous.gcalEventId), 'delete');
             }
         }
 
@@ -148,7 +185,7 @@ export const useGoogleCalendarSync = (
 
             if (!previous) {
                 if (isGoogleSyncEligible(next)) {
-                    fireAndForget(insertLocalEventToGoogle(calendarId, next), 'insert');
+                    fireAndForget(syncLocalEventToGoogle(calendarId, next), 'upsert');
                 }
                 continue;
             }
@@ -157,27 +194,18 @@ export const useGoogleCalendarSync = (
 
             if (next.gcalEventId && !isGoogleSyncEligible(next)) {
                 fireAndForget(
-                    calendarService.deleteEvent(calendarId, next.gcalEventId)
-                        .then(() => {
-                            rawSetEvents((current) => current.map((item) => (
-                                item.id === next.id ? { ...item, gcalEventId: undefined } : item
-                            )));
-                        }),
+                    deleteGoogleEventIfPresent(calendarId, next.gcalEventId)
+                        .then(() => updateLocalGoogleEventId(next.id, undefined)),
                     'delete for ineligible event'
                 );
                 continue;
             }
 
-            if (next.gcalEventId && isGoogleSyncEligible(next)) {
-                fireAndForget(calendarService.patchEvent(calendarId, next.gcalEventId, toGooglePayload(next)), 'patch');
-                continue;
-            }
-
-            if (!next.gcalEventId && isGoogleSyncEligible(next)) {
-                fireAndForget(insertLocalEventToGoogle(calendarId, next), 'insert');
+            if (isGoogleSyncEligible(next)) {
+                fireAndForget(syncLocalEventToGoogle(calendarId, next), 'upsert');
             }
         }
-    }, [calendarService, insertLocalEventToGoogle, rawSetEvents, userUid]);
+    }, [calendarService, deleteGoogleEventIfPresent, syncLocalEventToGoogle, updateLocalGoogleEventId, userUid]);
 
     const setEventsWithGoogleSync = useCallback<SetEvents>((eventsOrUpdater) => {
         const previousEvents = eventsRef.current;
@@ -190,101 +218,62 @@ export const useGoogleCalendarSync = (
         void syncLocalChangeToGoogle(previousEvents, nextEvents);
     }, [rawSetEvents, syncLocalChangeToGoogle]);
 
-    const applyGoogleChanges = useCallback((changedEvents: GoogleEvent[], knownEvents: PlannerEvent[]) => {
-        let nextEvents = knownEvents;
-
-        for (const googleEvent of changedEvents) {
-            if (!googleEvent.id) continue;
-
-            const existing = nextEvents.find((event) => event.gcalEventId === googleEvent.id);
-
-            if (googleEvent.status === 'cancelled') {
-                if (existing) {
-                    nextEvents = nextEvents.filter((event) => event.id !== existing.id);
-                }
-                continue;
-            }
-
-            const title = googleEvent.summary?.trim() ?? '';
-            const range = fromGoogleAllDayRange(googleEvent);
-
-            if (!range || !hasRealTitle(title)) {
-                // Calendy keeps note/marker events locally, while Google only mirrors titled all-day events.
-                // Ignore invalid or timed Google updates instead of deleting local Calendy state.
-                continue;
-            }
-
-            if (existing) {
-                nextEvents = nextEvents.map((event) => (
-                    event.id === existing.id
-                        ? { ...event, title, start: range.start, end: range.end }
-                        : event
-                ));
-                continue;
-            }
-
-            const newEvent = googleEventToPlannerEvent(googleEvent);
-            if (newEvent) nextEvents = [...nextEvents, newEvent];
-        }
-
-        return nextEvents;
-    }, []);
-
-    const pushUnsyncedLocalEvents = useCallback(async (calendarId: string, localEvents: PlannerEvent[]) => {
-        const results = await Promise.all(
+    const mirrorLocalEventsToGoogle = useCallback(async (calendarId: string, localEvents: PlannerEvent[]) => {
+        const googleEvents = await calendarService.listEvents(calendarId);
+        const expectedGoogleIds = new Set(
             localEvents
-                .filter((event) => isGoogleSyncEligible(event) && !event.gcalEventId)
-                .map(async (event) => {
-                    const googleEvent = await calendarService.insertEvent(calendarId, toGooglePayload(event));
-                    return { eventId: event.id, gcalEventId: googleEvent.id };
-                })
+                .filter(isGoogleSyncEligible)
+                .map((event) => event.gcalEventId)
+                .filter((eventId): eventId is string => Boolean(eventId))
         );
 
+        let writes = 0;
+        const updates: Array<{ eventId: string; gcalEventId: string | undefined }> = [];
+
+        for (const event of googleEvents) {
+            if (writes >= MAX_BACKGROUND_GOOGLE_WRITES) break;
+            if (event.id && !expectedGoogleIds.has(event.id)) {
+                await deleteGoogleEventIfPresent(calendarId, event.id);
+                writes += 1;
+            }
+        }
+
+        for (const event of localEvents) {
+            if (writes >= MAX_BACKGROUND_GOOGLE_WRITES) break;
+            if (!isGoogleSyncEligible(event)) {
+                if (event.gcalEventId) {
+                    await deleteGoogleEventIfPresent(calendarId, event.gcalEventId);
+                    updates.push({ eventId: event.id, gcalEventId: undefined });
+                    writes += 1;
+                }
+
+                continue;
+            }
+
+            if (!event.gcalEventId) {
+                const gcalEventId = await upsertLocalEventToGoogle(calendarId, event);
+                if (gcalEventId) updates.push({ eventId: event.id, gcalEventId });
+                writes += 1;
+            }
+        }
+
         const gcalIdsByEventId = new Map(
-            results
-                .filter((result) => result.gcalEventId)
-                .map((result) => [result.eventId, result.gcalEventId])
+            updates.map((update) => [update.eventId, update.gcalEventId])
         );
 
         if (gcalIdsByEventId.size === 0) return localEvents;
 
-        return localEvents.map((event) => {
-            const gcalEventId = gcalIdsByEventId.get(event.id);
-            return gcalEventId ? { ...event, gcalEventId } : event;
-        });
-    }, [calendarService]);
-
-    const replaceWithFullGoogleState = useCallback(async (calendarId: string) => {
-        let pageToken: string | undefined;
-        let nextSyncToken = '';
-        const googleEvents: GoogleEvent[] = [];
-
-        do {
-            const page = await calendarService.listEventsPage(calendarId, { pageToken });
-            googleEvents.push(...page.items);
-            pageToken = page.nextPageToken;
-            if (!pageToken && page.nextSyncToken) nextSyncToken = page.nextSyncToken;
-        } while (pageToken);
-
-        const googleIds = new Set(googleEvents.map((event) => event.id).filter(Boolean));
-        const filteredLocalEvents = eventsRef.current.filter((event) => (
-            !event.gcalEventId || googleIds.has(event.gcalEventId)
+        return localEvents.map((event) => (
+            gcalIdsByEventId.has(event.id)
+                ? { ...event, gcalEventId: gcalIdsByEventId.get(event.id) }
+                : event
         ));
-        const survivingLocalEvents = filteredLocalEvents.length === eventsRef.current.length
-            ? eventsRef.current
-            : filteredLocalEvents;
-        let nextEvents = applyGoogleChanges(googleEvents, survivingLocalEvents);
-        nextEvents = await pushUnsyncedLocalEvents(calendarId, nextEvents);
-        commitEventsIfChanged(nextEvents);
+    }, [calendarService, deleteGoogleEventIfPresent, upsertLocalEventToGoogle]);
 
-        if (nextSyncToken) {
-            await updateSettings({ syncToken: nextSyncToken, lastSyncedAt: Date.now() });
-        }
-    }, [applyGoogleChanges, calendarService, commitEventsIfChanged, pushUnsyncedLocalEvents, updateSettings]);
-
-    const syncWithGoogle = useCallback(async () => {
+    const syncWithGoogle = useCallback(async (interactive = false) => {
         const currentSettings = settingsRef.current;
         if (!userUid || !isHydrated || !currentSettings?.enabled || syncInFlightRef.current) return;
+        if (!interactive && !calendarService.hasFreshToken()) return;
 
         syncInFlightRef.current = true;
         setSyncing(true);
@@ -293,59 +282,22 @@ export const useGoogleCalendarSync = (
         try {
             await calendarService.authenticate({ prompt: '' });
 
-            let pageToken: string | undefined;
-            const changedEvents: GoogleEvent[] = [];
-            let nextSyncToken = currentSettings.syncToken;
-            let savedSyncCheckpoint = false;
-
-            try {
-                do {
-                    const page = await calendarService.listEventsPage(currentSettings.calendarId, {
-                        syncToken: currentSettings.syncToken,
-                        pageToken
-                    });
-
-                    changedEvents.push(...page.items);
-                    pageToken = page.nextPageToken;
-                    if (!pageToken && page.nextSyncToken) {
-                        nextSyncToken = page.nextSyncToken;
-                        await updateSettings({ syncToken: nextSyncToken, lastSyncedAt: Date.now() });
-                        savedSyncCheckpoint = true;
-                    }
-                } while (pageToken);
-            } catch (err) {
-                if (err instanceof CalendarApiError && err.status === 410) {
-                    await replaceWithFullGoogleState(currentSettings.calendarId);
-                    return;
-                }
-                throw err;
-            }
-
-            let nextEvents = applyGoogleChanges(changedEvents, eventsRef.current);
-            nextEvents = await pushUnsyncedLocalEvents(currentSettings.calendarId, nextEvents);
+            const nextEvents = await mirrorLocalEventsToGoogle(currentSettings.calendarId, eventsRef.current);
             commitEventsIfChanged(nextEvents);
-
-            if (!savedSyncCheckpoint) {
-                await updateSettings({ syncToken: nextSyncToken, lastSyncedAt: Date.now() });
-            }
+            await updateSettings({ lastSyncedAt: Date.now() });
         } catch (err) {
+            if (!interactive && err instanceof GoogleAuthPopupBlockedError) return;
+
             logger.error('Google Calendar sync failed', err);
-            const message = getUserFacingErrorMessage(err, 'Google Calendar sync failed.');
+            const message = isRateLimitError(err)
+                ? 'Google Calendar rate limit hit. Calendy saved the change locally and will retry later.'
+                : getUserFacingErrorMessage(err, 'Google Calendar sync failed.');
             setError(message);
         } finally {
             syncInFlightRef.current = false;
             setSyncing(false);
         }
-    }, [
-        applyGoogleChanges,
-        calendarService,
-        commitEventsIfChanged,
-        isHydrated,
-        pushUnsyncedLocalEvents,
-        replaceWithFullGoogleState,
-        updateSettings,
-        userUid
-    ]);
+    }, [calendarService, commitEventsIfChanged, isHydrated, mirrorLocalEventsToGoogle, updateSettings, userUid]);
 
     useEffect(() => {
         if (!settings?.enabled || !isHydrated) return;
@@ -387,16 +339,13 @@ export const useGoogleCalendarSync = (
                 throw new Error('Google did not return a calendar id.');
             }
 
-            const firstPage = await calendarService.listEventsPage(calendar.id);
-            const syncToken = firstPage.nextSyncToken || '';
-
-            const nextEvents = await pushUnsyncedLocalEvents(calendar.id, eventsRef.current);
+            const nextEvents = await mirrorLocalEventsToGoogle(calendar.id, eventsRef.current);
             commitEventsIfChanged(nextEvents);
 
             const nextSettings: GoogleSyncSettings = {
                 enabled: true,
                 calendarId: calendar.id,
-                syncToken,
+                syncToken: '',
                 lastSyncedAt: Date.now()
             };
 
@@ -416,7 +365,7 @@ export const useGoogleCalendarSync = (
         } finally {
             setLoading(false);
         }
-    }, [calendarService, commitEventsIfChanged, pushUnsyncedLocalEvents, saveSettings, userUid]);
+    }, [calendarService, commitEventsIfChanged, mirrorLocalEventsToGoogle, saveSettings, userUid]);
 
     const googleSync = useMemo<GoogleCalendarSyncControls>(() => ({
         settings,
@@ -424,7 +373,7 @@ export const useGoogleCalendarSync = (
         syncing,
         error,
         setup: setupGoogleSync,
-        syncNow: syncWithGoogle
+        syncNow: () => syncWithGoogle(true)
     }), [error, loading, settings, setupGoogleSync, syncing, syncWithGoogle]);
 
     return {
