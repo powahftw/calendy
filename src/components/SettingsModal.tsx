@@ -81,7 +81,7 @@ const GoogleSyncSetupModal: FC<GoogleSyncSetupModalProps> = ({ googleSync, onClo
                 {googleSync.settings?.enabled ? (
                     <>
                         <p style={{ marginBottom: '1.5rem', color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.5' }}>
-                            Calendy is syncing all-day events with the dedicated Google Calendar.
+                            Calendy is mirroring all-day events to the dedicated Google Calendar.
                         </p>
                         <button className="btn-primary" style={{ width: '100%' }} onClick={() => void googleSync.syncNow()} disabled={googleSync.syncing}>
                             {googleSync.syncing ? 'Syncing...' : 'Sync Now'}
@@ -90,7 +90,7 @@ const GoogleSyncSetupModal: FC<GoogleSyncSetupModalProps> = ({ googleSync, onClo
                 ) : (
                     <>
                         <p style={{ marginBottom: '1.5rem', color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.5' }}>
-                            Calendy will create a new calendar called "Calendy" in your Google account. All-day events will sync both ways.
+                            Calendy will use a calendar called "Calendy" in your Google account. Calendy stays the editable source of truth.
                         </p>
                         <button className="btn-primary" style={{ width: '100%' }} onClick={onConnect} disabled={googleSync.loading}>
                             {googleSync.loading ? 'Connecting...' : 'Connect'}

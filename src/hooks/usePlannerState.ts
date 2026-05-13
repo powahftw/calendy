@@ -6,6 +6,7 @@ export type ActionType =
     | 'HYDRATE_REMOTE'
     | 'LOCAL_STORAGE_UPDATE'
     | 'USER_CHANGE'
+    | 'EVENT_METADATA_CHANGE'
     | 'REMOTE_UPDATE'
     | 'SYNC_CONFIRMED'
     | 'RESET'
@@ -44,6 +45,7 @@ export type Action =
     | { type: 'HYDRATE_REMOTE'; payload: PlannerData; timestamps: SliceTimestamps }
     | { type: 'LOCAL_STORAGE_UPDATE'; payload: PlannerData; timestamps: SliceTimestamps; pendingSync: PendingSyncState }
     | { type: 'USER_CHANGE'; payload: { events?: PlannerEvent[]; settings?: Partial<PlannerSettings> }; timestamp: number }
+    | { type: 'EVENT_METADATA_CHANGE'; updates: Array<{ eventId: string; gcalEventId?: string }>; timestamp: number }
     | { type: 'REMOTE_UPDATE'; payload: { events?: PlannerEvent[]; settings?: Partial<PlannerSettings> }; timestamp: number }
     | { type: 'SYNC_CONFIRMED'; slices: { events: number | null; settings: number | null } }
     | { type: 'RESET'; initialState: PlannerState }
@@ -153,6 +155,44 @@ export const plannerReducer = (state: PlannerState, action: Action): PlannerStat
                         settings: state.metadata.dirtySlices.settings || changedSettings
                     },
                     isHydrated: true
+                }
+            };
+            }
+        case 'EVENT_METADATA_CHANGE':
+            {
+            const gcalIdsByEventId = new Map(action.updates.map((update) => [update.eventId, update.gcalEventId]));
+            let changed = false;
+            const events = state.data.events.map((event) => {
+                if (!gcalIdsByEventId.has(event.id)) return event;
+
+                const gcalEventId = gcalIdsByEventId.get(event.id);
+                if (event.gcalEventId === gcalEventId) return event;
+
+                changed = true;
+                if (gcalEventId) return { ...event, gcalEventId };
+
+                const nextEvent = { ...event };
+                delete nextEvent.gcalEventId;
+                return nextEvent;
+            });
+
+            if (!changed) return state;
+
+            return {
+                data: {
+                    ...state.data,
+                    events
+                },
+                history: state.history,
+                metadata: {
+                    ...state.metadata,
+                    lastActionType: 'EVENT_METADATA_CHANGE',
+                    updatedAt: Math.max(action.timestamp, state.metadata.settingsUpdatedAt),
+                    eventsUpdatedAt: action.timestamp,
+                    dirtySlices: {
+                        ...state.metadata.dirtySlices,
+                        events: true
+                    }
                 }
             };
             }

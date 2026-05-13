@@ -315,6 +315,16 @@ const usePlannerPersistence = (user: User | null) => {
         updateState({ events: newEvents });
     }, [state.data.events, updateState]);
 
+    const stampGoogleEventIds = useCallback((updates: Array<{ eventId: string; gcalEventId?: string }>) => {
+        if (updates.length === 0) return;
+
+        dispatch({
+            type: 'EVENT_METADATA_CHANGE',
+            updates,
+            timestamp: Date.now()
+        });
+    }, []);
+
     const setTheme = useCallback((theme: ThemeId) => updateSettings({ theme }), [updateSettings]);
     const setHighlightToday = useCallback((highlightToday: boolean) => updateSettings({ highlightToday }), [updateSettings]);
     const setShowWeekends = useCallback((showWeekends: boolean) => updateSettings({ showWeekends }), [updateSettings]);
@@ -353,6 +363,7 @@ const usePlannerPersistence = (user: User | null) => {
         ...state.data.settings,
         canUndo: state.history.length > 0,
         setEvents,
+        stampGoogleEventIds,
         setTheme,
         setHighlightToday,
         setShowWeekends,

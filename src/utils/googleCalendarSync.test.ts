@@ -31,10 +31,14 @@ describe('googleCalendarSync', () => {
         });
     });
 
-    it('syncs titled all-day events and skips emoji-only titles', () => {
+    it('syncs titled events and skips empty titles', () => {
         expect(isGoogleSyncEligible(event)).toBe(true);
         expect(isGoogleSyncEligible({ ...event, start: '2026-05-10', end: '2026-05-10' })).toBe(true);
-        expect(isGoogleSyncEligible({ ...event, title: '\u{1F389}\u2728' })).toBe(false);
-        expect(hasRealTitle('  \u{1F389} Party  ')).toBe(true);
+        expect(isGoogleSyncEligible({ ...event, title: '   ' })).toBe(false);
+        expect(hasRealTitle('  Party  ')).toBe(true);
+    });
+
+    it('skips invalid date ranges', () => {
+        expect(isGoogleSyncEligible({ ...event, start: '2026-05-12', end: '2026-05-10' })).toBe(false);
     });
 });

@@ -17,6 +17,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ user, children }) => {
         user,
         persistence.events,
         persistence.setEvents,
+        persistence.stampGoogleEventIds,
         persistence.isInitialLoadDone
     );
     const [activeEventId, setActiveEventId] = useState<string | null>(null);

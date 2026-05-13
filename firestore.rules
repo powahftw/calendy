@@ -88,15 +88,11 @@ service cloud.firestore {
           !request.resource.data.keys().hasAny(['googleSyncSettings'])
           || (
             request.resource.data.googleSyncSettings is map
-            && request.resource.data.googleSyncSettings.keys().hasOnly(['enabled', 'calendarId', 'syncToken', 'lastSyncedAt'])
+            && request.resource.data.googleSyncSettings.keys().hasOnly(['enabled', 'calendarId'])
             && request.resource.data.googleSyncSettings.enabled is bool
             && request.resource.data.googleSyncSettings.calendarId is string
             && request.resource.data.googleSyncSettings.calendarId.size() > 0
             && request.resource.data.googleSyncSettings.calendarId.size() <= 500
-            && request.resource.data.googleSyncSettings.syncToken is string
-            && request.resource.data.googleSyncSettings.syncToken.size() <= 2000
-            && request.resource.data.googleSyncSettings.lastSyncedAt is int
-            && request.resource.data.googleSyncSettings.lastSyncedAt >= 0
           )
         );
     }

@@ -47,9 +47,7 @@ const isGoogleSyncSettings = (value: unknown): value is GoogleSyncSettings => {
 
     const settings = value as Record<string, unknown>;
     return typeof settings.enabled === 'boolean'
-        && typeof settings.calendarId === 'string'
-        && typeof settings.syncToken === 'string'
-        && typeof settings.lastSyncedAt === 'number';
+        && typeof settings.calendarId === 'string';
 };
 
 /**
@@ -196,6 +194,25 @@ export const loadGoogleSyncSettings = async (uid: string): Promise<GoogleSyncSet
         logger.error('Error loading Google sync settings:', error);
         return null;
     }
+};
+
+export const subscribeToGoogleSyncSettings = (uid: string, callback: (settings: GoogleSyncSettings | null) => void) => {
+    const firestore = db;
+    if (!uid || !firestore) return () => { };
+
+    const ref = doc(firestore, 'users', uid, 'data', 'settings');
+
+    return onSnapshot(ref, (snapshot) => {
+        if (!snapshot.exists()) {
+            callback(null);
+            return;
+        }
+
+        const data = snapshot.data();
+        callback(isGoogleSyncSettings(data.googleSyncSettings) ? data.googleSyncSettings : null);
+    }, (error) => {
+        logger.error('Error subscribing to Google sync settings:', error);
+    });
 };
 
 export const saveGoogleSyncSettings = async (uid: string, settings: GoogleSyncSettings): Promise<boolean> => {
