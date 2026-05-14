@@ -222,6 +222,7 @@ export const useGoogleCalendarSync = (
         try {
             await calendarService.authenticate({ prompt: '' });
             const updates = await pushLocalEventsToGoogle(currentSettings.calendarId, eventsRef.current);
+            // Keep queued syncs from seeing stale missing gcal ids before React commits the metadata update.
             eventsRef.current = applyGoogleEventIdUpdates(eventsRef.current, updates);
             stampGoogleEventIds(updates);
         } catch (err) {
@@ -282,16 +283,24 @@ export const useGoogleCalendarSync = (
     useEffect(() => {
         if (!settings?.enabled || !isHydrated) return;
 
-        const handleFocus = () => {
+        const syncOnReturn = () => {
             const now = Date.now();
             if (now - lastFocusSyncAtRef.current < SYNC_FOCUS_DEBOUNCE_MS) return;
 
             lastFocusSyncAtRef.current = now;
             void syncToGoogle(false);
         };
+        const handleFocus = () => syncOnReturn();
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') syncOnReturn();
+        };
 
         window.addEventListener('focus', handleFocus);
-        return () => window.removeEventListener('focus', handleFocus);
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        return () => {
+            window.removeEventListener('focus', handleFocus);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
     }, [isHydrated, settings?.enabled, syncToGoogle]);
 
     const setupGoogleSync = useCallback(async () => {
@@ -314,6 +323,7 @@ export const useGoogleCalendarSync = (
             }
 
             const updates = await pushLocalEventsToGoogle(calendar.id, eventsRef.current);
+            // Keep queued syncs from seeing stale missing gcal ids before React commits the metadata update.
             eventsRef.current = applyGoogleEventIdUpdates(eventsRef.current, updates);
             stampGoogleEventIds(updates);
 
