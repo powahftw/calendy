@@ -10,12 +10,45 @@ import {
 import { PlannerEvent, PlannerSettings } from './utils/calendarUtils';
 import { logger } from './utils/logger';
 import { getTimestampInMillis } from './utils/persistence';
+import type { GoogleSyncSettings } from './utils/googleCalendarSync';
 
 
 export interface RemoteEventsPayload {
     events: PlannerEvent[];
     updatedAt: number | null;
 }
+
+const SETTINGS_FIELDS = [
+    'theme',
+    'highlightToday',
+    'showWeekends',
+    'showDayProgress',
+    'weekdayAlign',
+    'year',
+    'startMonth',
+    'monthsToShow'
+] as const;
+
+const toPlannerSettings = (data: Record<string, unknown>): Partial<PlannerSettings> => {
+    // Google sync settings live in the same Firestore document but are loaded separately.
+    const settings: Partial<PlannerSettings> = {};
+
+    for (const key of SETTINGS_FIELDS) {
+        if (key in data) {
+            (settings as Record<string, unknown>)[key] = data[key];
+        }
+    }
+
+    return settings;
+};
+
+const isGoogleSyncSettings = (value: unknown): value is GoogleSyncSettings => {
+    if (!value || typeof value !== 'object') return false;
+
+    const settings = value as Record<string, unknown>;
+    return typeof settings.enabled === 'boolean'
+        && typeof settings.calendarId === 'string';
+};
 
 /**
  * Save events to Firestore.
@@ -116,7 +149,7 @@ export const subscribeToSettings = (uid: string, callback: (settings: Partial<Pl
         if (snapshot.exists()) {
             const data = snapshot.data();
             const updatedAtMillis = getTimestampInMillis(data.updatedAt);
-            callback({ ...data, updatedAt: updatedAtMillis || undefined });
+            callback({ ...toPlannerSettings(data), updatedAt: updatedAtMillis || undefined });
         }
     }, (error) => {
         logger.error('Error subscribing to settings:', error);
@@ -137,11 +170,64 @@ export const loadSettings = async (uid: string): Promise<(Partial<PlannerSetting
         if (snapshot.exists()) {
             const data = snapshot.data();
             const updatedAt = getTimestampInMillis(data.updatedAt);
-            return { ...(data as Partial<PlannerSettings>), updatedAt };
+            return { ...toPlannerSettings(data), updatedAt };
         }
         return null;
     } catch (error) {
         logger.error('Error loading settings:', error);
         return null;
+    }
+};
+
+export const loadGoogleSyncSettings = async (uid: string): Promise<GoogleSyncSettings | null> => {
+    const firestore = db;
+    if (!uid || !firestore) return null;
+
+    try {
+        const ref = doc(firestore, 'users', uid, 'data', 'settings');
+        const snapshot = await getDoc(ref);
+        if (!snapshot.exists()) return null;
+
+        const data = snapshot.data();
+        return isGoogleSyncSettings(data.googleSyncSettings) ? data.googleSyncSettings : null;
+    } catch (error) {
+        logger.error('Error loading Google sync settings:', error);
+        return null;
+    }
+};
+
+export const subscribeToGoogleSyncSettings = (uid: string, callback: (settings: GoogleSyncSettings | null) => void) => {
+    const firestore = db;
+    if (!uid || !firestore) return () => { };
+
+    const ref = doc(firestore, 'users', uid, 'data', 'settings');
+
+    return onSnapshot(ref, (snapshot) => {
+        if (!snapshot.exists()) {
+            callback(null);
+            return;
+        }
+
+        const data = snapshot.data();
+        callback(isGoogleSyncSettings(data.googleSyncSettings) ? data.googleSyncSettings : null);
+    }, (error) => {
+        logger.error('Error subscribing to Google sync settings:', error);
+    });
+};
+
+export const saveGoogleSyncSettings = async (uid: string, settings: GoogleSyncSettings): Promise<boolean> => {
+    const firestore = db;
+    if (!uid || !firestore) return false;
+
+    try {
+        const ref = doc(firestore, 'users', uid, 'data', 'settings');
+        await setDoc(ref, {
+            googleSyncSettings: settings,
+            updatedAt: serverTimestamp()
+        }, { merge: true });
+        return true;
+    } catch (error) {
+        logger.error('Error saving Google sync settings:', error);
+        return false;
     }
 };

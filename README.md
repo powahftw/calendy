@@ -35,9 +35,9 @@ A publicly hosted version is available at [calendy-79636.web.app](https://calend
    - Create a `.env.local` file based on `.env.example`.
    - Add the Firebase env vars only if you want sign-in and sync across devices.
    - Deploy the bundled `firestore.rules` before exposing the app publicly.
-3. **Optional Google Calendar import**
-   - Set `VITE_GOOGLE_CALENDAR_CLIENT_ID` if you want import-only Google Calendar access.
-   - If you want Google Calendar import together with Firebase auth, enable the **Google Calendar API** in Google Cloud, create a Web OAuth client, and add your authorized origins/domains.
+3. **Optional Google Calendar sync**
+   - Set `VITE_GOOGLE_CALENDAR_CLIENT_ID` if you want Calendy to mirror events to Google Calendar.
+   - Enable the **Google Calendar API** in Google Cloud, create a Web OAuth client, and add your authorized origins/domains.
 4. **Quality checks**
    ```bash
    npm run lint

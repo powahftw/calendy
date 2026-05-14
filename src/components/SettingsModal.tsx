@@ -1,5 +1,4 @@
 import React, { FC, useMemo, useRef, useState } from 'react';
-import CalendarImportModal from './CalendarImportModal';
 import { themes } from '../utils/calendarUtils';
 import { serializeEvents, parseEvents, mergeImportedEvents } from '../utils/calendar/importExportUtils';
 import { User } from 'firebase/auth';
@@ -7,7 +6,8 @@ import { usePlanner } from '../context/PlannerContext';
 import toast from 'react-hot-toast';
 import { useEscapeKey } from '../hooks/useEscapeKey';
 import { showUndoToast } from '../utils/showUndoToast';
-import { isGoogleCalendarImportConfigured } from '../services/CalendarService';
+import { isGoogleCalendarSyncConfigured } from '../services/CalendarService';
+import type { GoogleCalendarSyncControls } from '../hooks/useGoogleCalendarSync';
 
 interface SettingsModalProps {
     onClose: () => void;
@@ -16,10 +16,96 @@ interface SettingsModalProps {
     isGuest?: boolean;
 }
 
+interface GoogleSyncSectionProps {
+    user: User | null;
+    googleSync: GoogleCalendarSyncControls;
+    onOpenSetup: () => void;
+}
+
+const GoogleSyncSection: FC<GoogleSyncSectionProps> = ({ user, googleSync, onOpenSetup }) => (
+    <div className="settings-section">
+        <h4>Integrations</h4>
+        <button
+            className="import-integration-btn"
+            onClick={onOpenSetup}
+            disabled={!user || !isGoogleCalendarSyncConfigured || googleSync.loading}
+            title={
+                !user
+                    ? 'Sign in to enable Google Calendar sync.'
+                    : isGoogleCalendarSyncConfigured
+                        ? undefined
+                        : 'Add VITE_GOOGLE_CALENDAR_CLIENT_ID to enable Calendar sync.'
+            }
+        >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 7.5V6a2 2 0 0 0-2-2h-1V2"></path>
+                <path d="M6 2v2H5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h6.5"></path>
+                <path d="M3 10h18"></path>
+                <path d="m16 19 2 2 4-4"></path>
+                <path d="M16 13.5a4.5 4.5 0 1 0 4.5 4.5"></path>
+            </svg>
+            {googleSync.settings?.enabled ? 'Google Calendar Sync Connected' : 'Sync with Google Calendar'}
+        </button>
+        {googleSync.settings?.enabled && (
+            <button
+                className="btn-primary-outline btn-icon-with-text"
+                onClick={() => void googleSync.syncNow()}
+                disabled={googleSync.syncing}
+                style={{ marginTop: '0.75rem', width: '100%', justifyContent: 'center' }}
+            >
+                {googleSync.syncing ? 'Syncing...' : 'Sync Now'}
+            </button>
+        )}
+        {googleSync.error && (
+            <div className="error-msg" style={{ color: '#ef4444', marginTop: '0.75rem', fontSize: '0.85rem' }}>
+                {googleSync.error}
+            </div>
+        )}
+    </div>
+);
+
+interface GoogleSyncSetupModalProps {
+    googleSync: GoogleCalendarSyncControls;
+    onClose: () => void;
+    onConnect: () => void;
+}
+
+const GoogleSyncSetupModal: FC<GoogleSyncSetupModalProps> = ({ googleSync, onClose, onConnect }) => (
+    <div className="modal-overlay" onMouseDown={(e: React.MouseEvent) => e.target === e.currentTarget && onClose()}>
+        <div className="modal bounce-in" style={{ width: '420px', maxWidth: '95vw' }}>
+            <div className="modal-header">
+                <h3 style={{ fontSize: '1.25rem' }}>Sync with Google Calendar</h3>
+                <button onClick={onClose} className="close-btn">&times;</button>
+            </div>
+            <div className="settings-content" style={{ padding: '24px' }}>
+                {googleSync.settings?.enabled ? (
+                    <>
+                        <p style={{ marginBottom: '1.5rem', color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.5' }}>
+                            Calendy is mirroring all-day events to the dedicated Google Calendar.
+                        </p>
+                        <button className="btn-primary" style={{ width: '100%' }} onClick={() => void googleSync.syncNow()} disabled={googleSync.syncing}>
+                            {googleSync.syncing ? 'Syncing...' : 'Sync Now'}
+                        </button>
+                    </>
+                ) : (
+                    <>
+                        <p style={{ marginBottom: '1.5rem', color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.5' }}>
+                            Calendy will use a calendar called "Calendy" in your Google account. Calendy stays the editable source of truth.
+                        </p>
+                        <button className="btn-primary" style={{ width: '100%' }} onClick={onConnect} disabled={googleSync.loading}>
+                            {googleSync.loading ? 'Connecting...' : 'Connect'}
+                        </button>
+                    </>
+                )}
+            </div>
+        </div>
+    </div>
+);
+
 const SettingsModal: FC<SettingsModalProps> = ({
     onClose, user, onSignOut, isGuest
 }) => {
-    const [showImportModal, setShowImportModal] = useState(false);
+    const [showSyncSetupModal, setShowSyncSetupModal] = useState(false);
 
     const {
         year, setYear,
@@ -32,7 +118,8 @@ const SettingsModal: FC<SettingsModalProps> = ({
         weekdayAlign, setWeekdayAlign,
         setEvents,
         events,
-        undo
+        undo,
+        googleSync
     } = usePlanner();
 
     useEscapeKey(onClose);
@@ -107,6 +194,11 @@ const SettingsModal: FC<SettingsModalProps> = ({
 
     const onDragLeave = () => {
         setIsDragOver(false);
+    };
+
+    const handleConnectSync = async () => {
+        const connected = await googleSync.setup();
+        if (connected) setShowSyncSetupModal(false);
     };
 
     const checkboxSettings = useMemo(() => ([
@@ -292,26 +384,20 @@ const SettingsModal: FC<SettingsModalProps> = ({
                         </div>
                     </div>
 
-                    <div className="settings-section">
-                        <h4>Integrations</h4>
-                        <button
-                            className="import-integration-btn"
-                            onClick={() => setShowImportModal(true)}
-                            disabled={!isGoogleCalendarImportConfigured}
-                            title={isGoogleCalendarImportConfigured ? undefined : 'Add VITE_GOOGLE_CALENDAR_CLIENT_ID to enable Calendar import.'}
-                        >
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                                <line x1="16" y1="2" x2="16" y2="6"></line>
-                                <line x1="8" y1="2" x2="8" y2="6"></line>
-                                <line x1="3" y1="10" x2="21" y2="10"></line>
-                            </svg>
-                            Import from Google Calendar
-                        </button>
-                    </div>
+                    <GoogleSyncSection
+                        user={user}
+                        googleSync={googleSync}
+                        onOpenSetup={() => setShowSyncSetupModal(true)}
+                    />
                 </div>
             </div>
-            {showImportModal && isGoogleCalendarImportConfigured && <CalendarImportModal onClose={() => setShowImportModal(false)} />}
+            {showSyncSetupModal && (
+                <GoogleSyncSetupModal
+                    googleSync={googleSync}
+                    onClose={() => setShowSyncSetupModal(false)}
+                    onConnect={() => void handleConnectSync()}
+                />
+            )}
         </div>
     );
 };
