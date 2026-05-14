@@ -3,7 +3,6 @@ import { logger } from '../utils/logger';
 
 export type ActionType =
     | 'HYDRATE_LOCAL'
-    | 'HYDRATE_REMOTE'
     | 'LOCAL_STORAGE_UPDATE'
     | 'USER_CHANGE'
     | 'EVENT_METADATA_CHANGE'
@@ -42,7 +41,6 @@ export interface PlannerState {
 
 export type Action =
     | { type: 'HYDRATE_LOCAL'; payload: PlannerData; timestamps: SliceTimestamps; pendingSync: PendingSyncState }
-    | { type: 'HYDRATE_REMOTE'; payload: PlannerData; timestamps: SliceTimestamps }
     | { type: 'LOCAL_STORAGE_UPDATE'; payload: PlannerData; timestamps: SliceTimestamps; pendingSync: PendingSyncState }
     | { type: 'USER_CHANGE'; payload: { events?: PlannerEvent[]; settings?: Partial<PlannerSettings> }; timestamp: number }
     | { type: 'EVENT_METADATA_CHANGE'; updates: Array<{ eventId: string; gcalEventId?: string }>; timestamp: number }
@@ -74,20 +72,6 @@ export const plannerReducer = (state: PlannerState, action: Action): PlannerStat
                     }
                 };
             }
-        case 'HYDRATE_REMOTE':
-            logger.info('Hydrating from Remote (Firestore)', action.payload);
-            return {
-                data: action.payload,
-                history: [],
-                metadata: {
-                    lastActionType: 'HYDRATE_REMOTE',
-                    updatedAt: getUpdatedAt(action.timestamps),
-                    eventsUpdatedAt: action.timestamps.events,
-                    settingsUpdatedAt: action.timestamps.settings,
-                    dirtySlices: EMPTY_PENDING_SYNC,
-                    isHydrated: true
-                }
-            };
         case 'LOCAL_STORAGE_UPDATE':
             {
             const applyEvents = action.timestamps.events > state.metadata.eventsUpdatedAt;

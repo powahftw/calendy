@@ -179,23 +179,6 @@ export const loadSettings = async (uid: string): Promise<(Partial<PlannerSetting
     }
 };
 
-export const loadGoogleSyncSettings = async (uid: string): Promise<GoogleSyncSettings | null> => {
-    const firestore = db;
-    if (!uid || !firestore) return null;
-
-    try {
-        const ref = doc(firestore, 'users', uid, 'data', 'settings');
-        const snapshot = await getDoc(ref);
-        if (!snapshot.exists()) return null;
-
-        const data = snapshot.data();
-        return isGoogleSyncSettings(data.googleSyncSettings) ? data.googleSyncSettings : null;
-    } catch (error) {
-        logger.error('Error loading Google sync settings:', error);
-        return null;
-    }
-};
-
 export const subscribeToGoogleSyncSettings = (uid: string, callback: (settings: GoogleSyncSettings | null) => void) => {
     const firestore = db;
     if (!uid || !firestore) return () => { };

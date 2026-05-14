@@ -32,7 +32,6 @@ const isPendingSyncState = (value: unknown): value is PendingSyncState => (
 export interface LocalStorageState {
     data: PlannerData;
     updatedAt: number;
-    pendingSync: boolean;
     timestamps: SliceTimestamps;
     pendingSyncSlices: PendingSyncState;
 }
@@ -79,14 +78,11 @@ export const parseLocalStorageState = (raw: string | null): LocalStorageState | 
             };
         const pendingSyncSlices = isPendingSyncState(parsed.pendingSyncSlices)
             ? parsed.pendingSyncSlices
-            : parsed.pendingSync
-                ? { events: true, settings: true }
-                : EMPTY_PENDING_SYNC;
+            : EMPTY_PENDING_SYNC;
 
         return {
             data: parsed.data as PlannerData,
             updatedAt: Math.max(timestamps.events, timestamps.settings),
-            pendingSync: pendingSyncSlices.events || pendingSyncSlices.settings,
             timestamps,
             pendingSyncSlices
         };
@@ -107,7 +103,6 @@ export const loadFromLocalStorage = (userId: string): LocalStorageState => {
         return {
             data: getDefaultData(),
             updatedAt: 0,
-            pendingSync: false,
             timestamps: {
                 events: 0,
                 settings: 0
@@ -120,7 +115,6 @@ export const loadFromLocalStorage = (userId: string): LocalStorageState => {
         return {
             data: getDefaultData(),
             updatedAt: 0,
-            pendingSync: false,
             timestamps: {
                 events: 0,
                 settings: 0
@@ -140,7 +134,6 @@ export const saveToLocalStorage = (
         const state: LocalStorageState = {
             data,
             updatedAt: Math.max(timestamps.events, timestamps.settings),
-            pendingSync: pendingSyncSlices.events || pendingSyncSlices.settings,
             timestamps,
             pendingSyncSlices
         };

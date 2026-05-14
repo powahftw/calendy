@@ -40,7 +40,6 @@ const mockSubscribeToEvents = vi.fn().mockReturnValue(() => { });
 const mockSyncSettings = vi.fn();
 const mockLoadSettings = vi.fn().mockResolvedValue(null);
 const mockSubscribeToSettings = vi.fn().mockReturnValue(() => { });
-const mockLoadGoogleSyncSettings = vi.fn().mockResolvedValue(null);
 const mockSubscribeToGoogleSyncSettings = vi.fn().mockReturnValue(() => { });
 const mockSaveGoogleSyncSettings = vi.fn().mockResolvedValue(true);
 
@@ -51,7 +50,6 @@ vi.mock('../firestoreSync', () => ({
     syncSettings: (...args: any[]) => mockSyncSettings(...args),
     subscribeToSettings: (...args: any[]) => mockSubscribeToSettings(...args),
     loadSettings: (...args: any[]) => mockLoadSettings(...args),
-    loadGoogleSyncSettings: (...args: any[]) => mockLoadGoogleSyncSettings(...args),
     subscribeToGoogleSyncSettings: (...args: any[]) => mockSubscribeToGoogleSyncSettings(...args),
     saveGoogleSyncSettings: (...args: any[]) => mockSaveGoogleSyncSettings(...args),
 }));
@@ -322,7 +320,6 @@ describe('Storage Persistence', () => {
                 events: 1000,
                 settings: 1000
             },
-            pendingSync: false,
             pendingSyncSlices: {
                 events: false,
                 settings: false
@@ -378,7 +375,6 @@ describe('Storage Persistence', () => {
                 events: 1000,
                 settings: 1500
             },
-            pendingSync: false,
             pendingSyncSlices: {
                 events: false,
                 settings: false
@@ -549,7 +545,10 @@ describe('Firebase Sync Logic', () => {
                 }
             },
             updatedAt: baseTime,
-            pendingSync: false
+            pendingSyncSlices: {
+                events: false,
+                settings: false
+            }
         }));
 
         mockAuthValue.user = user;
@@ -603,7 +602,10 @@ describe('Firebase Sync Logic', () => {
                 }
             },
             updatedAt: now,
-            pendingSync: true
+            pendingSyncSlices: {
+                events: true,
+                settings: true
+            }
         }));
 
         mockAuthValue.user = user;
