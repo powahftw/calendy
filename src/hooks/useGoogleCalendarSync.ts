@@ -110,18 +110,6 @@ const mapWithConcurrency = async <T, R>(
     return results;
 };
 
-interface EventSyncResult {
-    expectedGoogleIds: string[];
-    deletedGoogleIds: string[];
-    updates: Array<{ eventId: string; gcalEventId?: string }>;
-}
-
-const EMPTY_EVENT_SYNC_RESULT: EventSyncResult = {
-    expectedGoogleIds: [],
-    deletedGoogleIds: [],
-    updates: []
-};
-
 export const useGoogleCalendarSync = (
     user: User | null,
     events: PlannerEvent[],
@@ -208,68 +196,48 @@ export const useGoogleCalendarSync = (
         const deletedGoogleIds = new Set<string>();
         const updates: Array<{ eventId: string; gcalEventId?: string }> = [];
 
-        const syncResults = await mapWithConcurrency(localEvents, GOOGLE_CALENDAR_SYNC_CONCURRENCY, async (event): Promise<EventSyncResult> => {
+        await mapWithConcurrency(localEvents, GOOGLE_CALENDAR_SYNC_CONCURRENCY, async (event) => {
             if (!isGoogleSyncEligible(event)) {
                 if (event.gcalEventId) {
                     await deleteGoogleEventIfPresent(calendarId, event.gcalEventId);
-                    return {
-                        expectedGoogleIds: [],
-                        deletedGoogleIds: [event.gcalEventId],
-                        updates: [{ eventId: event.id, gcalEventId: undefined }]
-                    };
+                    deletedGoogleIds.add(event.gcalEventId);
+                    updates.push({ eventId: event.id, gcalEventId: undefined });
                 }
-                return EMPTY_EVENT_SYNC_RESULT;
+                return;
             }
 
             if (!event.gcalEventId) {
                 const gcalEventId = await insertLocalEventToGoogle(calendarId, event);
                 if (gcalEventId) {
-                    return {
-                        expectedGoogleIds: [gcalEventId],
-                        deletedGoogleIds: [],
-                        updates: [{ eventId: event.id, gcalEventId }]
-                    };
+                    expectedGoogleIds.add(gcalEventId);
+                    updates.push({ eventId: event.id, gcalEventId });
                 }
-                return EMPTY_EVENT_SYNC_RESULT;
+                return;
             }
 
             const googleEvent = googleEventsById.get(event.gcalEventId);
             if (googleEvent && googleEventMatches(googleEvent, event)) {
-                return {
-                    expectedGoogleIds: [event.gcalEventId],
-                    deletedGoogleIds: [],
-                    updates: []
-                };
+                expectedGoogleIds.add(event.gcalEventId);
+                return;
             }
 
             try {
                 const patched = await calendarService.patchEvent(calendarId, event.gcalEventId, toGooglePayload(event));
                 const gcalEventId = patched.id || event.gcalEventId;
-                return {
-                    expectedGoogleIds: [gcalEventId],
-                    deletedGoogleIds: [],
-                    updates: gcalEventId !== event.gcalEventId ? [{ eventId: event.id, gcalEventId }] : []
-                };
+                expectedGoogleIds.add(gcalEventId);
+                if (gcalEventId !== event.gcalEventId) {
+                    updates.push({ eventId: event.id, gcalEventId });
+                }
             } catch (err) {
                 if (!isMissingGoogleEventError(err)) throw err;
 
                 const gcalEventId = await insertLocalEventToGoogle(calendarId, event);
                 if (gcalEventId) {
-                    return {
-                        expectedGoogleIds: [gcalEventId],
-                        deletedGoogleIds: [],
-                        updates: [{ eventId: event.id, gcalEventId }]
-                    };
+                    expectedGoogleIds.add(gcalEventId);
+                    updates.push({ eventId: event.id, gcalEventId });
                 }
-                return EMPTY_EVENT_SYNC_RESULT;
             }
         });
-
-        for (const result of syncResults) {
-            result.expectedGoogleIds.forEach((id) => expectedGoogleIds.add(id));
-            result.deletedGoogleIds.forEach((id) => deletedGoogleIds.add(id));
-            updates.push(...result.updates);
-        }
 
         const orphanGoogleEventIds = googleEvents
             .map((event) => event.id)
