@@ -26,6 +26,7 @@ type StampGoogleEventIds = (updates: Array<{ eventId: string; gcalEventId?: stri
 
 const LOCAL_SYNC_DEBOUNCE_MS = 30_000;
 const SYNC_FOCUS_DEBOUNCE_MS = 2000;
+const GOOGLE_CALENDAR_SYNC_CONCURRENCY = 4;
 
 export interface GoogleCalendarSyncControls {
     settings: GoogleSyncSettings | null;
@@ -87,6 +88,38 @@ const applyGoogleEventIdUpdates = (
         delete nextEvent.gcalEventId;
         return nextEvent;
     });
+};
+
+const mapWithConcurrency = async <T, R>(
+    items: T[],
+    limit: number,
+    mapper: (item: T, index: number) => Promise<R>
+): Promise<R[]> => {
+    const results = new Array<R>(items.length);
+    let nextIndex = 0;
+
+    const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+        while (nextIndex < items.length) {
+            const currentIndex = nextIndex;
+            nextIndex += 1;
+            results[currentIndex] = await mapper(items[currentIndex], currentIndex);
+        }
+    });
+
+    await Promise.all(workers);
+    return results;
+};
+
+interface EventSyncResult {
+    expectedGoogleIds: string[];
+    deletedGoogleIds: string[];
+    updates: Array<{ eventId: string; gcalEventId?: string }>;
+}
+
+const EMPTY_EVENT_SYNC_RESULT: EventSyncResult = {
+    expectedGoogleIds: [],
+    deletedGoogleIds: [],
+    updates: []
 };
 
 export const useGoogleCalendarSync = (
@@ -175,56 +208,76 @@ export const useGoogleCalendarSync = (
         const deletedGoogleIds = new Set<string>();
         const updates: Array<{ eventId: string; gcalEventId?: string }> = [];
 
-        for (const event of localEvents) {
+        const syncResults = await mapWithConcurrency(localEvents, GOOGLE_CALENDAR_SYNC_CONCURRENCY, async (event): Promise<EventSyncResult> => {
             if (!isGoogleSyncEligible(event)) {
                 if (event.gcalEventId) {
                     await deleteGoogleEventIfPresent(calendarId, event.gcalEventId);
-                    deletedGoogleIds.add(event.gcalEventId);
-                    updates.push({ eventId: event.id, gcalEventId: undefined });
+                    return {
+                        expectedGoogleIds: [],
+                        deletedGoogleIds: [event.gcalEventId],
+                        updates: [{ eventId: event.id, gcalEventId: undefined }]
+                    };
                 }
-                continue;
+                return EMPTY_EVENT_SYNC_RESULT;
             }
 
             if (!event.gcalEventId) {
                 const gcalEventId = await insertLocalEventToGoogle(calendarId, event);
                 if (gcalEventId) {
-                    expectedGoogleIds.add(gcalEventId);
-                    updates.push({ eventId: event.id, gcalEventId });
+                    return {
+                        expectedGoogleIds: [gcalEventId],
+                        deletedGoogleIds: [],
+                        updates: [{ eventId: event.id, gcalEventId }]
+                    };
                 }
-                continue;
+                return EMPTY_EVENT_SYNC_RESULT;
             }
 
             const googleEvent = googleEventsById.get(event.gcalEventId);
             if (googleEvent && googleEventMatches(googleEvent, event)) {
-                expectedGoogleIds.add(event.gcalEventId);
-                continue;
+                return {
+                    expectedGoogleIds: [event.gcalEventId],
+                    deletedGoogleIds: [],
+                    updates: []
+                };
             }
 
             try {
                 const patched = await calendarService.patchEvent(calendarId, event.gcalEventId, toGooglePayload(event));
                 const gcalEventId = patched.id || event.gcalEventId;
-                expectedGoogleIds.add(gcalEventId);
-                if (gcalEventId !== event.gcalEventId) {
-                    updates.push({ eventId: event.id, gcalEventId });
-                }
+                return {
+                    expectedGoogleIds: [gcalEventId],
+                    deletedGoogleIds: [],
+                    updates: gcalEventId !== event.gcalEventId ? [{ eventId: event.id, gcalEventId }] : []
+                };
             } catch (err) {
                 if (!isMissingGoogleEventError(err)) throw err;
 
                 const gcalEventId = await insertLocalEventToGoogle(calendarId, event);
                 if (gcalEventId) {
-                    expectedGoogleIds.add(gcalEventId);
-                    updates.push({ eventId: event.id, gcalEventId });
+                    return {
+                        expectedGoogleIds: [gcalEventId],
+                        deletedGoogleIds: [],
+                        updates: [{ eventId: event.id, gcalEventId }]
+                    };
                 }
+                return EMPTY_EVENT_SYNC_RESULT;
             }
+        });
+
+        for (const result of syncResults) {
+            result.expectedGoogleIds.forEach((id) => expectedGoogleIds.add(id));
+            result.deletedGoogleIds.forEach((id) => deletedGoogleIds.add(id));
+            updates.push(...result.updates);
         }
 
-        for (const googleEvent of googleEvents) {
-            if (!googleEvent.id || expectedGoogleIds.has(googleEvent.id) || deletedGoogleIds.has(googleEvent.id)) {
-                continue;
-            }
+        const orphanGoogleEventIds = googleEvents
+            .map((event) => event.id)
+            .filter((id): id is string => Boolean(id) && !expectedGoogleIds.has(id) && !deletedGoogleIds.has(id));
 
-            await deleteGoogleEventIfPresent(calendarId, googleEvent.id);
-        }
+        await mapWithConcurrency(orphanGoogleEventIds, GOOGLE_CALENDAR_SYNC_CONCURRENCY, async (eventId) => {
+            await deleteGoogleEventIfPresent(calendarId, eventId);
+        });
 
         return updates;
     }, [calendarService, deleteGoogleEventIfPresent, insertLocalEventToGoogle]);

@@ -838,6 +838,69 @@ body[data-theme='dark'] .day-cell.highlighted {
   padding-bottom: 5px;
 }
 
+.settings-helper-text {
+  margin: 0.75rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.settings-helper-text-danger {
+  color: #ef4444;
+}
+
+.google-sync-section-action {
+  margin-top: 0.75rem;
+  width: 100%;
+  justify-content: center;
+}
+
+.google-sync-error {
+  color: #ef4444;
+  margin-top: 0.75rem;
+  font-size: 0.85rem;
+}
+
+.google-sync-modal {
+  width: 420px;
+  max-width: 95vw;
+}
+
+.google-sync-modal-title {
+  font-size: 1.25rem;
+}
+
+.google-sync-modal-content {
+  padding: 24px;
+}
+
+.google-sync-modal-copy {
+  margin: 0 0 1.5rem;
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.google-sync-modal-copy-danger {
+  margin-bottom: 1rem;
+  color: #ef4444;
+  font-size: 0.9rem;
+}
+
+.google-sync-action-btn {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  justify-content: center;
+}
+
+.google-sync-action-btn-spaced {
+  margin-top: 0.75rem;
+}
+
+.visually-hidden-file-input {
+  display: none;
+}
+
 .theme-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

@@ -27,20 +27,69 @@ const getSyncAccountEmail = (user: User | null, googleSync: GoogleCalendarSyncCo
     googleSync.settings?.accountEmail || user?.email || ''
 );
 
+const getGoogleSyncButtonLabel = (googleSync: GoogleCalendarSyncControls) => {
+    if (googleSync.settings?.enabled) {
+        return googleSync.authorizationRequired ? 'Reconnect Google Calendar' : 'Google Calendar Sync Connected';
+    }
+
+    return googleSync.settings?.calendarId ? 'Resume Google Calendar Sync' : 'Sync with Google Calendar';
+};
+
+const getGoogleSyncButtonTitle = (user: User | null, isGuest: boolean | undefined, googleSync: GoogleCalendarSyncControls) => {
+    if (isGuest || !user) return 'Sign in to enable Google Calendar sync.';
+    if (isGoogleCalendarSyncConfigured || googleSync.settings?.calendarId) return undefined;
+    return 'Add VITE_GOOGLE_CALENDAR_CLIENT_ID to enable Calendar sync.';
+};
+
+const isGoogleSyncButtonDisabled = (user: User | null, isGuest: boolean | undefined, googleSync: GoogleCalendarSyncControls) => (
+    isGuest || !user || googleSync.loading || (!isGoogleCalendarSyncConfigured && !googleSync.settings?.calendarId)
+);
+
+const SettingsHelperText: FC<{ children: React.ReactNode; tone?: 'default' | 'danger' }> = ({ children, tone = 'default' }) => (
+    <p className={`settings-helper-text ${tone === 'danger' ? 'settings-helper-text-danger' : ''}`}>
+        {children}
+    </p>
+);
+
+const SyncModalCopy: FC<{ children: React.ReactNode; tone?: 'default' | 'danger' }> = ({ children, tone = 'default' }) => (
+    <p className={`google-sync-modal-copy ${tone === 'danger' ? 'google-sync-modal-copy-danger' : ''}`}>
+        {children}
+    </p>
+);
+
+type SyncActionButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
+    variant?: 'primary' | 'danger';
+    spaced?: boolean;
+};
+
+const SyncActionButton: FC<SyncActionButtonProps> = ({
+    variant = 'primary',
+    spaced = false,
+    className,
+    children,
+    ...buttonProps
+}) => (
+    <button
+        {...buttonProps}
+        className={[
+            variant === 'danger' ? 'btn-danger-outline btn-icon-with-text' : 'btn-primary',
+            'google-sync-action-btn',
+            spaced ? 'google-sync-action-btn-spaced' : '',
+            className ?? ''
+        ].filter(Boolean).join(' ')}
+    >
+        {children}
+    </button>
+);
+
 const GoogleSyncSection: FC<GoogleSyncSectionProps> = ({ user, isGuest, googleSync, onOpenSetup }) => (
     <div className="settings-section">
         <h4>Integrations</h4>
         <button
             className="import-integration-btn"
             onClick={onOpenSetup}
-            disabled={isGuest || !user || googleSync.loading || (!isGoogleCalendarSyncConfigured && !googleSync.settings?.calendarId)}
-            title={
-                isGuest || !user
-                    ? 'Sign in to enable Google Calendar sync.'
-                    : isGoogleCalendarSyncConfigured || googleSync.settings?.calendarId
-                        ? undefined
-                        : 'Add VITE_GOOGLE_CALENDAR_CLIENT_ID to enable Calendar sync.'
-            }
+            disabled={isGoogleSyncButtonDisabled(user, isGuest, googleSync)}
+            title={getGoogleSyncButtonTitle(user, isGuest, googleSync)}
         >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 7.5V6a2 2 0 0 0-2-2h-1V2"></path>
@@ -49,36 +98,29 @@ const GoogleSyncSection: FC<GoogleSyncSectionProps> = ({ user, isGuest, googleSy
                 <path d="m16 19 2 2 4-4"></path>
                 <path d="M16 13.5a4.5 4.5 0 1 0 4.5 4.5"></path>
             </svg>
-            {googleSync.settings?.enabled
-                ? googleSync.authorizationRequired
-                    ? 'Reconnect Google Calendar'
-                    : 'Google Calendar Sync Connected'
-                : googleSync.settings?.calendarId
-                    ? 'Resume Google Calendar Sync'
-                    : 'Sync with Google Calendar'}
+            {getGoogleSyncButtonLabel(googleSync)}
         </button>
         {(isGuest || !user) && (
-            <p style={{ marginTop: '0.75rem', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+            <SettingsHelperText>
                 Sign in with Google to enable Calendar sync.
-            </p>
+            </SettingsHelperText>
         )}
         {user && googleSync.settings?.calendarId && (
-            <p style={{ marginTop: '0.75rem', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+            <SettingsHelperText>
                 Sync account: <strong>{getSyncAccountEmail(user, googleSync)}</strong>
-            </p>
+            </SettingsHelperText>
         )}
         {googleSync.settings?.enabled && (
             <button
-                className="btn-primary-outline btn-icon-with-text"
+                className="btn-primary-outline btn-icon-with-text google-sync-section-action"
                 onClick={() => void googleSync.syncNow()}
                 disabled={googleSync.syncing}
-                style={{ marginTop: '0.75rem', width: '100%', justifyContent: 'center' }}
             >
                 {googleSync.syncing ? 'Syncing...' : 'Sync Now'}
             </button>
         )}
         {googleSync.error && (
-            <div className="error-msg" style={{ color: '#ef4444', marginTop: '0.75rem', fontSize: '0.85rem' }}>
+            <div className="error-msg google-sync-error">
                 {googleSync.error}
             </div>
         )}
@@ -95,55 +137,55 @@ interface GoogleSyncSetupModalProps {
 
 const GoogleSyncSetupModal: FC<GoogleSyncSetupModalProps> = ({ user, googleSync, onClose, onConnect, onDisconnect }) => (
     <div className="modal-overlay" onMouseDown={(e: React.MouseEvent) => e.target === e.currentTarget && onClose()}>
-        <div className="modal bounce-in" style={{ width: '420px', maxWidth: '95vw' }}>
+        <div className="modal bounce-in google-sync-modal">
             <div className="modal-header">
-                <h3 style={{ fontSize: '1.25rem' }}>Sync with Google Calendar</h3>
+                <h3 className="google-sync-modal-title">Sync with Google Calendar</h3>
                 <button onClick={onClose} className="close-btn">&times;</button>
             </div>
-            <div className="settings-content" style={{ padding: '24px' }}>
+            <div className="settings-content google-sync-modal-content">
                 {!user ? (
-                    <p style={{ marginBottom: '1.5rem', color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.5' }}>
+                    <SyncModalCopy>
                         Sign in with Google to enable Calendar sync.
-                    </p>
+                    </SyncModalCopy>
                 ) : googleSync.settings?.enabled ? (
                     <>
-                        <p style={{ marginBottom: '1.5rem', color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.5' }}>
+                        <SyncModalCopy>
                             Calendy is mirroring all-day events to the dedicated Google Calendar for <strong>{getSyncAccountEmail(user, googleSync)}</strong>.
-                        </p>
+                        </SyncModalCopy>
                         {googleSync.authorizationRequired && (
-                            <p style={{ marginBottom: '1rem', color: '#ef4444', fontSize: '0.9rem', lineHeight: '1.5' }}>
+                            <SyncModalCopy tone="danger">
                                 Calendar access needs to be reconnected before background sync can continue.
-                            </p>
+                            </SyncModalCopy>
                         )}
                         {googleSync.authorizationRequired && (
-                            <button className="btn-primary" style={{ width: '100%', marginBottom: '0.75rem' }} onClick={onConnect} disabled={googleSync.loading}>
+                            <SyncActionButton onClick={onConnect} disabled={googleSync.loading}>
                                 {googleSync.loading ? 'Reconnecting...' : 'Reconnect'}
-                            </button>
+                            </SyncActionButton>
                         )}
-                        <button className="btn-primary" style={{ width: '100%' }} onClick={() => void googleSync.syncNow()} disabled={googleSync.syncing}>
+                        <SyncActionButton onClick={() => void googleSync.syncNow()} disabled={googleSync.syncing} spaced={googleSync.authorizationRequired}>
                             {googleSync.syncing ? 'Syncing...' : 'Sync Now'}
-                        </button>
-                        <button className="btn-danger-outline btn-icon-with-text" style={{ width: '100%', justifyContent: 'center', marginTop: '0.75rem' }} onClick={onDisconnect}>
+                        </SyncActionButton>
+                        <SyncActionButton variant="danger" onClick={onDisconnect} spaced>
                             Disconnect
-                        </button>
+                        </SyncActionButton>
                     </>
                 ) : googleSync.settings?.calendarId ? (
                     <>
-                        <p style={{ marginBottom: '1.5rem', color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.5' }}>
+                        <SyncModalCopy>
                             Sync is stopped for <strong>{getSyncAccountEmail(user, googleSync)}</strong>. Existing Google Calendar events will stay where they are.
-                        </p>
-                        <button className="btn-primary" style={{ width: '100%' }} onClick={onConnect} disabled={googleSync.loading}>
+                        </SyncModalCopy>
+                        <SyncActionButton onClick={onConnect} disabled={googleSync.loading}>
                             {googleSync.loading ? 'Resuming...' : 'Resume Sync'}
-                        </button>
+                        </SyncActionButton>
                     </>
                 ) : (
                     <>
-                        <p style={{ marginBottom: '1.5rem', color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.5' }}>
+                        <SyncModalCopy>
                             Calendy will use a calendar called "Calendy" in <strong>{user.email}</strong>. Calendy stays the editable source of truth.
-                        </p>
-                        <button className="btn-primary" style={{ width: '100%' }} onClick={onConnect} disabled={googleSync.loading}>
+                        </SyncModalCopy>
+                        <SyncActionButton onClick={onConnect} disabled={googleSync.loading}>
                             {googleSync.loading ? 'Connecting...' : 'Connect'}
-                        </button>
+                        </SyncActionButton>
                     </>
                 )}
             </div>
@@ -389,7 +431,7 @@ const SettingsModal: FC<SettingsModalProps> = ({
                                 <input
                                     type="file"
                                     ref={fileInputRef}
-                                    style={{ display: 'none' }}
+                                    className="visually-hidden-file-input"
                                     accept=".txt"
                                     onChange={(e) => e.target.files?.[0] && handleImportFile(e.target.files[0])}
                                 />
