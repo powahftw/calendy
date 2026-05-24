@@ -72,7 +72,7 @@ const SyncActionButton: FC<SyncActionButtonProps> = ({
     <button
         {...buttonProps}
         className={[
-            variant === 'danger' ? 'btn-danger-outline btn-icon-with-text' : 'btn-primary',
+            variant === 'danger' ? 'btn-danger-outline btn-icon-with-text' : 'btn-primary-outline btn-icon-with-text',
             'google-sync-action-btn',
             spaced ? 'google-sync-action-btn-spaced' : '',
             className ?? ''
@@ -81,6 +81,18 @@ const SyncActionButton: FC<SyncActionButtonProps> = ({
         {children}
     </button>
 );
+
+const GoogleSyncStatusDot: FC<{ googleSync: GoogleCalendarSyncControls }> = ({ googleSync }) => {
+    const status = googleSync.authorizationRequired
+        ? 'stale'
+        : googleSync.settings?.enabled
+            ? 'connected'
+            : googleSync.settings?.calendarId
+                ? 'paused'
+                : 'idle';
+
+    return <span className={`google-sync-status-dot google-sync-status-dot-${status}`} aria-hidden="true" />;
+};
 
 const GoogleSyncSection: FC<GoogleSyncSectionProps> = ({ user, isGuest, googleSync, onOpenSetup }) => (
     <div className="settings-section">
@@ -91,13 +103,7 @@ const GoogleSyncSection: FC<GoogleSyncSectionProps> = ({ user, isGuest, googleSy
             disabled={isGoogleSyncButtonDisabled(user, isGuest, googleSync)}
             title={getGoogleSyncButtonTitle(user, isGuest, googleSync)}
         >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 7.5V6a2 2 0 0 0-2-2h-1V2"></path>
-                <path d="M6 2v2H5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h6.5"></path>
-                <path d="M3 10h18"></path>
-                <path d="m16 19 2 2 4-4"></path>
-                <path d="M16 13.5a4.5 4.5 0 1 0 4.5 4.5"></path>
-            </svg>
+            <GoogleSyncStatusDot googleSync={googleSync} />
             {getGoogleSyncButtonLabel(googleSync)}
         </button>
         {(isGuest || !user) && (
@@ -109,15 +115,6 @@ const GoogleSyncSection: FC<GoogleSyncSectionProps> = ({ user, isGuest, googleSy
             <SettingsHelperText>
                 Sync account: <strong>{getSyncAccountEmail(user, googleSync)}</strong>
             </SettingsHelperText>
-        )}
-        {googleSync.settings?.enabled && (
-            <button
-                className="btn-primary-outline btn-icon-with-text google-sync-section-action"
-                onClick={() => void googleSync.syncNow()}
-                disabled={googleSync.syncing}
-            >
-                {googleSync.syncing ? 'Syncing...' : 'Sync Now'}
-            </button>
         )}
         {googleSync.error && (
             <div className="error-msg google-sync-error">

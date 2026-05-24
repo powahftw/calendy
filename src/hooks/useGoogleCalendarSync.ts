@@ -26,7 +26,7 @@ type StampGoogleEventIds = (updates: Array<{ eventId: string; gcalEventId?: stri
 
 const LOCAL_SYNC_DEBOUNCE_MS = 30_000;
 const SYNC_FOCUS_DEBOUNCE_MS = 2000;
-const GOOGLE_CALENDAR_SYNC_CONCURRENCY = 4;
+const GOOGLE_CALENDAR_SYNC_CONCURRENCY = 2;
 
 export interface GoogleCalendarSyncControls {
     settings: GoogleSyncSettings | null;
@@ -54,7 +54,9 @@ const isMissingGoogleEventError = (err: unknown) => (
 );
 
 const isRateLimitError = (err: unknown) => (
-    err instanceof CalendarApiError && err.status === 403 && err.message.includes('rateLimitExceeded')
+    err instanceof CalendarApiError
+    && (err.status === 403 || err.status === 429)
+    && /rateLimitExceeded|userRateLimitExceeded|quotaExceeded/i.test(err.message)
 );
 
 const isAuthorizationError = (err: unknown) => (
@@ -89,6 +91,22 @@ const applyGoogleEventIdUpdates = (
         return nextEvent;
     });
 };
+
+const withoutGoogleEventIds = (events: PlannerEvent[]) => (
+    events.map((event) => {
+        if (!event.gcalEventId) return event;
+
+        const nextEvent = { ...event };
+        delete nextEvent.gcalEventId;
+        return nextEvent;
+    })
+);
+
+const clearGoogleEventIdUpdates = (events: PlannerEvent[]) => (
+    events
+        .filter((event) => event.gcalEventId)
+        .map((event) => ({ eventId: event.id, gcalEventId: undefined }))
+);
 
 const mapWithConcurrency = async <T, R>(
     items: T[],
@@ -132,6 +150,7 @@ export const useGoogleCalendarSync = (
     const syncQueuedRef = useRef(false);
     const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const lastFocusSyncAtRef = useRef(0);
+    const didInitialEnabledSyncRef = useRef(false);
 
     useEffect(() => {
         eventsRef.current = events;
@@ -140,6 +159,12 @@ export const useGoogleCalendarSync = (
     useEffect(() => {
         settingsRef.current = settings;
     }, [settings]);
+
+    useEffect(() => {
+        if (!settings?.enabled) {
+            didInitialEnabledSyncRef.current = false;
+        }
+    }, [settings?.enabled]);
 
     useEffect(() => {
         preloadGoogleIdentityApi();
@@ -283,6 +308,21 @@ export const useGoogleCalendarSync = (
         return existingCalendar ?? await calendarService.createCalendar('Calendy');
     }, [calendarService]);
 
+    const recoverMissingCalendar = useCallback(async (currentSettings: GoogleSyncSettings) => {
+        const calendar = await findOrCreateCalendar(currentSettings.calendarId);
+        if (!calendar.id) throw new Error('Google did not return a calendar id.');
+
+        const nextSettings: GoogleSyncSettings = {
+            ...currentSettings,
+            calendarId: calendar.id,
+            calendarSummary: calendar.summary || currentSettings.calendarSummary || 'Calendy',
+            accountEmail: currentSettings.accountEmail ?? userEmail ?? undefined
+        };
+
+        await saveSettings(nextSettings);
+        return calendar.id;
+    }, [findOrCreateCalendar, saveSettings, userEmail]);
+
     const syncToGoogle = useCallback(async (interactive = false) => {
         const currentSettings = settingsRef.current;
         if (!userUid || !userEmail || !isHydrated || !currentSettings?.enabled) return;
@@ -314,7 +354,24 @@ export const useGoogleCalendarSync = (
         setError(null);
 
         try {
-            const updates = await pushLocalEventsToGoogle(currentSettings.calendarId, eventsRef.current);
+            let calendarId = currentSettings.calendarId;
+            let updates: Array<{ eventId: string; gcalEventId?: string }>;
+
+            try {
+                updates = await pushLocalEventsToGoogle(calendarId, eventsRef.current);
+            } catch (err) {
+                if (!isMissingGoogleEventError(err)) throw err;
+
+                calendarId = await recoverMissingCalendar(currentSettings);
+                const recoveredCalendarEvents = calendarId === currentSettings.calendarId
+                    ? eventsRef.current
+                    : withoutGoogleEventIds(eventsRef.current);
+                const recoveredCalendarUpdates = await pushLocalEventsToGoogle(calendarId, recoveredCalendarEvents);
+                updates = calendarId === currentSettings.calendarId
+                    ? recoveredCalendarUpdates
+                    : [...clearGoogleEventIdUpdates(eventsRef.current), ...recoveredCalendarUpdates];
+            }
+
             // Keep queued syncs from seeing stale missing gcal ids before React commits the metadata update.
             eventsRef.current = applyGoogleEventIdUpdates(eventsRef.current, updates);
             stampGoogleEventIds(updates);
@@ -348,6 +405,7 @@ export const useGoogleCalendarSync = (
         ensureCalendarAccess,
         isHydrated,
         pushLocalEventsToGoogle,
+        recoverMissingCalendar,
         stampGoogleEventIds,
         userEmail,
         userUid
@@ -375,8 +433,9 @@ export const useGoogleCalendarSync = (
     }, [rawSetEvents, scheduleSyncToGoogle]);
 
     useEffect(() => {
-        if (!settings?.enabled || !isHydrated) return;
+        if (!settings?.enabled || !isHydrated || didInitialEnabledSyncRef.current) return;
 
+        didInitialEnabledSyncRef.current = true;
         void syncToGoogle(false);
         // Run once when persisted sync settings become ready; focus changes are handled separately.
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -422,7 +481,15 @@ export const useGoogleCalendarSync = (
                 throw new Error('Google did not return a calendar id.');
             }
 
-            const updates = await pushLocalEventsToGoogle(calendar.id, eventsRef.current);
+            const currentCalendarId = settingsRef.current?.calendarId;
+            const isMovingCalendar = Boolean(currentCalendarId && currentCalendarId !== calendar.id);
+            const eventsForCalendar = isMovingCalendar
+                ? withoutGoogleEventIds(eventsRef.current)
+                : eventsRef.current;
+            const calendarUpdates = await pushLocalEventsToGoogle(calendar.id, eventsForCalendar);
+            const updates = isMovingCalendar
+                ? [...clearGoogleEventIdUpdates(eventsRef.current), ...calendarUpdates]
+                : calendarUpdates;
             // Keep queued syncs from seeing stale missing gcal ids before React commits the metadata update.
             eventsRef.current = applyGoogleEventIdUpdates(eventsRef.current, updates);
             stampGoogleEventIds(updates);
@@ -439,6 +506,7 @@ export const useGoogleCalendarSync = (
                 throw new Error('Google sync settings could not be saved.');
             }
 
+            didInitialEnabledSyncRef.current = true;
             toast.success('Google Calendar sync is connected.');
             return true;
         } catch (err) {
@@ -482,6 +550,7 @@ export const useGoogleCalendarSync = (
 
         const saved = await saveSettings(nextSettings);
         if (saved) {
+            didInitialEnabledSyncRef.current = false;
             setAuthorizationRequired(false);
             setError(null);
             toast.success('Google Calendar sync is disconnected.');
