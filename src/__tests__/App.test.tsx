@@ -13,12 +13,6 @@ vi.mock('../firebase', () => ({
     isFirebaseConfigured: true
 }));
 
-// Mock react-firebase-hooks
-const mockUseAuthState = vi.fn(() => [null, false, null]);
-vi.mock('react-firebase-hooks/auth', () => ({
-    useAuthState: () => mockUseAuthState()
-}));
-
 // Mock AuthContext
 const mockAuthValue = {
     user: null as User | null,
