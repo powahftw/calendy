@@ -8,17 +8,19 @@ import { PlannerInteractionProvider } from './PlannerInteractionContext';
 
 export interface AppProviderProps {
     user: User | null;
+    googleCalendarAccessToken: string | null;
     children: React.ReactNode;
 }
 
-export const AppProvider: React.FC<AppProviderProps> = ({ user, children }) => {
+export const AppProvider: React.FC<AppProviderProps> = ({ user, googleCalendarAccessToken, children }) => {
     const persistence = usePlannerPersistence(user);
     const googleSync = useGoogleCalendarSync(
         user,
         persistence.events,
         persistence.setEvents,
         persistence.stampGoogleEventIds,
-        persistence.isInitialLoadDone
+        persistence.isInitialLoadDone,
+        googleCalendarAccessToken
     );
     const [activeEventId, setActiveEventId] = useState<string | null>(null);
 

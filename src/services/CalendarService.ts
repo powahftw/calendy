@@ -1,4 +1,4 @@
-const CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar';
+export const GOOGLE_CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar';
 const GOOGLE_IDENTITY_SCRIPT_SRC = 'https://accounts.google.com/gsi/client';
 const GOOGLE_CALENDAR_CLIENT_ID = import.meta.env.VITE_GOOGLE_CALENDAR_CLIENT_ID?.trim() || '';
 
@@ -20,6 +20,7 @@ interface GoogleTokenClientConfig {
     scope: string;
     include_granted_scopes?: boolean;
     prompt?: string;
+    login_hint?: string;
     callback: (response: GoogleTokenResponse) => void;
     error_callback?: (error: GoogleTokenError) => void;
 }
@@ -91,6 +92,13 @@ const loadGoogleIdentityApi = async (): Promise<GoogleIdentityApi> => {
     return googleIdentityScriptPromise;
 };
 
+export const preloadGoogleIdentityApi = () => {
+    if (!isGoogleCalendarSyncConfigured) return;
+    void loadGoogleIdentityApi().catch(() => {
+        googleIdentityScriptPromise = null;
+    });
+};
+
 export interface GoogleCalendar {
     id: string;
     summary: string;
@@ -121,28 +129,49 @@ export class CalendarApiError extends Error {
     }
 }
 
+export class CalendarAuthorizationRequiredError extends Error {
+    constructor(message = 'Google Calendar authorization is required.') {
+        super(message);
+        this.name = 'CalendarAuthorizationRequiredError';
+    }
+}
+
 export class CalendarService {
     private token: string | null = null;
     private tokenExpiresAt = 0;
 
-    async authenticate(options: { prompt?: '' | 'select_account' | 'consent' } = {}): Promise<string> {
+    setAccessToken(token: string, expiresInSeconds = 3600) {
+        this.token = token;
+        this.tokenExpiresAt = Date.now() + expiresInSeconds * 1000;
+    }
+
+    hasValidToken() {
+        return Boolean(this.token && Date.now() < this.tokenExpiresAt - 60_000);
+    }
+
+    clearAccessToken() {
+        this.token = null;
+        this.tokenExpiresAt = 0;
+    }
+
+    async requestInteractiveToken(loginHint: string): Promise<string> {
         if (!isGoogleCalendarSyncConfigured) {
             throw new Error('Google Calendar sync is not configured.');
         }
 
-        if (this.token && Date.now() < this.tokenExpiresAt - 60_000 && !options.prompt) {
-            return this.token;
+        if (this.hasValidToken()) {
+            return this.token!;
         }
 
         const google = await loadGoogleIdentityApi();
-        const prompt = options.prompt ?? 'select_account';
 
         return new Promise((resolve, reject) => {
             const tokenClient = google.accounts.oauth2.initTokenClient({
                 client_id: GOOGLE_CALENDAR_CLIENT_ID,
-                scope: CALENDAR_SCOPE,
-                include_granted_scopes: false,
-                prompt,
+                scope: GOOGLE_CALENDAR_SCOPE,
+                include_granted_scopes: true,
+                prompt: '',
+                login_hint: loginHint,
                 callback: (response) => {
                     if (response.error) {
                         reject(new Error(response.error_description || response.error));
@@ -160,25 +189,27 @@ export class CalendarService {
                 },
                 error_callback: (error) => {
                     if (error.type === 'popup_closed') {
-                        reject(new Error('Google account picker was closed.'));
+                        reject(new Error('Google Calendar authorization was closed.'));
                         return;
                     }
 
                     if (error.type === 'popup_failed_to_open') {
-                        reject(new Error('Google account picker could not be opened.'));
+                        reject(new Error('Google Calendar authorization could not be opened.'));
                         return;
                     }
 
-                    reject(new Error('Google account picker failed.'));
+                    reject(new Error('Google Calendar authorization failed.'));
                 }
             });
 
-            tokenClient.requestAccessToken({ prompt });
+            tokenClient.requestAccessToken({ prompt: '' });
         });
     }
 
     private async request<T>(url: string, init: RequestInit = {}): Promise<T> {
-        await this.authenticate({ prompt: '' });
+        if (!this.hasValidToken()) {
+            throw new CalendarAuthorizationRequiredError();
+        }
 
         const response = await fetch(url, {
             ...init,
@@ -208,6 +239,12 @@ export class CalendarService {
             body: JSON.stringify({ summary, timeZone })
         });
         return data;
+    }
+
+    async getCalendar(calendarId: string): Promise<GoogleCalendar> {
+        return this.request<GoogleCalendar>(
+            `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}`
+        );
     }
 
     async listCalendars(): Promise<GoogleCalendar[]> {

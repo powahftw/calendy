@@ -1,7 +1,13 @@
 import { Dispatch, SetStateAction, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { User } from 'firebase/auth';
 import toast from 'react-hot-toast';
-import { CalendarApiError, CalendarService, GoogleEvent } from '../services/CalendarService';
+import {
+    CalendarApiError,
+    CalendarAuthorizationRequiredError,
+    CalendarService,
+    GoogleEvent,
+    preloadGoogleIdentityApi
+} from '../services/CalendarService';
 import {
     saveGoogleSyncSettings,
     subscribeToGoogleSyncSettings
@@ -26,7 +32,10 @@ export interface GoogleCalendarSyncControls {
     loading: boolean;
     syncing: boolean;
     error: string | null;
+    authorizationRequired: boolean;
     setup: () => Promise<boolean>;
+    resume: () => Promise<boolean>;
+    disconnect: () => Promise<boolean>;
     syncNow: () => Promise<void>;
 }
 
@@ -45,6 +54,11 @@ const isMissingGoogleEventError = (err: unknown) => (
 
 const isRateLimitError = (err: unknown) => (
     err instanceof CalendarApiError && err.status === 403 && err.message.includes('rateLimitExceeded')
+);
+
+const isAuthorizationError = (err: unknown) => (
+    err instanceof CalendarAuthorizationRequiredError
+    || (err instanceof CalendarApiError && (err.status === 401 || (err.status === 403 && !isRateLimitError(err))))
 );
 
 const googleEventMatches = (googleEvent: GoogleEvent, event: PlannerEvent) => {
@@ -80,14 +94,17 @@ export const useGoogleCalendarSync = (
     events: PlannerEvent[],
     rawSetEvents: SetEvents,
     stampGoogleEventIds: StampGoogleEventIds,
-    isHydrated: boolean
+    isHydrated: boolean,
+    googleCalendarAccessToken: string | null
 ) => {
     const calendarService = useMemo(() => new CalendarService(), []);
     const userUid = user?.uid ?? null;
+    const userEmail = user?.email ?? null;
     const [settings, setSettings] = useState<GoogleSyncSettings | null>(null);
     const [loading, setLoading] = useState(false);
     const [syncing, setSyncing] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [authorizationRequired, setAuthorizationRequired] = useState(false);
     const eventsRef = useRef(events);
     const settingsRef = useRef(settings);
     const syncInFlightRef = useRef(false);
@@ -104,13 +121,24 @@ export const useGoogleCalendarSync = (
     }, [settings]);
 
     useEffect(() => {
-        if (!userUid || !isHydrated) {
+        preloadGoogleIdentityApi();
+    }, []);
+
+    useEffect(() => {
+        if (!googleCalendarAccessToken) return;
+        calendarService.setAccessToken(googleCalendarAccessToken);
+        setAuthorizationRequired(false);
+    }, [calendarService, googleCalendarAccessToken]);
+
+    useEffect(() => {
+        if (!userUid || !userEmail || !isHydrated) {
             setSettings(null);
+            setAuthorizationRequired(false);
             return;
         }
 
         return subscribeToGoogleSyncSettings(userUid, setSettings);
-    }, [isHydrated, userUid]);
+    }, [isHydrated, userEmail, userUid]);
 
     useEffect(() => () => {
         if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
@@ -201,13 +229,58 @@ export const useGoogleCalendarSync = (
         return updates;
     }, [calendarService, deleteGoogleEventIfPresent, insertLocalEventToGoogle]);
 
+    const ensureCalendarAccess = useCallback(async (interactive: boolean) => {
+        if (calendarService.hasValidToken()) {
+            setAuthorizationRequired(false);
+            return true;
+        }
+
+        if (!interactive || !userEmail) {
+            setAuthorizationRequired(true);
+            return false;
+        }
+
+        await calendarService.requestInteractiveToken(userEmail);
+        setAuthorizationRequired(false);
+        return true;
+    }, [calendarService, userEmail]);
+
+    const findOrCreateCalendar = useCallback(async (preferredCalendarId?: string) => {
+        if (preferredCalendarId) {
+            try {
+                const calendar = await calendarService.getCalendar(preferredCalendarId);
+                if (calendar.id) return calendar;
+            } catch (err) {
+                if (!isMissingGoogleEventError(err) && !(err instanceof CalendarApiError && err.status === 403)) {
+                    throw err;
+                }
+            }
+        }
+
+        const calendars = await calendarService.listCalendars();
+        const existingCalendar = calendars.find((calendar) => calendar.summary === 'Calendy');
+        return existingCalendar ?? await calendarService.createCalendar('Calendy');
+    }, [calendarService]);
+
     const syncToGoogle = useCallback(async (interactive = false) => {
         const currentSettings = settingsRef.current;
-        if (!userUid || !isHydrated || !currentSettings?.enabled) return;
+        if (!userUid || !userEmail || !isHydrated || !currentSettings?.enabled) return;
 
         if (syncTimeoutRef.current) {
             clearTimeout(syncTimeoutRef.current);
             syncTimeoutRef.current = null;
+        }
+
+        const hasAccess = await ensureCalendarAccess(interactive);
+        if (!hasAccess) {
+            if (interactive) {
+                const message = 'Reconnect Google Calendar sync to continue.';
+                setError(message);
+                toast.error(message);
+            } else {
+                setError(null);
+            }
+            return;
         }
 
         if (syncInFlightRef.current) {
@@ -220,17 +293,23 @@ export const useGoogleCalendarSync = (
         setError(null);
 
         try {
-            await calendarService.authenticate({ prompt: '' });
             const updates = await pushLocalEventsToGoogle(currentSettings.calendarId, eventsRef.current);
             // Keep queued syncs from seeing stale missing gcal ids before React commits the metadata update.
             eventsRef.current = applyGoogleEventIdUpdates(eventsRef.current, updates);
             stampGoogleEventIds(updates);
+            setAuthorizationRequired(false);
         } catch (err) {
             logger.error('Google Calendar sync failed', err);
-            const message = isRateLimitError(err)
+            if (isAuthorizationError(err)) {
+                calendarService.clearAccessToken();
+                setAuthorizationRequired(true);
+            }
+            const message = isAuthorizationError(err)
+                ? 'Reconnect Google Calendar sync to continue.'
+                : isRateLimitError(err)
                 ? 'Google Calendar rate limit hit. Calendy saved the change locally and will retry later.'
                 : getUserFacingErrorMessage(err, 'Google Calendar sync failed.');
-            setError(message);
+            setError(interactive ? message : null);
             if (interactive) toast.error(message);
         } finally {
             syncInFlightRef.current = false;
@@ -245,9 +324,11 @@ export const useGoogleCalendarSync = (
         }
     }, [
         calendarService,
+        ensureCalendarAccess,
         isHydrated,
         pushLocalEventsToGoogle,
         stampGoogleEventIds,
+        userEmail,
         userUid
     ]);
 
@@ -303,8 +384,8 @@ export const useGoogleCalendarSync = (
         };
     }, [isHydrated, settings?.enabled, syncToGoogle]);
 
-    const setupGoogleSync = useCallback(async () => {
-        if (!userUid) {
+    const connectGoogleSync = useCallback(async () => {
+        if (!userUid || !userEmail) {
             toast.error('Sign in to sync with Google Calendar.');
             return false;
         }
@@ -313,10 +394,8 @@ export const useGoogleCalendarSync = (
         setError(null);
 
         try {
-            await calendarService.authenticate({ prompt: 'select_account' });
-            const calendars = await calendarService.listCalendars();
-            const existingCalendar = calendars.find((calendar) => calendar.summary === 'Calendy');
-            const calendar = existingCalendar ?? await calendarService.createCalendar('Calendy');
+            await calendarService.requestInteractiveToken(userEmail);
+            const calendar = await findOrCreateCalendar(settingsRef.current?.calendarId);
 
             if (!calendar.id) {
                 throw new Error('Google did not return a calendar id.');
@@ -329,7 +408,9 @@ export const useGoogleCalendarSync = (
 
             const nextSettings: GoogleSyncSettings = {
                 enabled: true,
-                calendarId: calendar.id
+                calendarId: calendar.id,
+                accountEmail: userEmail,
+                calendarSummary: calendar.summary || 'Calendy'
             };
 
             const saved = await saveSettings(nextSettings);
@@ -341,6 +422,10 @@ export const useGoogleCalendarSync = (
             return true;
         } catch (err) {
             logger.error('Google Calendar sync setup failed', err);
+            if (isAuthorizationError(err)) {
+                calendarService.clearAccessToken();
+                setAuthorizationRequired(true);
+            }
             const message = getUserFacingErrorMessage(err, 'Failed to connect Google Calendar sync.');
             setError(message);
             toast.error(message);
@@ -350,20 +435,61 @@ export const useGoogleCalendarSync = (
         }
     }, [
         calendarService,
+        findOrCreateCalendar,
         pushLocalEventsToGoogle,
         saveSettings,
         stampGoogleEventIds,
+        userEmail,
         userUid
     ]);
+
+    const disconnectGoogleSync = useCallback(async () => {
+        const currentSettings = settingsRef.current;
+        if (!userUid || !currentSettings?.calendarId) return false;
+
+        if (syncTimeoutRef.current) {
+            clearTimeout(syncTimeoutRef.current);
+            syncTimeoutRef.current = null;
+        }
+        syncQueuedRef.current = false;
+
+        const nextSettings: GoogleSyncSettings = {
+            ...currentSettings,
+            enabled: false,
+            accountEmail: currentSettings.accountEmail ?? userEmail ?? undefined
+        };
+
+        const saved = await saveSettings(nextSettings);
+        if (saved) {
+            setAuthorizationRequired(false);
+            setError(null);
+            toast.success('Google Calendar sync is disconnected.');
+        } else {
+            toast.error('Failed to disconnect Google Calendar sync.');
+        }
+        return saved;
+    }, [saveSettings, userEmail, userUid]);
 
     const googleSync = useMemo<GoogleCalendarSyncControls>(() => ({
         settings,
         loading,
         syncing,
         error,
-        setup: setupGoogleSync,
+        authorizationRequired,
+        setup: connectGoogleSync,
+        resume: connectGoogleSync,
+        disconnect: disconnectGoogleSync,
         syncNow: () => syncToGoogle(true)
-    }), [error, loading, settings, setupGoogleSync, syncing, syncToGoogle]);
+    }), [
+        authorizationRequired,
+        connectGoogleSync,
+        disconnectGoogleSync,
+        error,
+        loading,
+        settings,
+        syncing,
+        syncToGoogle
+    ]);
 
     return {
         googleSync,

@@ -5,6 +5,8 @@ const EMOJI_PATTERN = /\p{Emoji}/gu;
 export interface GoogleSyncSettings {
     enabled: boolean;
     calendarId: string;
+    accountEmail?: string;
+    calendarSummary?: string;
 }
 
 export const hasRealTitle = (title: string): boolean => (

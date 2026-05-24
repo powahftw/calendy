@@ -47,7 +47,9 @@ const isGoogleSyncSettings = (value: unknown): value is GoogleSyncSettings => {
 
     const settings = value as Record<string, unknown>;
     return typeof settings.enabled === 'boolean'
-        && typeof settings.calendarId === 'string';
+        && typeof settings.calendarId === 'string'
+        && (!('accountEmail' in settings) || typeof settings.accountEmail === 'string')
+        && (!('calendarSummary' in settings) || typeof settings.calendarSummary === 'string');
 };
 
 /**

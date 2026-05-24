@@ -662,6 +662,58 @@ describe('Firebase Sync Logic', () => {
         }
     });
 
+    it('should keep Google Calendar sync unavailable for guest users', async () => {
+        render(<App />);
+        fireEvent.click(await screen.findByText(/Continue as Guest/i));
+        await waitForPlanner();
+
+        fireEvent.click(screen.getByTitle('Settings'));
+
+        const syncButton = await screen.findByRole('button', { name: /Sync with Google Calendar/i });
+        expect(syncButton).toBeDisabled();
+        expect(screen.getByText(/Sign in with Google to enable Calendar sync/i)).toBeInTheDocument();
+    });
+
+    it('should show reconnect state without background auth and disconnect without deleting calendar events', async () => {
+        const user = { uid: 'test-user', email: 'user@example.com' } as User;
+        let googleSyncSettingsCallback: any = null;
+
+        mockSubscribeToGoogleSyncSettings.mockImplementation((uid: string, callback: any) => {
+            googleSyncSettingsCallback = callback;
+            return () => { };
+        });
+
+        mockAuthValue.user = user;
+        render(<App />);
+        await waitForPlanner();
+
+        await act(async () => {
+            googleSyncSettingsCallback?.({
+                enabled: true,
+                calendarId: 'saved-calendar-id',
+                accountEmail: 'user@example.com',
+                calendarSummary: 'Calendy'
+            });
+        });
+
+        fireEvent.click(screen.getByTitle('Settings'));
+
+        expect(await screen.findByRole('button', { name: /Reconnect Google Calendar/i })).toBeInTheDocument();
+        expect(screen.getByText(/Sync account:/i)).toBeInTheDocument();
+        expect(screen.getAllByText('user@example.com').length).toBeGreaterThan(0);
+
+        fireEvent.click(screen.getByRole('button', { name: /Reconnect Google Calendar/i }));
+        fireEvent.click(await screen.findByRole('button', { name: /Disconnect/i }));
+
+        await waitFor(() => {
+            expect(mockSaveGoogleSyncSettings).toHaveBeenCalledWith('test-user', expect.objectContaining({
+                enabled: false,
+                calendarId: 'saved-calendar-id',
+                accountEmail: 'user@example.com'
+            }));
+        });
+    });
+
     it('should keep newer event changes dirty while an older sync is still in flight', async () => {
         const user = { uid: 'test-user' } as User;
         let resolveFirstSync: ((value: boolean) => void) | null = null;
