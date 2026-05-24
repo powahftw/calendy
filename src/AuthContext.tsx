@@ -3,11 +3,13 @@ import toast from 'react-hot-toast';
 import { auth, isFirebaseConfigured } from './firebase';
 import { GoogleAuthProvider, getRedirectResult, onAuthStateChanged, signInWithPopup, signInWithRedirect, signOut as fbSignOut, User } from 'firebase/auth';
 import { getUserFacingErrorMessage } from './utils/userFacingErrors';
+import { GOOGLE_CALENDAR_SCOPE, isGoogleCalendarSyncConfigured } from './services/CalendarService';
 
 interface AuthContextType {
     user: User | null;
     loading: boolean;
     isFirebaseAvailable: boolean;
+    googleCalendarAccessToken: string | null;
     signInWithGoogle: () => Promise<void>;
     signOut: () => Promise<void>;
 }
@@ -34,6 +36,7 @@ const shouldUseRedirectSignIn = (authDomain: string | undefined) => {
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(isFirebaseConfigured);
+    const [googleCalendarAccessToken, setGoogleCalendarAccessToken] = useState<string | null>(null);
 
     useEffect(() => {
         if (!auth) {
@@ -51,6 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const unsubscribe = onAuthStateChanged(auth, (user) => {
             if (!isMounted) return;
             setUser(user);
+            if (!user) setGoogleCalendarAccessToken(null);
             stopLoading();
         });
 
@@ -58,6 +62,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             .then((result) => {
                 if (!isMounted || !result?.user) return;
                 setUser(result.user);
+                const credential = GoogleAuthProvider.credentialFromResult(result);
+                setGoogleCalendarAccessToken(credential?.accessToken ?? null);
             })
             .catch((error) => {
                 console.error("Error completing Google redirect sign-in", error);
@@ -78,13 +84,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
             const provider = new GoogleAuthProvider();
             provider.setCustomParameters({ prompt: 'select_account' });
+            if (isGoogleCalendarSyncConfigured) {
+                provider.addScope(GOOGLE_CALENDAR_SCOPE);
+            }
 
             if (shouldUseRedirectSignIn(auth.config.authDomain)) {
                 await signInWithRedirect(auth, provider);
                 return;
             }
 
-            await signInWithPopup(auth, provider);
+            const result = await signInWithPopup(auth, provider);
+            const credential = GoogleAuthProvider.credentialFromResult(result);
+            setGoogleCalendarAccessToken(credential?.accessToken ?? null);
         } catch (error) {
             console.error("Error signing in with Google", error);
             toast.error(getUserFacingErrorMessage(error, 'Failed to sign in with Google. Please try again.'));
@@ -96,6 +107,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         try {
             await fbSignOut(auth);
+            setGoogleCalendarAccessToken(null);
         } catch (error) {
             console.error("Error signing out", error);
             toast.error(getUserFacingErrorMessage(error, 'Failed to sign out. Please try again.'));
@@ -103,7 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     return (
-        <AuthContext.Provider value={{ user, loading, isFirebaseAvailable: isFirebaseConfigured, signInWithGoogle, signOut }}>
+        <AuthContext.Provider value={{ user, loading, isFirebaseAvailable: isFirebaseConfigured, googleCalendarAccessToken, signInWithGoogle, signOut }}>
             {children}
         </AuthContext.Provider>
     );

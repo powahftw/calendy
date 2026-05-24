@@ -13,12 +13,6 @@ vi.mock('../firebase', () => ({
     isFirebaseConfigured: true
 }));
 
-// Mock react-firebase-hooks
-const mockUseAuthState = vi.fn(() => [null, false, null]);
-vi.mock('react-firebase-hooks/auth', () => ({
-    useAuthState: () => mockUseAuthState()
-}));
-
 // Mock AuthContext
 const mockAuthValue = {
     user: null as User | null,
@@ -40,7 +34,6 @@ const mockSubscribeToEvents = vi.fn().mockReturnValue(() => { });
 const mockSyncSettings = vi.fn();
 const mockLoadSettings = vi.fn().mockResolvedValue(null);
 const mockSubscribeToSettings = vi.fn().mockReturnValue(() => { });
-const mockLoadGoogleSyncSettings = vi.fn().mockResolvedValue(null);
 const mockSubscribeToGoogleSyncSettings = vi.fn().mockReturnValue(() => { });
 const mockSaveGoogleSyncSettings = vi.fn().mockResolvedValue(true);
 
@@ -51,7 +44,6 @@ vi.mock('../firestoreSync', () => ({
     syncSettings: (...args: any[]) => mockSyncSettings(...args),
     subscribeToSettings: (...args: any[]) => mockSubscribeToSettings(...args),
     loadSettings: (...args: any[]) => mockLoadSettings(...args),
-    loadGoogleSyncSettings: (...args: any[]) => mockLoadGoogleSyncSettings(...args),
     subscribeToGoogleSyncSettings: (...args: any[]) => mockSubscribeToGoogleSyncSettings(...args),
     saveGoogleSyncSettings: (...args: any[]) => mockSaveGoogleSyncSettings(...args),
 }));
@@ -322,7 +314,6 @@ describe('Storage Persistence', () => {
                 events: 1000,
                 settings: 1000
             },
-            pendingSync: false,
             pendingSyncSlices: {
                 events: false,
                 settings: false
@@ -378,7 +369,6 @@ describe('Storage Persistence', () => {
                 events: 1000,
                 settings: 1500
             },
-            pendingSync: false,
             pendingSyncSlices: {
                 events: false,
                 settings: false
@@ -549,7 +539,10 @@ describe('Firebase Sync Logic', () => {
                 }
             },
             updatedAt: baseTime,
-            pendingSync: false
+            pendingSyncSlices: {
+                events: false,
+                settings: false
+            }
         }));
 
         mockAuthValue.user = user;
@@ -603,7 +596,10 @@ describe('Firebase Sync Logic', () => {
                 }
             },
             updatedAt: now,
-            pendingSync: true
+            pendingSyncSlices: {
+                events: true,
+                settings: true
+            }
         }));
 
         mockAuthValue.user = user;
@@ -658,6 +654,58 @@ describe('Firebase Sync Logic', () => {
         } finally {
             vi.useRealTimers();
         }
+    });
+
+    it('should keep Google Calendar sync unavailable for guest users', async () => {
+        render(<App />);
+        fireEvent.click(await screen.findByText(/Continue as Guest/i));
+        await waitForPlanner();
+
+        fireEvent.click(screen.getByTitle('Settings'));
+
+        const syncButton = await screen.findByRole('button', { name: /Sync with Google Calendar/i });
+        expect(syncButton).toBeDisabled();
+        expect(screen.getByText(/Sign in with Google to enable Calendar sync/i)).toBeInTheDocument();
+    });
+
+    it('should show reconnect state without background auth and disconnect without deleting calendar events', async () => {
+        const user = { uid: 'test-user', email: 'user@example.com' } as User;
+        let googleSyncSettingsCallback: any = null;
+
+        mockSubscribeToGoogleSyncSettings.mockImplementation((uid: string, callback: any) => {
+            googleSyncSettingsCallback = callback;
+            return () => { };
+        });
+
+        mockAuthValue.user = user;
+        render(<App />);
+        await waitForPlanner();
+
+        await act(async () => {
+            googleSyncSettingsCallback?.({
+                enabled: true,
+                calendarId: 'saved-calendar-id',
+                accountEmail: 'user@example.com',
+                calendarSummary: 'Calendy'
+            });
+        });
+
+        fireEvent.click(screen.getByTitle('Settings'));
+
+        expect(await screen.findByRole('button', { name: /Reconnect Google Calendar/i })).toBeInTheDocument();
+        expect(screen.getByText(/Sync account:/i)).toBeInTheDocument();
+        expect(screen.getAllByText('user@example.com').length).toBeGreaterThan(0);
+
+        fireEvent.click(screen.getByRole('button', { name: /Reconnect Google Calendar/i }));
+        fireEvent.click(await screen.findByRole('button', { name: /Disconnect/i }));
+
+        await waitFor(() => {
+            expect(mockSaveGoogleSyncSettings).toHaveBeenCalledWith('test-user', expect.objectContaining({
+                enabled: false,
+                calendarId: 'saved-calendar-id',
+                accountEmail: 'user@example.com'
+            }));
+        });
     });
 
     it('should keep newer event changes dirty while an older sync is still in flight', async () => {

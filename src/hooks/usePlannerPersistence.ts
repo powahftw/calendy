@@ -306,7 +306,6 @@ const usePlannerPersistence = (user: User | null) => {
         });
     }, []);
 
-    // Individual setters for backward compatibility with existing Context/Components
     const setEvents = useCallback((eventsOrUpdater: PlannerEvent[] | ((prev: PlannerEvent[]) => PlannerEvent[])) => {
         const newEvents = typeof eventsOrUpdater === 'function'
             ? eventsOrUpdater(state.data.events)

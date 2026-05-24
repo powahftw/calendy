@@ -47,7 +47,9 @@ const isGoogleSyncSettings = (value: unknown): value is GoogleSyncSettings => {
 
     const settings = value as Record<string, unknown>;
     return typeof settings.enabled === 'boolean'
-        && typeof settings.calendarId === 'string';
+        && typeof settings.calendarId === 'string'
+        && (!('accountEmail' in settings) || typeof settings.accountEmail === 'string')
+        && (!('calendarSummary' in settings) || typeof settings.calendarSummary === 'string');
 };
 
 /**
@@ -175,23 +177,6 @@ export const loadSettings = async (uid: string): Promise<(Partial<PlannerSetting
         return null;
     } catch (error) {
         logger.error('Error loading settings:', error);
-        return null;
-    }
-};
-
-export const loadGoogleSyncSettings = async (uid: string): Promise<GoogleSyncSettings | null> => {
-    const firestore = db;
-    if (!uid || !firestore) return null;
-
-    try {
-        const ref = doc(firestore, 'users', uid, 'data', 'settings');
-        const snapshot = await getDoc(ref);
-        if (!snapshot.exists()) return null;
-
-        const data = snapshot.data();
-        return isGoogleSyncSettings(data.googleSyncSettings) ? data.googleSyncSettings : null;
-    } catch (error) {
-        logger.error('Error loading Google sync settings:', error);
         return null;
     }
 };

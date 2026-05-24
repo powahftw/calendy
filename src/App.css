@@ -136,6 +136,21 @@ body {
   flex-shrink: 0;
 }
 
+.header-settings-btn-with-status {
+  position: relative;
+}
+
+.header-alert-dot {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ef4444;
+  box-shadow: 0 0 0 2px var(--bg-color);
+}
+
 @keyframes sync-status-pulse {
   0% {
     transform: scale(1);
@@ -836,6 +851,89 @@ body[data-theme='dark'] .day-cell.highlighted {
   color: var(--text-secondary);
   border-bottom: 1px solid var(--line-color);
   padding-bottom: 5px;
+}
+
+.settings-helper-text {
+  margin: 0.75rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.settings-helper-text-danger {
+  color: #ef4444;
+}
+
+.google-sync-error {
+  color: #ef4444;
+  margin-top: 0.75rem;
+  font-size: 0.85rem;
+}
+
+.google-sync-modal {
+  width: 420px;
+  max-width: 95vw;
+}
+
+.google-sync-modal-title {
+  font-size: 1.25rem;
+}
+
+.google-sync-modal-content {
+  padding: 24px;
+}
+
+.google-sync-modal-copy {
+  margin: 0 0 1.5rem;
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.google-sync-modal-copy-danger {
+  margin-bottom: 1rem;
+  color: #ef4444;
+  font-size: 0.9rem;
+}
+
+.google-sync-action-btn {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  justify-content: center;
+  padding: 10px 16px;
+}
+
+.google-sync-action-btn-spaced {
+  margin-top: 0.75rem;
+}
+
+.google-sync-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 2px var(--bg-color);
+}
+
+.google-sync-status-dot-idle {
+  background: var(--text-secondary);
+  opacity: 0.5;
+}
+
+.google-sync-status-dot-connected {
+  background: #22c55e;
+}
+
+.google-sync-status-dot-paused {
+  background: #f59e0b;
+}
+
+.google-sync-status-dot-stale {
+  background: #ef4444;
+}
+
+.visually-hidden-file-input {
+  display: none;
 }
 
 .theme-grid {
