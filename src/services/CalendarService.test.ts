@@ -6,6 +6,22 @@ const importCalendarService = async () => {
     return import('./CalendarService');
 };
 
+const seedToken = async (service: { requestInteractiveToken: (hint: string) => Promise<string> }, token: string) => {
+    window.google = {
+        accounts: {
+            oauth2: {
+                initTokenClient: (config) => ({
+                    requestAccessToken: () => {
+                        config.callback({ access_token: token, expires_in: 3600 });
+                    }
+                })
+            }
+        }
+    };
+    await service.requestInteractiveToken('user@example.com');
+    delete window.google;
+};
+
 describe('CalendarService authorization', () => {
     beforeEach(() => {
         vi.unstubAllEnvs();
@@ -22,7 +38,7 @@ describe('CalendarService authorization', () => {
     it('uses a seeded token for API calls without opening Google Identity Services', async () => {
         const { CalendarService } = await importCalendarService();
         const service = new CalendarService();
-        service.setAccessToken('seeded-token');
+        await seedToken(service, 'seeded-token');
         const fetchMock = vi.fn().mockResolvedValue({
             ok: true,
             status: 200,
@@ -92,7 +108,7 @@ describe('CalendarService authorization', () => {
     it('classifies Google Calendar rate-limit errors from API JSON', async () => {
         const { CalendarApiError, CalendarService, isCalendarRateLimitError } = await importCalendarService();
         const service = new CalendarService();
-        service.setAccessToken('seeded-token');
+        await seedToken(service, 'seeded-token');
         vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
             ok: false,
             status: 403,

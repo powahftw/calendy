@@ -140,8 +140,7 @@ export const useGoogleCalendarSync = (
     events: PlannerEvent[],
     rawSetEvents: SetEvents,
     stampGoogleEventIds: StampGoogleEventIds,
-    isHydrated: boolean,
-    googleCalendarAccessToken: string | null
+    isHydrated: boolean
 ) => {
     const calendarService = useMemo(() => new CalendarService(), []);
     const userUid = user?.uid ?? null;
@@ -181,12 +180,6 @@ export const useGoogleCalendarSync = (
     useEffect(() => {
         preloadGoogleIdentityApi();
     }, []);
-
-    useEffect(() => {
-        if (!googleCalendarAccessToken) return;
-        calendarService.setAccessToken(googleCalendarAccessToken);
-        setAuthorizationRequired(false);
-    }, [calendarService, googleCalendarAccessToken]);
 
     useEffect(() => {
         if (!userUid || !userEmail || !isHydrated) {
@@ -343,9 +336,9 @@ export const useGoogleCalendarSync = (
             }
         }
 
-        const calendars = await calendarService.listCalendars();
-        const existingCalendar = calendars.find((calendar) => calendar.summary === 'Calendy');
-        return existingCalendar ?? await calendarService.createCalendar('Calendy');
+        // The app-created scope cannot list the user's calendars, so when the
+        // stored id is unusable we start a fresh app-owned calendar.
+        return calendarService.createCalendar('Calendy');
     }, [calendarService]);
 
     const recoverMissingCalendar = useCallback(async (currentSettings: GoogleSyncSettings) => {

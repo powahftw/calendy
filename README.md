@@ -37,6 +37,7 @@ A publicly hosted version is available at [calendy-79636.web.app](https://calend
    - Deploy the bundled `firestore.rules` before exposing the app publicly.
 3. **Optional Google Calendar sync**
    - Set `VITE_GOOGLE_CALENDAR_CLIENT_ID` if you want Calendy to mirror events to Google Calendar.
+   - Calendy only requests the `calendar.app.created` scope, so it can manage the calendar it creates without access to your other calendars. The scope is requested when sync is enabled, not at sign-in.
    - Enable the **Google Calendar API** in Google Cloud, create a Web OAuth client, and add your authorized origins/domains.
 4. **Quality checks**
    ```bash
