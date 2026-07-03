@@ -1,4 +1,6 @@
-export const GOOGLE_CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar';
+// App-created calendars only: Calendy can manage its own calendar but cannot
+// see or touch the rest of the user's calendars.
+export const GOOGLE_CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar.app.created';
 const GOOGLE_IDENTITY_SCRIPT_SRC = 'https://accounts.google.com/gsi/client';
 const GOOGLE_CALENDAR_CLIENT_ID = import.meta.env.VITE_GOOGLE_CALENDAR_CLIENT_ID?.trim() || '';
 
@@ -170,11 +172,6 @@ export class CalendarService {
     private token: string | null = null;
     private tokenExpiresAt = 0;
 
-    setAccessToken(token: string, expiresInSeconds = 3600) {
-        this.token = token;
-        this.tokenExpiresAt = Date.now() + expiresInSeconds * 1000;
-    }
-
     hasValidToken() {
         return Boolean(this.token && Date.now() < this.tokenExpiresAt - 60_000);
     }
@@ -276,25 +273,6 @@ export class CalendarService {
         return this.request<GoogleCalendar>(
             `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}`
         );
-    }
-
-    async listCalendars(): Promise<GoogleCalendar[]> {
-        let pageToken: string | undefined;
-        const calendars: GoogleCalendar[] = [];
-
-        do {
-            const params = new URLSearchParams({ maxResults: '250' });
-            if (pageToken) params.set('pageToken', pageToken);
-
-            const data = await this.request<{ items?: GoogleCalendar[]; nextPageToken?: string }>(
-                `https://www.googleapis.com/calendar/v3/users/me/calendarList?${params}`
-            );
-
-            calendars.push(...(data.items || []));
-            pageToken = data.nextPageToken;
-        } while (pageToken);
-
-        return calendars;
     }
 
     async listEvents(calendarId: string): Promise<GoogleEvent[]> {

@@ -26,12 +26,10 @@ const mocks = vi.hoisted(() => {
         return () => { };
     });
     const service = {
-        setAccessToken: vi.fn(),
         hasValidToken: vi.fn(),
         clearAccessToken: vi.fn(),
         requestInteractiveToken: vi.fn(),
         getCalendar: vi.fn(),
-        listCalendars: vi.fn(),
         createCalendar: vi.fn(),
         listEvents: vi.fn(),
         insertEvent: vi.fn(),
@@ -80,8 +78,7 @@ const renderGoogleSyncHook = (events: PlannerEvent[] = [event]) => renderHook(()
     events,
     vi.fn(),
     vi.fn(),
-    true,
-    'token'
+    true
 ));
 
 describe('useGoogleCalendarSync', () => {
@@ -95,7 +92,6 @@ describe('useGoogleCalendarSync', () => {
         mocks.service.hasValidToken.mockReturnValue(true);
         mocks.service.requestInteractiveToken.mockResolvedValue('token');
         mocks.service.getCalendar.mockResolvedValue({ id: 'calendar-id', summary: 'Calendy' });
-        mocks.service.listCalendars.mockResolvedValue([{ id: 'calendar-id', summary: 'Calendy' }]);
         mocks.service.createCalendar.mockResolvedValue({ id: 'calendar-id', summary: 'Calendy' });
         mocks.service.listEvents.mockResolvedValue([]);
         mocks.service.insertEvent.mockResolvedValue({ id: 'gcal-event-1' });
@@ -138,7 +134,6 @@ describe('useGoogleCalendarSync', () => {
         });
 
         expect(mocks.service.getCalendar).toHaveBeenCalledWith('saved-calendar-id');
-        expect(mocks.service.listCalendars).not.toHaveBeenCalled();
         expect(mocks.service.createCalendar).not.toHaveBeenCalled();
     });
 

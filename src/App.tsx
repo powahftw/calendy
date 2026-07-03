@@ -19,7 +19,7 @@ const AppToaster = () => (
 );
 
 function App() {
-  const { user, loading: authLoading, signOut, googleCalendarAccessToken } = useAuth();
+  const { user, loading: authLoading, signOut } = useAuth();
   const { isGuest, setIsGuest, enableGuest } = useGuestMode(user, authLoading);
 
   if (authLoading) {
@@ -43,7 +43,7 @@ function App() {
   }
 
   return (
-    <AppProvider user={user} googleCalendarAccessToken={googleCalendarAccessToken}>
+    <AppProvider user={user}>
       <AppToaster />
       <PlannerView
         user={user}
