@@ -25,16 +25,35 @@ calendar but can never create, change or delete anything in it.
 
 ## How events are displayed
 
-| Event | Shown as |
-| --- | --- |
-| All-day event | A full-width chip on every day it covers, exactly as before |
-| All-day event whose title has an emoji | Still a full-width chip - full-day always wins |
-| Timed event whose title has an emoji | Folded into that day's pill |
-| Timed event with no emoji | Not on the grid, but still in the export. Turn on **Pill every timed event** in settings to show it |
+A **leading emoji** is the only signal that matters. Duration decides nothing:
+it marks an event as logistics rather than the headline for its days.
 
-A day gets **one** pill no matter how many events fold into it. The pill shows the first
-emoji of the day and a count when there is more than one; hovering (or tapping, on touch
-devices) lists every event with its time.
+| Title | Renders as |
+| --- | --- |
+| `Brazil` (all-day) | The full-width day chip |
+| `Brazil 🇧🇷` (emoji not leading) | Still the chip |
+| `🏨 Hotel do Mar` (all-day) | Folded into the day's pill |
+| `✈︎ FCO → LIS` (timed) | Folded into the day's pill |
+| `Dentist` (timed, no emoji) | Popover content only — too small to own a day |
+
+So a hotel stay booked across the same week as the trip it belongs to steps
+aside and lets the trip keep the chip.
+
+A day gets **one** pill no matter how many events fold into it, and it repeats
+across every day of a multi-day stay. The pill shows the first marked event's
+emoji plus a count when there is more than one; a pill built only from unmarked
+events shows the count alone. Hovering, or tapping on touch devices, lists
+everything with its time.
+
+Both emoji presentations work and are preserved exactly as typed: `✈︎`
+(the monochrome text form, U+FE0E) stays monochrome and `✈️` (U+FE0F)
+stays in colour. Flags, skin tones and ZWJ sequences all count as a leading
+emoji.
+
+Days holding nothing but unmarked events show nothing by default, which keeps a
+year of routine meetings from burying the things worth seeing. **Show a pill on
+days with only unmarked events** in settings opts into showing them; either way
+they are always in the export.
 
 ## Data
 

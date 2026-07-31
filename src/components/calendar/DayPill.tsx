@@ -46,7 +46,9 @@ const DayPill: FC<DayPillProps> = ({ dayKey, date, events, isOpen, onOpenChange,
 
     const emoji = getPillEmoji(events);
     const count = events.length;
-    const label = `${count} timed event${count === 1 ? '' : 's'} on ${date.day} ${monthNames[date.month]}`;
+    // With no emoji to show, the count carries the pill on its own.
+    const showCount = count > 1 || !emoji;
+    const label = `${count} event${count === 1 ? '' : 's'} on ${date.day} ${monthNames[date.month]}`;
 
     return (
         <div
@@ -72,9 +74,9 @@ const DayPill: FC<DayPillProps> = ({ dayKey, date, events, isOpen, onOpenChange,
                 }}
                 onClick={() => onOpenChange(!isOpen)}
             >
-                <span className="day-pill-emoji" aria-hidden="true">{emoji}</span>
+                {emoji && <span className="day-pill-emoji" aria-hidden="true">{emoji}</span>}
                 {/* Clamped to two characters so the pill's width stays fixed. */}
-                {count > 1 && <span className="day-pill-count">{count > 9 ? '9+' : count}</span>}
+                {showCount && <span className="day-pill-count">{count > 9 ? '9+' : count}</span>}
             </button>
 
             {isOpen && (

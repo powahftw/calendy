@@ -58,6 +58,13 @@ const GOOGLE_EVENTS: GoogleEvent[] = [
         end: { date: july(17) }
     },
     {
+        // All-day, but leading emoji, so it belongs in the pill not the chip.
+        id: 'hotel',
+        summary: '🏨 Hotel do Mar',
+        start: { date: july(14) },
+        end: { date: july(17) }
+    },
+    {
         id: 'flight',
         summary: '✈️ FCO to LIS',
         start: { dateTime: `${july(14)}T06:40:00` },
@@ -175,19 +182,32 @@ describe('Calendy read-only planner', () => {
             expect(await screen.findAllByText('Lisbon')).toHaveLength(3);
         });
 
+        it('downgrades an all-day event with a leading emoji to the pill', async () => {
+            render(<App />);
+            await screen.findAllByText('Lisbon');
+
+            // The hotel covers the same days as the trip but must not take a chip.
+            expect(screen.queryByText('🏨 Hotel do Mar')).not.toBeInTheDocument();
+
+            fireEvent.click(screen.getAllByRole('button', { name: /events on 1[456] Jul/i })[0]);
+
+            expect(await screen.findByText('🏨 Hotel do Mar')).toBeInTheDocument();
+            expect(screen.getByText('All day')).toBeInTheDocument();
+        });
+
         it('collapses the day\'s timed emoji events into one pill', async () => {
             render(<App />);
 
-            const pill = await screen.findByRole('button', { name: /2 timed events on 14 Jul/i });
+            const pill = await screen.findByRole('button', { name: /3 events on 14 Jul/i });
             expect(pill).toBeInTheDocument();
             // One pill for the day, not one per event.
-            expect(screen.queryByRole('button', { name: /1 timed event on 14 Jul/i })).not.toBeInTheDocument();
+            expect(screen.queryByRole('button', { name: /1 event on 14 Jul/i })).not.toBeInTheDocument();
         });
 
         it('reveals the grouped events when the pill is tapped, and hides them again', async () => {
             render(<App />);
 
-            const pill = await screen.findByRole('button', { name: /2 timed events on 14 Jul/i });
+            const pill = await screen.findByRole('button', { name: /3 events on 14 Jul/i });
             expect(screen.queryByText('✈️ FCO to LIS')).not.toBeInTheDocument();
 
             fireEvent.click(pill);
@@ -206,7 +226,7 @@ describe('Calendy read-only planner', () => {
             render(<App />);
             await screen.findAllByText('Lisbon');
 
-            expect(screen.queryByRole('button', { name: /timed event.* on 20 Jul/i })).not.toBeInTheDocument();
+            expect(screen.queryByRole('button', { name: /event.* on 20 Jul/i })).not.toBeInTheDocument();
         });
 
         it('exposes no way to create, edit or delete an event', async () => {

@@ -3,10 +3,10 @@ import {
     buildDayEventMap,
     CalendarEvent,
     formatEventTimeRange,
+    getEventRole,
     getLeadingEmoji,
     getPillEmoji,
-    hasEmoji,
-    isPillEvent,
+    startsWithEmoji,
     toCalendarEvent,
     toCalendarEvents
 } from './calendarEvents';
@@ -14,9 +14,9 @@ import { getDateKey } from './calendarUtils';
 
 const allDay = (overrides: Partial<CalendarEvent> = {}): CalendarEvent => ({
     id: 'all-day',
-    title: 'Lisbon',
+    title: 'Brazil',
     start: '2026-07-14',
-    end: '2026-07-16',
+    end: '2026-07-20',
     allDay: true,
     color: 0,
     ...overrides
@@ -36,35 +36,71 @@ const timed = (overrides: Partial<CalendarEvent> = {}): CalendarEvent => ({
 
 const VIEW = { year: 2026, startMonth: 0, monthsToShow: 12 };
 
-describe('hasEmoji', () => {
-    it('detects pictographs', () => {
-        expect(hasEmoji('✈️ FCO → LIS')).toBe(true);
-        expect(hasEmoji('Standup 🚩')).toBe(true);
-    });
-
-    it('does not treat digits, # or * as emoji', () => {
-        // \p{Emoji} matches these; Extended_Pictographic is the correct test.
-        expect(hasEmoji('Flight 447')).toBe(false);
-        expect(hasEmoji('#standup')).toBe(false);
-        expect(hasEmoji('2 * 3 review')).toBe(false);
-    });
-
-    it('is false for plain titles', () => {
-        expect(hasEmoji('Dentist')).toBe(false);
-    });
-});
-
 describe('getLeadingEmoji', () => {
-    it('keeps a variation selector with its base character', () => {
+    it('finds an emoji at the start of the title', () => {
+        expect(getLeadingEmoji('🏨 Hotel do Mar')).toBe('🏨');
+    });
+
+    it('keeps the colour variation selector (U+FE0F)', () => {
         expect(getLeadingEmoji('✈️ FCO → LIS')).toBe('✈️');
     });
 
-    it('finds an emoji that is not at the start', () => {
-        expect(getLeadingEmoji('Trip to Porto 🚆')).toBe('🚆');
+    it('keeps the text variation selector (U+FE0E) so the glyph stays monochrome', () => {
+        // '✈︎' and '🏠︎' ask for the text presentation; dropping U+FE0E would
+        // flip them to the colour emoji the user deliberately avoided.
+        expect(getLeadingEmoji('✈︎ FCO → LIS')).toBe('✈︎');
+        expect(getLeadingEmoji('🏠︎ Home office')).toBe('🏠︎');
     });
 
-    it('returns undefined when there is none', () => {
+    it('handles flags, which are Regional Indicator pairs rather than pictographs', () => {
+        expect(getLeadingEmoji('🇧🇷 Brazil')).toBe('🇧🇷');
+    });
+
+    it('keeps a skin-tone modifier and a ZWJ sequence together', () => {
+        expect(getLeadingEmoji('👍🏽 Approved')).toBe('👍🏽');
+        expect(getLeadingEmoji('👨‍👩‍👧 Family day')).toBe('👨‍👩‍👧');
+    });
+
+    it('tolerates leading whitespace', () => {
+        expect(getLeadingEmoji('  🚆 Train')).toBe('🚆');
+    });
+
+    it('is undefined when the emoji is not leading', () => {
+        expect(getLeadingEmoji('Dinner 🚩')).toBeUndefined();
+        expect(getLeadingEmoji('Brazil 🇧🇷')).toBeUndefined();
+    });
+
+    it('is undefined for plain titles', () => {
         expect(getLeadingEmoji('Dentist')).toBeUndefined();
+        expect(getLeadingEmoji('')).toBeUndefined();
+    });
+
+    it('does not treat digits, # or * as emoji', () => {
+        expect(startsWithEmoji('447 Flight')).toBe(false);
+        expect(startsWithEmoji('#standup')).toBe(false);
+        expect(startsWithEmoji('*urgent*')).toBe(false);
+    });
+});
+
+describe('getEventRole', () => {
+    it('makes a plain all-day event the day chip', () => {
+        expect(getEventRole(allDay())).toBe('chip');
+    });
+
+    it('downgrades an all-day event that opens with an emoji', () => {
+        expect(getEventRole(allDay({ title: '🏨 Hotel do Mar' }))).toBe('marked');
+    });
+
+    it('leaves an all-day event with a trailing emoji as the chip', () => {
+        expect(getEventRole(allDay({ title: 'Brazil 🇧🇷' }))).toBe('chip');
+    });
+
+    it('marks a timed event that opens with an emoji', () => {
+        expect(getEventRole(timed())).toBe('marked');
+    });
+
+    it('treats a plain timed event as popover-only', () => {
+        expect(getEventRole(timed({ title: 'Dentist' }))).toBe('unmarked');
     });
 });
 
@@ -72,15 +108,15 @@ describe('toCalendarEvent', () => {
     it('converts an all-day event and makes its end inclusive', () => {
         const event = toCalendarEvent({
             id: 'a',
-            summary: 'Lisbon',
+            summary: 'Brazil',
             start: { date: '2026-07-14' },
-            end: { date: '2026-07-17' }
+            end: { date: '2026-07-21' }
         });
 
         expect(event).toMatchObject({
-            title: 'Lisbon',
+            title: 'Brazil',
             start: '2026-07-14',
-            end: '2026-07-16',
+            end: '2026-07-20',
             allDay: true
         });
     });
@@ -106,12 +142,10 @@ describe('toCalendarEvent', () => {
 
         expect(event?.allDay).toBe(false);
         expect(event?.startTime).toMatch(/^\d{2}:\d{2}$/);
-        expect(event?.title).toBe('✈️ FCO → LIS');
     });
 
     it('falls back to a placeholder title', () => {
-        const event = toCalendarEvent({ id: 'c', start: { date: '2026-07-14' } });
-        expect(event?.title).toBe('(no title)');
+        expect(toCalendarEvent({ id: 'c', start: { date: '2026-07-14' } })?.title).toBe('(no title)');
     });
 
     it('drops events with no usable start', () => {
@@ -120,61 +154,72 @@ describe('toCalendarEvent', () => {
     });
 });
 
-describe('isPillEvent', () => {
-    it('is true for a timed event with an emoji', () => {
-        expect(isPillEvent(timed())).toBe(true);
-    });
-
-    it('is false for a timed event without an emoji', () => {
-        expect(isPillEvent(timed({ title: 'Dentist' }))).toBe(false);
-    });
-
-    it('is false for an all-day event even when its title has an emoji', () => {
-        expect(isPillEvent(allDay({ title: '✈️ Lisbon' }))).toBe(false);
-    });
-
-    it('pills every timed event when the relaxed rule is on', () => {
-        expect(isPillEvent(timed({ title: 'Dentist' }), true)).toBe(true);
-        expect(isPillEvent(allDay({ title: '✈️ Lisbon' }), true)).toBe(false);
-    });
-});
-
 describe('buildDayEventMap', () => {
-    it('spreads an all-day event across every day it covers', () => {
+    it('spreads an all-day chip across every day it covers', () => {
         const map = buildDayEventMap([allDay()], VIEW);
 
         expect(map.get(getDateKey(2026, 6, 14))?.allDay).toHaveLength(1);
-        expect(map.get(getDateKey(2026, 6, 16))?.allDay).toHaveLength(1);
-        expect(map.get(getDateKey(2026, 6, 17))).toBeUndefined();
+        expect(map.get(getDateKey(2026, 6, 20))?.allDay).toHaveLength(1);
+        expect(map.get(getDateKey(2026, 6, 21))).toBeUndefined();
     });
 
-    it('groups several pill events onto one day, sorted by start time', () => {
+    it('keeps the trip as the chip and the hotel as a pill on the same days', () => {
+        const map = buildDayEventMap([
+            allDay({ id: 'trip', title: 'Brazil' }),
+            allDay({ id: 'hotel', title: '🏨 Hotel do Mar' })
+        ], VIEW);
+
+        const day = map.get(getDateKey(2026, 6, 14));
+        expect(day?.allDay.map((event) => event.id)).toEqual(['trip']);
+        expect(day?.pill.map((event) => event.id)).toEqual(['hotel']);
+    });
+
+    it('repeats the hotel pill across the whole stay', () => {
+        const map = buildDayEventMap([allDay({ id: 'hotel', title: '🏨 Hotel do Mar' })], VIEW);
+
+        expect(map.get(getDateKey(2026, 6, 14))?.pill).toHaveLength(1);
+        expect(map.get(getDateKey(2026, 6, 17))?.pill).toHaveLength(1);
+        expect(map.get(getDateKey(2026, 6, 20))?.pill).toHaveLength(1);
+    });
+
+    it('groups marked events onto one pill, sorted by start time', () => {
         const map = buildDayEventMap([
             timed({ id: 'late', title: '🚩 Dinner', startTime: '19:30', endTime: '21:00' }),
             timed({ id: 'early', title: '✈️ FCO → LIS', startTime: '06:40' })
         ], VIEW);
 
-        const day = map.get(getDateKey(2026, 6, 14));
-        expect(day?.pill.map((event) => event.id)).toEqual(['early', 'late']);
-        expect(day?.allDay).toHaveLength(0);
+        expect(map.get(getDateKey(2026, 6, 14))?.pill.map((event) => event.id)).toEqual(['early', 'late']);
     });
 
-    it('keeps a full-day chip and a pill on the same day', () => {
-        const map = buildDayEventMap([allDay(), timed()], VIEW);
+    it('lets unmarked events ride along in a pill that already exists', () => {
+        const map = buildDayEventMap([
+            timed({ id: 'flight', title: '✈️ FCO → LIS', startTime: '06:40' }),
+            timed({ id: 'dentist', title: 'Dentist', startTime: '10:00' })
+        ], VIEW);
 
-        const day = map.get(getDateKey(2026, 6, 14));
-        expect(day?.allDay).toHaveLength(1);
-        expect(day?.pill).toHaveLength(1);
+        expect(map.get(getDateKey(2026, 6, 14))?.pill.map((event) => event.id))
+            .toEqual(['flight', 'dentist']);
     });
 
-    it('leaves timed events without an emoji off the grid by default', () => {
+    it('leaves a day of only unmarked events empty by default', () => {
         const map = buildDayEventMap([timed({ title: 'Dentist' })], VIEW);
         expect(map.size).toBe(0);
     });
 
-    it('includes them once the relaxed rule is on', () => {
+    it('gives that day a pill once the setting is on', () => {
         const map = buildDayEventMap([timed({ title: 'Dentist' })], VIEW, true);
         expect(map.get(getDateKey(2026, 6, 14))?.pill).toHaveLength(1);
+    });
+
+    it('draws the longest all-day event when several overlap', () => {
+        // Otherwise the chip shown would be whatever order Google returned.
+        const map = buildDayEventMap([
+            allDay({ id: 'short', title: 'Workshop', start: '2026-07-14', end: '2026-07-15' }),
+            allDay({ id: 'long', title: 'Brazil', start: '2026-07-14', end: '2026-07-20' })
+        ], VIEW);
+
+        expect(map.get(getDateKey(2026, 6, 14))?.allDay.map((event) => event.id))
+            .toEqual(['long', 'short']);
     });
 
     it('ignores events outside the visible months', () => {
@@ -184,12 +229,12 @@ describe('buildDayEventMap', () => {
 });
 
 describe('getPillEmoji', () => {
-    it('uses the first emoji it finds', () => {
+    it('uses the first marked event it finds', () => {
         expect(getPillEmoji([timed({ title: 'Dentist' }), timed({ title: '🚆 Train' })])).toBe('🚆');
     });
 
-    it('falls back to a neutral dot', () => {
-        expect(getPillEmoji([timed({ title: 'Dentist' })])).toBe('•');
+    it('is undefined when nothing in the pill is marked, so the count stands alone', () => {
+        expect(getPillEmoji([timed({ title: 'Dentist' })])).toBeUndefined();
     });
 });
 

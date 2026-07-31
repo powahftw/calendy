@@ -23,7 +23,7 @@ const SETTINGS_FIELDS = [
     'showWeekends',
     'showDayProgress',
     'weekdayAlign',
-    'pillForAllTimedEvents',
+    'pillUnmarkedEvents',
     'year',
     'startMonth',
     'monthsToShow'

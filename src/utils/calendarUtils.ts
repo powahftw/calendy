@@ -19,10 +19,11 @@ export interface PlannerSettings {
     showDayProgress: boolean;
     weekdayAlign: boolean;
     /**
-     * Off by default: only emoji-titled timed events collapse into a day pill.
-     * On, every timed event does, so nothing on the calendar goes unshown.
+     * Off by default: a day only gets a pill when something on it opens with
+     * an emoji. On, days holding nothing but plain timed events get a pill
+     * too, so a busy calendar shows everything at the cost of a denser grid.
      */
-    pillForAllTimedEvents: boolean;
+    pillUnmarkedEvents: boolean;
     year: number;
     startMonth: number;
     monthsToShow: number;

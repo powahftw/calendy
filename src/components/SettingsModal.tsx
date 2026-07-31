@@ -42,7 +42,7 @@ const SettingsModal: FC<SettingsModalProps> = ({ onClose, user, onSignOut }) => 
         showWeekends, setShowWeekends,
         showDayProgress, setShowDayProgress,
         weekdayAlign, setWeekdayAlign,
-        pillForAllTimedEvents, setPillForAllTimedEvents
+        pillUnmarkedEvents, setPillUnmarkedEvents
     } = usePlannerMeta();
 
     const { events, connection, refresh, refreshing, lastFetchedAt } = usePlannerEvents();
@@ -95,22 +95,22 @@ const SettingsModal: FC<SettingsModalProps> = ({ onClose, user, onSignOut }) => 
             onChange: setShowDayProgress
         },
         {
-            id: 'pillAllTimed',
-            label: 'Pill every timed event, not just emoji ones',
-            checked: pillForAllTimedEvents,
-            onChange: setPillForAllTimedEvents
+            id: 'pillUnmarked',
+            label: 'Show a pill on days with only unmarked events',
+            checked: pillUnmarkedEvents,
+            onChange: setPillUnmarkedEvents
         }
     ]), [
         weekdayAlign,
         highlightToday,
         showWeekends,
         showDayProgress,
-        pillForAllTimedEvents,
+        pillUnmarkedEvents,
         setWeekdayAlign,
         setHighlightToday,
         setShowWeekends,
         setShowDayProgress,
-        setPillForAllTimedEvents
+        setPillUnmarkedEvents
     ]);
 
     return (

@@ -43,7 +43,7 @@ service cloud.firestore {
         'showWeekends',
         'showDayProgress',
         'weekdayAlign',
-        'pillForAllTimedEvents',
+        'pillUnmarkedEvents',
         'year',
         'startMonth',
         'monthsToShow',
@@ -56,7 +56,7 @@ service cloud.firestore {
         && (!request.resource.data.keys().hasAny(['showWeekends']) || request.resource.data.showWeekends is bool)
         && (!request.resource.data.keys().hasAny(['showDayProgress']) || request.resource.data.showDayProgress is bool)
         && (!request.resource.data.keys().hasAny(['weekdayAlign']) || request.resource.data.weekdayAlign is bool)
-        && (!request.resource.data.keys().hasAny(['pillForAllTimedEvents']) || request.resource.data.pillForAllTimedEvents is bool)
+        && (!request.resource.data.keys().hasAny(['pillUnmarkedEvents']) || request.resource.data.pillUnmarkedEvents is bool)
         && (
           !request.resource.data.keys().hasAny(['year'])
           || (request.resource.data.year is int && request.resource.data.year >= 2000 && request.resource.data.year <= 2100)

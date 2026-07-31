@@ -2,12 +2,46 @@ import type { GoogleEvent } from '../services/CalendarService';
 import { getDateKey, getDatesInRange, toDateStr } from './calendarUtils';
 
 /**
+ * Whether a character is "an emoji" for our purposes.
+ *
  * `\p{Emoji}` is the wrong property to test with: it also matches plain digits,
- * `#` and `*`, so "Flight 447" would count as an emoji title.
- * `Extended_Pictographic` is the one that means "actually a pictograph".
+ * `#` and `*`, so "Flight 447" would count. `Extended_Pictographic` is the one
+ * that means "actually a pictograph" - but it does not cover flags, which are
+ * pairs of Regional Indicators, so those need naming separately.
  */
-const EMOJI_PATTERN = /\p{Extended_Pictographic}/u;
-const LEADING_EMOJI_PATTERN = /\p{Extended_Pictographic}(️|‍\p{Extended_Pictographic}|[\u{1F3FB}-\u{1F3FF}])*/u;
+const EMOJI_IN_CLUSTER = /[\p{Extended_Pictographic}\p{Regional_Indicator}]/u;
+
+/**
+ * Fallback for engines without Intl.Segmenter. Deliberately keeps both
+ * variation selectors: U+FE0F asks for the colour glyph (✈️) and U+FE0E asks
+ * for the monochrome one (✈︎). Dropping either changes how the title renders.
+ */
+const LEADING_EMOJI_PATTERN = new RegExp(
+    '^(?:'
+    + '\\p{Regional_Indicator}\\p{Regional_Indicator}'
+    + '|\\p{Extended_Pictographic}[\\uFE0E\\uFE0F]?(?:[\\u{1F3FB}-\\u{1F3FF}])?'
+    + '(?:\\u200D\\p{Extended_Pictographic}[\\uFE0E\\uFE0F]?(?:[\\u{1F3FB}-\\u{1F3FF}])?)*'
+    + ')',
+    'u'
+);
+
+const graphemeSegmenter = typeof Intl !== 'undefined' && 'Segmenter' in Intl
+    ? new Intl.Segmenter(undefined, { granularity: 'grapheme' })
+    : null;
+
+/**
+ * The first user-perceived character, which is what "starts with an emoji"
+ * has to mean. A grapheme cluster keeps variation selectors, skin-tone
+ * modifiers, ZWJ sequences and flag pairs together as one unit.
+ */
+const getFirstGrapheme = (text: string): string => {
+    if (graphemeSegmenter) {
+        const first = graphemeSegmenter.segment(text)[Symbol.iterator]().next();
+        return first.done ? '' : first.value.segment;
+    }
+
+    return text.match(LEADING_EMOJI_PATTERN)?.[0] ?? text.slice(0, 2);
+};
 
 /** Google's 11 event colours, mapped onto the 7 real palette slots per theme. */
 const GOOGLE_COLOR_ID_TO_PALETTE_INDEX: Record<string, number> = {
@@ -33,17 +67,26 @@ export interface CalendarEvent {
 
 /** The events on one day, split by how they should be rendered. */
 export interface DayEvents {
-    /** Rendered as the full-width day chip, exactly as before. */
+    /** Rendered as the full-width day chip. */
     allDay: CalendarEvent[];
     /** Collapsed into a single hover/tap pill. */
     pill: CalendarEvent[];
 }
 
-export const hasEmoji = (text: string): boolean => EMOJI_PATTERN.test(text);
+/**
+ * The emoji a title opens with, or undefined. Returned verbatim - including
+ * any variation selector - so the pill renders the glyph the user typed.
+ */
+export const getLeadingEmoji = (text: string): string | undefined => {
+    const trimmed = text.trimStart();
+    if (!trimmed) return undefined;
 
-export const getLeadingEmoji = (text: string): string | undefined => (
-    text.match(LEADING_EMOJI_PATTERN)?.[0]
-);
+    const cluster = getFirstGrapheme(trimmed);
+    return EMOJI_IN_CLUSTER.test(cluster) ? cluster : undefined;
+};
+
+/** A leading emoji is the mark that downgrades an event to the day's pill. */
+export const startsWithEmoji = (text: string): boolean => getLeadingEmoji(text) !== undefined;
 
 export const isAllDayEvent = (event: GoogleEvent): boolean => Boolean(event.start?.date);
 
@@ -119,17 +162,22 @@ export const toCalendarEvents = (events: GoogleEvent[]): CalendarEvent[] => (
 );
 
 /**
- * An event collapses into a pill when it is *not* all-day and its title carries
- * an emoji. Full-day events always win: an all-day event with an emoji in its
- * title still renders as a full-day block.
+ * How an event wants to be drawn. Duration decides nothing here: a leading
+ * emoji is the single signal that an event is logistics rather than the
+ * headline for its days.
  *
- * `pillForAllTimedEvents` relaxes the emoji half of the rule so that timed
- * events without an emoji are still visible somewhere instead of being dropped
- * from the view entirely.
+ * - `chip`     an all-day event with a plain title, e.g. "Brazil"
+ * - `marked`   any title opening with an emoji, e.g. "🏨 Hotel do Mar",
+ *              "✈︎ FCO → LIS". Collapses into the day's pill and gives that
+ *              pill its emoji.
+ * - `unmarked` a timed event with a plain title, e.g. "Dentist". Too small to
+ *              own a day, so it only ever appears inside a pill's popover.
  */
-export const isPillEvent = (event: CalendarEvent, pillForAllTimedEvents = false): boolean => {
-    if (event.allDay) return false;
-    return pillForAllTimedEvents || hasEmoji(event.title);
+export type EventRole = 'chip' | 'marked' | 'unmarked';
+
+export const getEventRole = (event: CalendarEvent): EventRole => {
+    if (startsWithEmoji(event.title)) return 'marked';
+    return event.allDay ? 'chip' : 'unmarked';
 };
 
 const byStartTime = (a: CalendarEvent, b: CalendarEvent): number => (
@@ -137,57 +185,86 @@ const byStartTime = (a: CalendarEvent, b: CalendarEvent): number => (
 );
 
 /**
+ * Longest range first, so the day's most significant block is the one drawn
+ * when several all-day events overlap. Without this the winner would be
+ * whatever order Google happened to return.
+ */
+const byRangeLength = (a: CalendarEvent, b: CalendarEvent): number => {
+    const spanA = getDatesInRange(a.start, a.end).length;
+    const spanB = getDatesInRange(b.start, b.end).length;
+    return spanB - spanA || a.title.localeCompare(b.title);
+};
+
+/**
  * Buckets events onto the days they cover, keeping only the months currently on
- * screen. Multi-day events land on every day they span, matching how the grid
- * has always drawn them.
+ * screen. Multi-day events land on every day they span.
+ *
+ * A day gets a pill as soon as one `marked` event touches it; `unmarked`
+ * events then ride along in that pill's popover. A day holding nothing but
+ * `unmarked` events stays empty, which keeps a year of routine meetings from
+ * burying the things worth seeing - unless `pillUnmarkedEvents` is on, in
+ * which case they get a neutral pill of their own.
  */
 export const buildDayEventMap = (
     events: CalendarEvent[],
     view: { year: number; startMonth: number; monthsToShow: number },
-    pillForAllTimedEvents = false
+    pillUnmarkedEvents = false
 ): Map<string, DayEvents> => {
     const map = new Map<string, DayEvents>();
+    const collapsed = new Map<string, { marked: CalendarEvent[]; unmarked: CalendarEvent[] }>();
     const startMonthTotal = view.year * 12 + view.startMonth;
     const endMonthTotal = startMonthTotal + view.monthsToShow;
 
     for (const event of events) {
-        const isPill = isPillEvent(event, pillForAllTimedEvents);
-
-        // Timed events that are neither all-day nor pill-eligible have no place
-        // on the grid; they still reach the export.
-        if (!event.allDay && !isPill) continue;
+        const role = getEventRole(event);
 
         for (const date of getDatesInRange(event.start, event.end)) {
             const dateMonthTotal = date.year * 12 + date.month;
             if (dateMonthTotal < startMonthTotal || dateMonthTotal >= endMonthTotal) continue;
 
             const dateKey = getDateKey(date.year, date.month, date.day);
-            let dayEvents = map.get(dateKey);
-            if (!dayEvents) {
-                dayEvents = { allDay: [], pill: [] };
-                map.set(dateKey, dayEvents);
+
+            if (role === 'chip') {
+                const dayEvents = map.get(dateKey);
+                if (dayEvents) dayEvents.allDay.push(event);
+                else map.set(dateKey, { allDay: [event], pill: [] });
+                continue;
             }
 
-            if (isPill) dayEvents.pill.push(event);
-            else dayEvents.allDay.push(event);
+            const bucket = collapsed.get(dateKey);
+            if (bucket) bucket[role].push(event);
+            else collapsed.set(dateKey, role === 'marked' ? { marked: [event], unmarked: [] } : { marked: [], unmarked: [event] });
         }
     }
 
+    for (const [dateKey, bucket] of collapsed) {
+        if (bucket.marked.length === 0 && !pillUnmarkedEvents) continue;
+
+        const pill = [...bucket.marked, ...bucket.unmarked].sort(byStartTime);
+        const dayEvents = map.get(dateKey);
+        if (dayEvents) dayEvents.pill = pill;
+        else map.set(dateKey, { allDay: [], pill });
+    }
+
     for (const dayEvents of map.values()) {
-        dayEvents.pill.sort(byStartTime);
+        dayEvents.allDay.sort(byRangeLength);
     }
 
     return map;
 };
 
-/** The emoji a day's pill shows: the first one found, scanning by start time. */
-export const getPillEmoji = (pillEvents: CalendarEvent[]): string => {
+/**
+ * The emoji a day's pill shows: the first marked event's, in start-time order.
+ * Undefined for a pill built only from unmarked events - those fall back to
+ * showing the event count on its own.
+ */
+export const getPillEmoji = (pillEvents: CalendarEvent[]): string | undefined => {
     for (const event of pillEvents) {
         const emoji = getLeadingEmoji(event.title);
         if (emoji) return emoji;
     }
 
-    return '•';
+    return undefined;
 };
 
 export const formatEventTimeRange = (event: CalendarEvent): string => {

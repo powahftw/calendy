@@ -197,8 +197,8 @@ const usePlannerPersistence = (user: User | null) => {
     const setShowWeekends = useCallback((showWeekends: boolean) => updateSettings({ showWeekends }), [updateSettings]);
     const setShowDayProgress = useCallback((showDayProgress: boolean) => updateSettings({ showDayProgress }), [updateSettings]);
     const setWeekdayAlign = useCallback((weekdayAlign: boolean) => updateSettings({ weekdayAlign }), [updateSettings]);
-    const setPillForAllTimedEvents = useCallback(
-        (pillForAllTimedEvents: boolean) => updateSettings({ pillForAllTimedEvents }),
+    const setPillUnmarkedEvents = useCallback(
+        (pillUnmarkedEvents: boolean) => updateSettings({ pillUnmarkedEvents }),
         [updateSettings]
     );
     const setYear = useCallback((year: number | ((prev: number) => number)) => {
@@ -232,7 +232,7 @@ const usePlannerPersistence = (user: User | null) => {
         setShowWeekends,
         setShowDayProgress,
         setWeekdayAlign,
-        setPillForAllTimedEvents,
+        setPillUnmarkedEvents,
         setYear,
         setStartMonth,
         setMonthsToShow,

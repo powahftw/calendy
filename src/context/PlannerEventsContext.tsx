@@ -29,7 +29,7 @@ interface PlannerEventsProviderProps {
         year: number;
         startMonth: number;
         monthsToShow: number;
-        pillForAllTimedEvents: boolean;
+        pillUnmarkedEvents: boolean;
     };
     children: ReactNode;
 }
@@ -46,12 +46,12 @@ export const PlannerEventsProvider: React.FC<PlannerEventsProviderProps> = ({ va
         year,
         startMonth,
         monthsToShow,
-        pillForAllTimedEvents
+        pillUnmarkedEvents
     } = value;
 
     const eventMap = useMemo(
-        () => buildDayEventMap(events, { year, startMonth, monthsToShow }, pillForAllTimedEvents),
-        [events, year, startMonth, monthsToShow, pillForAllTimedEvents]
+        () => buildDayEventMap(events, { year, startMonth, monthsToShow }, pillUnmarkedEvents),
+        [events, year, startMonth, monthsToShow, pillUnmarkedEvents]
     );
 
     const memoizedValue = useMemo(() => ({

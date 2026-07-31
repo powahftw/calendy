@@ -1,5 +1,5 @@
 import React, { FC } from 'react';
-import { CalendarEvent, DayEvents } from '../../utils/calendarEvents';
+import { CalendarEvent, DayEvents, getPillEmoji } from '../../utils/calendarEvents';
 import { useTheme } from '../../hooks/useTheme';
 import { DayNumber, EventChip, StackedEventBars } from './DayCellSubComponents';
 import DayPill from './DayPill';
@@ -45,7 +45,10 @@ const InteractiveDayCell: FC<Extract<DayCellProps, { type: 'day' }>> = ({
 
     const [mainEvent, ...stackedEvents] = events.allDay;
     const hasPill = events.pill.length > 0;
-    const pillOffset = !hasPill ? 'none' : events.pill.length > 1 ? 'pill-wide' : 'pill';
+    // The chip has to reserve room for what the pill will actually draw: both
+    // an emoji and a count only when the pill shows both.
+    const pillIsWide = hasPill && events.pill.length > 1 && getPillEmoji(events.pill) !== undefined;
+    const pillOffset = !hasPill ? 'none' : pillIsWide ? 'pill-wide' : 'pill';
 
     const cellClassName = [
         'day-cell',

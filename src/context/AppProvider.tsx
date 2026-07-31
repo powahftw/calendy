@@ -44,8 +44,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({ user, children }) => {
         setShowDayProgress: persistence.setShowDayProgress,
         weekdayAlign: persistence.weekdayAlign,
         setWeekdayAlign: persistence.setWeekdayAlign,
-        pillForAllTimedEvents: persistence.pillForAllTimedEvents,
-        setPillForAllTimedEvents: persistence.setPillForAllTimedEvents,
+        pillUnmarkedEvents: persistence.pillUnmarkedEvents,
+        setPillUnmarkedEvents: persistence.setPillUnmarkedEvents,
 
         isInitialLoadDone: persistence.isInitialLoadDone,
         syncStatus: persistence.syncStatus as PlannerMetaContextValue['syncStatus'],
@@ -58,7 +58,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ user, children }) => {
         persistence.showWeekends,
         persistence.showDayProgress,
         persistence.weekdayAlign,
-        persistence.pillForAllTimedEvents,
+        persistence.pillUnmarkedEvents,
         persistence.isInitialLoadDone,
         persistence.syncStatus,
         persistence.setYear,
@@ -70,7 +70,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ user, children }) => {
         persistence.setShowWeekends,
         persistence.setShowDayProgress,
         persistence.setWeekdayAlign,
-        persistence.setPillForAllTimedEvents,
+        persistence.setPillUnmarkedEvents,
     ]);
 
     const eventsValue = useMemo(() => ({
@@ -84,7 +84,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ user, children }) => {
         year: persistence.year,
         startMonth: persistence.startMonth,
         monthsToShow: persistence.monthsToShow,
-        pillForAllTimedEvents: persistence.pillForAllTimedEvents,
+        pillUnmarkedEvents: persistence.pillUnmarkedEvents,
     }), [
         calendarEvents.events,
         calendarEvents.loading,
@@ -96,7 +96,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ user, children }) => {
         persistence.year,
         persistence.startMonth,
         persistence.monthsToShow,
-        persistence.pillForAllTimedEvents,
+        persistence.pillUnmarkedEvents,
     ]);
 
     const interactionValue = useMemo(() => ({
