@@ -1,14 +1,17 @@
 import React, { createContext, useContext, ReactNode, useMemo } from 'react';
-import { PlannerEvent, getDatesInRange, getDateKey } from '../utils/calendarUtils';
-import type { GoogleCalendarSyncControls } from '../hooks/useGoogleCalendarSync';
+import { CalendarEvent, DayEvents, buildDayEventMap } from '../utils/calendarEvents';
+import type { CalendarConnection } from '../hooks/useCalendarConnection';
 
 interface PlannerEventsContextValue {
-    events: PlannerEvent[];
-    setEvents: (events: PlannerEvent[] | ((prev: PlannerEvent[]) => PlannerEvent[])) => void;
-    eventMap: Map<string, PlannerEvent[]>;
-    canUndo: boolean;
-    undo: () => void;
-    googleSync: GoogleCalendarSyncControls;
+    events: CalendarEvent[];
+    /** Day key -> the day's events, split into full-day chips and pill events. */
+    eventMap: Map<string, DayEvents>;
+    loading: boolean;
+    refreshing: boolean;
+    error: string | null;
+    lastFetchedAt: number | null;
+    refresh: () => Promise<void>;
+    connection: CalendarConnection;
 }
 
 const PlannerEventsContext = createContext<PlannerEventsContextValue | undefined>(undefined);
@@ -26,6 +29,7 @@ interface PlannerEventsProviderProps {
         year: number;
         startMonth: number;
         monthsToShow: number;
+        pillForAllTimedEvents: boolean;
     };
     children: ReactNode;
 }
@@ -33,56 +37,33 @@ interface PlannerEventsProviderProps {
 export const PlannerEventsProvider: React.FC<PlannerEventsProviderProps> = ({ value, children }) => {
     const {
         events,
-        setEvents,
-        canUndo,
-        undo,
+        loading,
+        refreshing,
+        error,
+        lastFetchedAt,
+        refresh,
+        connection,
         year,
         startMonth,
         monthsToShow,
-        googleSync
+        pillForAllTimedEvents
     } = value;
 
-    const eventMap = useMemo(() => {
-        const map = new Map<string, PlannerEvent[]>();
-
-        const startMonthTotal = year * 12 + startMonth;
-        const endMonthTotal = startMonthTotal + monthsToShow;
-
-        for (const event of events) {
-            const dates = getDatesInRange(event.start, event.end);
-
-            for (const date of dates) {
-                const dateMonthTotal = date.year * 12 + date.month;
-
-                if (dateMonthTotal < startMonthTotal || dateMonthTotal >= endMonthTotal) continue;
-
-                const dateKey = getDateKey(date.year, date.month, date.day);
-                const existing = map.get(dateKey);
-                if (existing) {
-                    existing.push(event);
-                } else {
-                    map.set(dateKey, [event]);
-                }
-            }
-        }
-        return map;
-    }, [events, year, startMonth, monthsToShow]);
+    const eventMap = useMemo(
+        () => buildDayEventMap(events, { year, startMonth, monthsToShow }, pillForAllTimedEvents),
+        [events, year, startMonth, monthsToShow, pillForAllTimedEvents]
+    );
 
     const memoizedValue = useMemo(() => ({
         events,
-        setEvents,
-        canUndo,
-        undo,
         eventMap,
-        googleSync
-    }), [
-        events,
-        setEvents,
-        canUndo,
-        undo,
-        eventMap,
-        googleSync
-    ]);
+        loading,
+        refreshing,
+        error,
+        lastFetchedAt,
+        refresh,
+        connection
+    }), [connection, error, eventMap, events, lastFetchedAt, loading, refresh, refreshing]);
 
     return (
         <PlannerEventsContext.Provider value={memoizedValue}>

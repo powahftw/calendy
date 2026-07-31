@@ -1,51 +1,39 @@
 import React, { FC, useMemo } from 'react';
-import { monthNames, getDayOfWeekIndex, PlannerEvent, isDateInRange, getDateKey } from '../utils/calendarUtils';
+import { monthNames, getDayOfWeekIndex, getDateKey } from '../utils/calendarUtils';
 import { usePlannerMeta } from '../context/PlannerMetaContext';
 import { usePlannerEvents } from '../context/PlannerEventsContext';
 import { usePlannerInteraction } from '../context/PlannerInteractionContext';
 import { generateMonthLayout } from '../utils/calendar/layoutCalculations';
+import type { DayEvents } from '../utils/calendarEvents';
 import DayCell from './calendar/DayCell';
 
+const EMPTY_DAY_EVENTS: DayEvents = { allDay: [], pill: [] };
+
 interface MonthColumnProps {
-    monthIndex: number; // The visual column index 0,1,2...
+    /** Visual column index, used to decide which way pill popovers open. */
+    monthIndex: number;
+    monthsToShow: number;
     colYear: number;
     colMonth: number;
-    onEventClick: (e: React.MouseEvent, allEventsOnDay: PlannerEvent[], y: number, m: number, d: number) => void;
     maxRows: number;
     today: {
         todayYear: number;
         todayMonth: number;
         todayDay: number;
     };
-    onTouchEnd: () => void;
-    onMouseUp: () => void;
-    dragPreviewEvent?: PlannerEvent | null;
-    startDrag: (y: number, m: number, d: number) => void;
-    updateDrag: (y: number, m: number, d: number) => void;
-    isHighlighted: (y: number, m: number, d: number) => boolean;
-    onTouchStart: (e: React.TouchEvent, y: number, m: number, d: number) => void;
-    onTouchMove: (e: React.TouchEvent) => void;
 }
 
 const MonthColumn: FC<MonthColumnProps> = ({
-    monthIndex: _monthIndex,
+    monthIndex,
+    monthsToShow,
     colYear,
     colMonth,
-    onEventClick,
     maxRows,
-    today,
-    onTouchEnd,
-    onMouseUp,
-    dragPreviewEvent,
-    startDrag,
-    updateDrag,
-    isHighlighted,
-    onTouchStart,
-    onTouchMove
+    today
 }) => {
     const { weekdayAlign, showWeekends, highlightToday } = usePlannerMeta();
     const { eventMap } = usePlannerEvents();
-    const { activeEventId } = usePlannerInteraction();
+    const { openPillDayKey, setOpenPillDayKey } = usePlannerInteraction();
 
     const layout = useMemo(() => generateMonthLayout({
         year: colYear,
@@ -54,52 +42,41 @@ const MonthColumn: FC<MonthColumnProps> = ({
         maxRows
     }), [colYear, colMonth, weekdayAlign, maxRows]);
 
+    // Popovers open to the left by default; columns in the left half of the
+    // grid would push them off screen, so those flip to the right.
+    const flipPopover = monthIndex < monthsToShow / 2;
+
     return (
         <div className="month-col">
             <div className="month-header unselectable">{monthNames[colMonth]}</div>
 
             {layout.map((cell) => {
                 if (cell.type === 'spacer' || cell.type === 'filler') {
-                    return (
-                        <DayCell
-                            key={cell.id}
-                            type={cell.type}
-                        />
-                    );
+                    return <DayCell key={cell.id} type={cell.type} />;
                 }
 
                 const day = cell.day!;
                 const dateKey = getDateKey(colYear, colMonth, day);
-                const eventsOnDay = eventMap.get(dateKey) ?? [];
+                const dayEvents = eventMap.get(dateKey) ?? EMPTY_DAY_EVENTS;
 
                 const dayIdx = getDayOfWeekIndex(colYear, colMonth, day);
                 const isWeekend = dayIdx === 5 || dayIdx === 6;
-                const isToday = highlightToday && colYear === today.todayYear && colMonth === today.todayMonth && day === today.todayDay;
-
-                const showPreview = dragPreviewEvent && isDateInRange(colYear, colMonth, day, dragPreviewEvent.start, dragPreviewEvent.end);
+                const isToday = highlightToday
+                    && colYear === today.todayYear
+                    && colMonth === today.todayMonth
+                    && day === today.todayDay;
 
                 return (
                     <DayCell
                         key={cell.id}
                         type="day"
+                        dayKey={dateKey}
                         date={{ year: colYear, month: colMonth, day }}
-                        events={eventsOnDay}
-                        appearance={{
-                            isHighlighted: isHighlighted(colYear, colMonth, day),
-                            isWeekend,
-                            showWeekends,
-                            activeEventId,
-                            dragPreviewEvent: showPreview ? dragPreviewEvent : null
-                        }}
-                        today={{ isToday }}
-                        interactions={{
-                            onEventClick,
-                            onMouseDown: startDrag,
-                            onMouseEnter: updateDrag,
-                            onTouchStart,
-                            onTouchMove,
-                            onTouchEnd,
-                            onMouseUp
+                        events={dayEvents}
+                        appearance={{ isWeekend, showWeekends, isToday, flipPopover }}
+                        pill={{
+                            isOpen: openPillDayKey === dateKey,
+                            onOpenChange: (open) => setOpenPillDayKey(open ? dateKey : null)
                         }}
                     />
                 );

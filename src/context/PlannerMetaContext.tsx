@@ -1,7 +1,7 @@
 import React, { createContext, useContext, ReactNode } from 'react';
 import { ThemeId } from '../utils/calendarUtils';
 
-export type SyncStatus = 'local-only' | 'synced' | 'pending' | 'offline';
+export type SyncStatus = 'synced' | 'pending' | 'offline';
 
 export interface PlannerMetaContextValue {
     year: number;
@@ -21,6 +21,8 @@ export interface PlannerMetaContextValue {
     setShowDayProgress: (s: boolean) => void;
     weekdayAlign: boolean;
     setWeekdayAlign: (s: boolean) => void;
+    pillForAllTimedEvents: boolean;
+    setPillForAllTimedEvents: (s: boolean) => void;
     isInitialLoadDone: boolean;
     syncStatus: SyncStatus;
 }

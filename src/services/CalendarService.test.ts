@@ -6,61 +6,50 @@ const importCalendarService = async () => {
     return import('./CalendarService');
 };
 
-describe('CalendarService authorization', () => {
+/** Stands up a token client whose requestAccessToken resolves immediately. */
+const stubGoogleIdentity = (response: Record<string, unknown> = { access_token: 'granted-token', expires_in: 3600 }) => {
+    const requestAccessToken = vi.fn();
+    const initTokenClient = vi.fn((config: { callback: (res: unknown) => void }) => {
+        requestAccessToken.mockImplementation(() => config.callback(response));
+        return { requestAccessToken };
+    });
+
+    window.google = { accounts: { oauth2: { initTokenClient } } } as typeof window.google;
+    return { initTokenClient, requestAccessToken };
+};
+
+const okResponse = (body: unknown) => ({
+    ok: true,
+    status: 200,
+    json: () => Promise.resolve(body)
+});
+
+describe('CalendarService', () => {
     beforeEach(() => {
         vi.unstubAllEnvs();
         vi.restoreAllMocks();
+        sessionStorage.clear();
         delete window.google;
     });
 
     afterEach(() => {
         vi.unstubAllEnvs();
         vi.restoreAllMocks();
+        sessionStorage.clear();
         delete window.google;
     });
 
-    it('uses a seeded token for API calls without opening Google Identity Services', async () => {
-        const { CalendarService } = await importCalendarService();
-        const service = new CalendarService();
-        service.setAccessToken('seeded-token');
-        const fetchMock = vi.fn().mockResolvedValue({
-            ok: true,
-            status: 200,
-            json: () => Promise.resolve({ items: [] })
-        });
-        vi.stubGlobal('fetch', fetchMock);
-
-        await expect(service.listEvents('calendar-id')).resolves.toEqual([]);
-
-        expect(fetchMock).toHaveBeenCalledWith(
-            expect.stringContaining('/calendars/calendar-id/events'),
-            expect.objectContaining({
-                headers: expect.objectContaining({
-                    Authorization: 'Bearer seeded-token'
-                })
-            })
-        );
+    it('requests the read-only scope', async () => {
+        const { GOOGLE_CALENDAR_SCOPE } = await importCalendarService();
+        expect(GOOGLE_CALENDAR_SCOPE).toBe('https://www.googleapis.com/auth/calendar.readonly');
     });
 
-    it('passes login_hint and a blank prompt for explicit interactive token requests', async () => {
+    it('passes login_hint and a blank prompt when asking for a token', async () => {
         const { CalendarService, GOOGLE_CALENDAR_SCOPE } = await importCalendarService();
-        const requestAccessToken = vi.fn();
-        const initTokenClient = vi.fn((config) => {
-            requestAccessToken.mockImplementation(() => {
-                config.callback({ access_token: 'interactive-token', expires_in: 3600 });
-            });
-            return { requestAccessToken };
-        });
-        window.google = {
-            accounts: {
-                oauth2: {
-                    initTokenClient
-                }
-            }
-        };
+        const { initTokenClient, requestAccessToken } = stubGoogleIdentity();
 
         const service = new CalendarService();
-        await expect(service.requestInteractiveToken('user@example.com')).resolves.toBe('interactive-token');
+        await expect(service.requestAccessToken('user@example.com')).resolves.toBe('granted-token');
 
         expect(initTokenClient).toHaveBeenCalledWith(expect.objectContaining({
             client_id: 'test-client-id',
@@ -72,27 +61,111 @@ describe('CalendarService authorization', () => {
         expect(requestAccessToken).toHaveBeenCalledWith({ prompt: '' });
     });
 
-    it('does not open Google Identity Services for background API calls without a token', async () => {
-        const { CalendarAuthorizationRequiredError, CalendarService } = await importCalendarService();
-        const initTokenClient = vi.fn();
-        window.google = {
-            accounts: {
-                oauth2: {
-                    initTokenClient
-                }
-            }
-        };
+    it('reuses a token stored in sessionStorage across instances', async () => {
+        const { CalendarService } = await importCalendarService();
+        stubGoogleIdentity();
+
+        const first = new CalendarService();
+        await first.requestAccessToken('user@example.com');
+
+        // A reload - or an iOS PWA restore - builds a fresh instance.
+        const second = new CalendarService();
+        expect(second.hasValidToken()).toBe(true);
+    });
+
+    it('coalesces concurrent token requests into one popup', async () => {
+        const { CalendarService } = await importCalendarService();
+        const { initTokenClient } = stubGoogleIdentity();
 
         const service = new CalendarService();
-        await expect(service.listEvents('calendar-id')).rejects.toBeInstanceOf(CalendarAuthorizationRequiredError);
+        await Promise.all([
+            service.requestAccessToken('user@example.com'),
+            service.requestAccessToken('user@example.com')
+        ]);
 
+        expect(initTokenClient).toHaveBeenCalledTimes(1);
+    });
+
+    it('rejects with an authorization error when Google declines', async () => {
+        const { CalendarAuthorizationRequiredError, CalendarService } = await importCalendarService();
+        stubGoogleIdentity({ error: 'access_denied', error_description: 'Denied' });
+
+        const service = new CalendarService();
+        await expect(service.requestAccessToken('user@example.com'))
+            .rejects.toBeInstanceOf(CalendarAuthorizationRequiredError);
+    });
+
+    it('does not open Google Identity Services for API calls without a token', async () => {
+        const { CalendarAuthorizationRequiredError, CalendarService } = await importCalendarService();
+        const { initTokenClient } = stubGoogleIdentity();
+
+        const service = new CalendarService();
+        await expect(service.listCalendars()).rejects.toBeInstanceOf(CalendarAuthorizationRequiredError);
         expect(initTokenClient).not.toHaveBeenCalled();
+    });
+
+    it('lists events for a bounded range and drops cancelled ones', async () => {
+        const { CalendarService } = await importCalendarService();
+        stubGoogleIdentity();
+        const fetchMock = vi.fn().mockResolvedValue(okResponse({
+            items: [
+                { id: 'a', summary: 'Kept' },
+                { id: 'b', summary: 'Gone', status: 'cancelled' }
+            ]
+        }));
+        vi.stubGlobal('fetch', fetchMock);
+
+        const service = new CalendarService();
+        await service.requestAccessToken('user@example.com');
+
+        const events = await service.listEvents('cal-1', '2026-01-01T00:00:00.000Z', '2027-01-01T00:00:00.000Z');
+
+        expect(events.map((event) => event.id)).toEqual(['a']);
+        const [url, init] = fetchMock.mock.calls[0];
+        expect(url).toContain('/calendars/cal-1/events');
+        expect(url).toContain('singleEvents=true');
+        expect(url).toContain('timeMin=2026-01-01');
+        expect(url).toContain('timeMax=2027-01-01');
+        expect(init.headers.Authorization).toBe('Bearer granted-token');
+    });
+
+    it('follows pagination', async () => {
+        const { CalendarService } = await importCalendarService();
+        stubGoogleIdentity();
+        const fetchMock = vi.fn()
+            .mockResolvedValueOnce(okResponse({ items: [{ id: 'a' }], nextPageToken: 'page-2' }))
+            .mockResolvedValueOnce(okResponse({ items: [{ id: 'b' }] }));
+        vi.stubGlobal('fetch', fetchMock);
+
+        const service = new CalendarService();
+        await service.requestAccessToken('user@example.com');
+
+        const calendars = await service.listCalendars();
+
+        expect(calendars.map((calendar) => calendar.id)).toEqual(['a', 'b']);
+        expect(fetchMock.mock.calls[1][0]).toContain('pageToken=page-2');
+    });
+
+    it('drops a token the API rejected with 401', async () => {
+        const { CalendarService } = await importCalendarService();
+        stubGoogleIdentity();
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+            ok: false,
+            status: 401,
+            text: () => Promise.resolve('{"error":{"message":"Invalid Credentials"}}')
+        }));
+
+        const service = new CalendarService();
+        await service.requestAccessToken('user@example.com');
+        expect(service.hasValidToken()).toBe(true);
+
+        await expect(service.listCalendars()).rejects.toMatchObject({ status: 401 });
+        expect(service.hasValidToken()).toBe(false);
     });
 
     it('classifies Google Calendar rate-limit errors from API JSON', async () => {
         const { CalendarApiError, CalendarService, isCalendarRateLimitError } = await importCalendarService();
-        const service = new CalendarService();
-        service.setAccessToken('seeded-token');
+        stubGoogleIdentity();
         vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
             ok: false,
             status: 403,
@@ -105,15 +178,12 @@ describe('CalendarService authorization', () => {
             }))
         }));
 
-        await expect(service.listEvents('calendar-id')).rejects.toMatchObject({
-            name: 'CalendarApiError',
-            status: 403,
-            reason: 'rateLimitExceeded',
-            message: 'Rate Limit Exceeded'
-        });
+        const service = new CalendarService();
+        await service.requestAccessToken('user@example.com');
 
         try {
-            await service.listEvents('calendar-id');
+            await service.listCalendars();
+            expect.unreachable('listCalendars should have thrown');
         } catch (err) {
             expect(err).toBeInstanceOf(CalendarApiError);
             expect(isCalendarRateLimitError(err)).toBe(true);

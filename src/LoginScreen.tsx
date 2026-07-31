@@ -10,13 +10,6 @@ const GoogleIcon = () => (
     </svg>
 );
 
-const GuestIcon = () => (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-        <circle cx="12" cy="7" r="4"></circle>
-    </svg>
-);
-
 const LogoIcon = () => (
     <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
@@ -33,7 +26,7 @@ const FeatureItem: FC<{ icon: string; text: string }> = ({ icon, text }) => (
     </div>
 );
 
-const LoginScreen: FC<{ onGuestLogin: () => void }> = ({ onGuestLogin }) => {
+const LoginScreen: FC = () => {
     const { signInWithGoogle, isFirebaseAvailable } = useAuth();
 
     return (
@@ -44,33 +37,24 @@ const LoginScreen: FC<{ onGuestLogin: () => void }> = ({ onGuestLogin }) => {
                         <LogoIcon />
                     </div>
                     <h1>Calendy</h1>
-                    <p>Your simple, beautiful yearly planner</p>
+                    <p>Your Google Calendar, a year at a glance</p>
                 </div>
 
                 <div className="login-features">
-                    <FeatureItem icon="✨" text="Multi-device sync" />
-                    <FeatureItem icon="🎨" text="Beautiful themes" />
                     <FeatureItem icon="📅" text="Year-at-a-glance" />
+                    <FeatureItem icon="✈️" text="Trips and travel at a tap" />
+                    <FeatureItem icon="🎨" text="Beautiful themes" />
                 </div>
 
                 <button className="login-google-btn" onClick={signInWithGoogle} disabled={!isFirebaseAvailable}>
                     <GoogleIcon />
-                    {isFirebaseAvailable ? 'Continue with Google' : 'Firebase Sync Unavailable'}
-                </button>
-
-                <div className="or-divider">
-                    <span>OR</span>
-                </div>
-
-                <button className="login-guest-btn" onClick={onGuestLogin}>
-                    <GuestIcon />
-                    Continue as Guest
+                    {isFirebaseAvailable ? 'Continue with Google' : 'Sign-in Unavailable'}
                 </button>
 
                 <div className="login-footer">
-                    <p>Plan your year, one day at a time.</p>
+                    <p>Calendy reads your calendar. It never changes it.</p>
                     {!isFirebaseAvailable && (
-                        <p>Guest mode works without Firebase config.</p>
+                        <p>Firebase is not configured for this deployment.</p>
                     )}
                 </div>
             </div>

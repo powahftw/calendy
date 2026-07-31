@@ -3,13 +3,13 @@ import toast from 'react-hot-toast';
 import { auth, isFirebaseConfigured } from './firebase';
 import { GoogleAuthProvider, getRedirectResult, onAuthStateChanged, signInWithPopup, signInWithRedirect, signOut as fbSignOut, User } from 'firebase/auth';
 import { getUserFacingErrorMessage } from './utils/userFacingErrors';
-import { GOOGLE_CALENDAR_SCOPE, isGoogleCalendarSyncConfigured } from './services/CalendarService';
+import { GOOGLE_CALENDAR_SCOPE, calendarService, isGoogleCalendarConfigured } from './services/CalendarService';
+import { clearEventCache } from './utils/eventCache';
 
 interface AuthContextType {
     user: User | null;
     loading: boolean;
     isFirebaseAvailable: boolean;
-    googleCalendarAccessToken: string | null;
     signInWithGoogle: () => Promise<void>;
     signOut: () => Promise<void>;
 }
@@ -36,7 +36,6 @@ const shouldUseRedirectSignIn = (authDomain: string | undefined) => {
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(isFirebaseConfigured);
-    const [googleCalendarAccessToken, setGoogleCalendarAccessToken] = useState<string | null>(null);
 
     useEffect(() => {
         if (!auth) {
@@ -54,7 +53,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const unsubscribe = onAuthStateChanged(auth, (user) => {
             if (!isMounted) return;
             setUser(user);
-            if (!user) setGoogleCalendarAccessToken(null);
             stopLoading();
         });
 
@@ -62,8 +60,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             .then((result) => {
                 if (!isMounted || !result?.user) return;
                 setUser(result.user);
-                const credential = GoogleAuthProvider.credentialFromResult(result);
-                setGoogleCalendarAccessToken(credential?.accessToken ?? null);
             })
             .catch((error) => {
                 console.error("Error completing Google redirect sign-in", error);
@@ -82,9 +78,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!auth) return;
 
         try {
+            // Asking for the read-only calendar scope up front means Google
+            // Identity Services can mint calendar tokens silently afterwards,
+            // instead of popping consent on first load.
             const provider = new GoogleAuthProvider();
             provider.setCustomParameters({ prompt: 'select_account' });
-            if (isGoogleCalendarSyncConfigured) {
+            if (isGoogleCalendarConfigured) {
                 provider.addScope(GOOGLE_CALENDAR_SCOPE);
             }
 
@@ -93,9 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 return;
             }
 
-            const result = await signInWithPopup(auth, provider);
-            const credential = GoogleAuthProvider.credentialFromResult(result);
-            setGoogleCalendarAccessToken(credential?.accessToken ?? null);
+            await signInWithPopup(auth, provider);
         } catch (error) {
             console.error("Error signing in with Google", error);
             toast.error(getUserFacingErrorMessage(error, 'Failed to sign in with Google. Please try again.'));
@@ -107,7 +104,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         try {
             await fbSignOut(auth);
-            setGoogleCalendarAccessToken(null);
+            // Nothing calendar-related should outlive the session.
+            calendarService.clearAccessToken();
+            clearEventCache();
         } catch (error) {
             console.error("Error signing out", error);
             toast.error(getUserFacingErrorMessage(error, 'Failed to sign out. Please try again.'));
@@ -115,7 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     return (
-        <AuthContext.Provider value={{ user, loading, isFirebaseAvailable: isFirebaseConfigured, googleCalendarAccessToken, signInWithGoogle, signOut }}>
+        <AuthContext.Provider value={{ user, loading, isFirebaseAvailable: isFirebaseConfigured, signInWithGoogle, signOut }}>
             {children}
         </AuthContext.Provider>
     );

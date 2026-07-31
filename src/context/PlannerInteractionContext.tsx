@@ -1,8 +1,9 @@
 import React, { createContext, useContext, ReactNode } from 'react';
 
 interface PlannerInteractionContextValue {
-    activeEventId: string | null;
-    setActiveEventId: (id: string | null) => void;
+    /** Day key of the pill whose popover is open, or null. Only one at a time. */
+    openPillDayKey: string | null;
+    setOpenPillDayKey: (dayKey: string | null) => void;
 }
 
 const PlannerInteractionContext = createContext<PlannerInteractionContextValue | undefined>(undefined);

@@ -1,28 +1,28 @@
 import React, { useState, useMemo } from 'react';
 import { User } from 'firebase/auth';
 import usePlannerPersistence from '../hooks/usePlannerPersistence';
-import { useGoogleCalendarSync } from '../hooks/useGoogleCalendarSync';
+import { useCalendarConnection } from '../hooks/useCalendarConnection';
+import { useCalendarEvents } from '../hooks/useCalendarEvents';
 import { PlannerMetaProvider, type PlannerMetaContextValue } from './PlannerMetaContext';
 import { PlannerEventsProvider } from './PlannerEventsContext';
 import { PlannerInteractionProvider } from './PlannerInteractionContext';
 
 export interface AppProviderProps {
-    user: User | null;
-    googleCalendarAccessToken: string | null;
+    user: User;
     children: React.ReactNode;
 }
 
-export const AppProvider: React.FC<AppProviderProps> = ({ user, googleCalendarAccessToken, children }) => {
+export const AppProvider: React.FC<AppProviderProps> = ({ user, children }) => {
     const persistence = usePlannerPersistence(user);
-    const googleSync = useGoogleCalendarSync(
-        user,
-        persistence.events,
-        persistence.setEvents,
-        persistence.stampGoogleEventIds,
-        persistence.isInitialLoadDone,
-        googleCalendarAccessToken
-    );
-    const [activeEventId, setActiveEventId] = useState<string | null>(null);
+    const connection = useCalendarConnection(user);
+    const calendarEvents = useCalendarEvents({
+        calendarId: connection.selection?.calendarId ?? null,
+        year: persistence.year,
+        startMonth: persistence.startMonth,
+        monthsToShow: persistence.monthsToShow,
+        ensureAccess: connection.ensureAccess
+    });
+    const [openPillDayKey, setOpenPillDayKey] = useState<string | null>(null);
 
     const metaValue = useMemo<PlannerMetaContextValue>(() => ({
         year: persistence.year,
@@ -44,6 +44,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({ user, googleCalendarAc
         setShowDayProgress: persistence.setShowDayProgress,
         weekdayAlign: persistence.weekdayAlign,
         setWeekdayAlign: persistence.setWeekdayAlign,
+        pillForAllTimedEvents: persistence.pillForAllTimedEvents,
+        setPillForAllTimedEvents: persistence.setPillForAllTimedEvents,
 
         isInitialLoadDone: persistence.isInitialLoadDone,
         syncStatus: persistence.syncStatus as PlannerMetaContextValue['syncStatus'],
@@ -56,6 +58,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ user, googleCalendarAc
         persistence.showWeekends,
         persistence.showDayProgress,
         persistence.weekdayAlign,
+        persistence.pillForAllTimedEvents,
         persistence.isInitialLoadDone,
         persistence.syncStatus,
         persistence.setYear,
@@ -67,32 +70,39 @@ export const AppProvider: React.FC<AppProviderProps> = ({ user, googleCalendarAc
         persistence.setShowWeekends,
         persistence.setShowDayProgress,
         persistence.setWeekdayAlign,
+        persistence.setPillForAllTimedEvents,
     ]);
 
     const eventsValue = useMemo(() => ({
-        events: persistence.events,
-        setEvents: googleSync.setEventsWithGoogleSync,
+        events: calendarEvents.events,
+        loading: calendarEvents.loading,
+        refreshing: calendarEvents.refreshing,
+        error: calendarEvents.error,
+        lastFetchedAt: calendarEvents.lastFetchedAt,
+        refresh: calendarEvents.refresh,
+        connection,
         year: persistence.year,
         startMonth: persistence.startMonth,
         monthsToShow: persistence.monthsToShow,
-        canUndo: persistence.canUndo,
-        undo: persistence.undo,
-        googleSync: googleSync.googleSync,
+        pillForAllTimedEvents: persistence.pillForAllTimedEvents,
     }), [
-        persistence.events,
+        calendarEvents.events,
+        calendarEvents.loading,
+        calendarEvents.refreshing,
+        calendarEvents.error,
+        calendarEvents.lastFetchedAt,
+        calendarEvents.refresh,
+        connection,
         persistence.year,
         persistence.startMonth,
         persistence.monthsToShow,
-        persistence.canUndo,
-        persistence.undo,
-        googleSync.googleSync,
-        googleSync.setEventsWithGoogleSync
+        persistence.pillForAllTimedEvents,
     ]);
 
     const interactionValue = useMemo(() => ({
-        activeEventId,
-        setActiveEventId,
-    }), [activeEventId]);
+        openPillDayKey,
+        setOpenPillDayKey,
+    }), [openPillDayKey]);
 
     return (
         <PlannerMetaProvider value={metaValue}>

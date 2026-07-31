@@ -7,16 +7,15 @@ import {
     serverTimestamp,
     FieldValue
 } from 'firebase/firestore';
-import { PlannerEvent, PlannerSettings } from './utils/calendarUtils';
+import { PlannerSettings } from './utils/calendarUtils';
 import { logger } from './utils/logger';
 import { getTimestampInMillis } from './utils/persistence';
-import type { GoogleSyncSettings } from './utils/googleCalendarSync';
+import { CalendarSelection, isCalendarSelection } from './utils/calendarSettings';
 
-
-export interface RemoteEventsPayload {
-    events: PlannerEvent[];
-    updatedAt: number | null;
-}
+/**
+ * Firestore stores configuration only. Calendar events are read live from the
+ * Google Calendar API and cached in the browser, never written here.
+ */
 
 const SETTINGS_FIELDS = [
     'theme',
@@ -24,13 +23,20 @@ const SETTINGS_FIELDS = [
     'showWeekends',
     'showDayProgress',
     'weekdayAlign',
+    'pillForAllTimedEvents',
     'year',
     'startMonth',
     'monthsToShow'
 ] as const;
 
+const getSettingsRef = (uid: string) => {
+    const firestore = db;
+    if (!uid || !firestore) return null;
+    return doc(firestore, 'users', uid, 'data', 'settings');
+};
+
 const toPlannerSettings = (data: Record<string, unknown>): Partial<PlannerSettings> => {
-    // Google sync settings live in the same Firestore document but are loaded separately.
+    // The selected calendar lives in the same document but is read separately.
     const settings: Partial<PlannerSettings> = {};
 
     for (const key of SETTINGS_FIELDS) {
@@ -42,89 +48,12 @@ const toPlannerSettings = (data: Record<string, unknown>): Partial<PlannerSettin
     return settings;
 };
 
-const isGoogleSyncSettings = (value: unknown): value is GoogleSyncSettings => {
-    if (!value || typeof value !== 'object') return false;
-
-    const settings = value as Record<string, unknown>;
-    return typeof settings.enabled === 'boolean'
-        && typeof settings.calendarId === 'string'
-        && (!('accountEmail' in settings) || typeof settings.accountEmail === 'string')
-        && (!('calendarSummary' in settings) || typeof settings.calendarSummary === 'string');
-};
-
-/**
- * Save events to Firestore.
- */
-export const syncEvents = async (uid: string, events: PlannerEvent[], timestamp?: number | FieldValue): Promise<boolean> => {
-    const firestore = db;
-    if (!uid || !firestore) return false;
-
-    try {
-        logger.info('Syncing Events to Firestore...', { count: events.length });
-        const ref = doc(firestore, 'users', uid, 'data', 'events');
-        await setDoc(ref, {
-            events,
-            updatedAt: timestamp || serverTimestamp()
-        }, { merge: true });
-        logger.info('Events synced to Firestore successfully');
-        return true;
-    } catch (error) {
-        logger.error('Error syncing events:', error);
-        return false;
-    }
-};
-
-/**
- * Subscribe to events changes from Firestore
- * Returns an unsubscribe function
- */
-export const subscribeToEvents = (uid: string, callback: (payload: RemoteEventsPayload) => void) => {
-    const firestore = db;
-    if (!uid || !firestore) return () => { };
-
-    const ref = doc(firestore, 'users', uid, 'data', 'events');
-
-    return onSnapshot(ref, (snapshot) => {
-        if (snapshot.exists()) {
-            const data = snapshot.data();
-            const updatedAt = getTimestampInMillis(data.updatedAt);
-            callback({ events: data.events || [], updatedAt });
-        }
-    }, (error) => {
-        logger.error('Error subscribing to events:', error);
-    });
-};
-
-/**
- * Load initial events from Firestore
- */
-export const loadEvents = async (uid: string): Promise<RemoteEventsPayload | null> => {
-    const firestore = db;
-    if (!uid || !firestore) return null;
-
-    try {
-        const ref = doc(firestore, 'users', uid, 'data', 'events');
-        const snapshot = await getDoc(ref);
-
-        if (snapshot.exists()) {
-            const data = snapshot.data();
-            const updatedAt = getTimestampInMillis(data.updatedAt);
-            return { events: data.events || [], updatedAt };
-        }
-        return null;
-    } catch (error) {
-        logger.error('Error loading events:', error);
-        return null;
-    }
-};
-
 export const syncSettings = async (uid: string, settings: PlannerSettings, timestamp?: number | FieldValue): Promise<boolean> => {
-    const firestore = db;
-    if (!uid || !firestore) return false;
+    const ref = getSettingsRef(uid);
+    if (!ref) return false;
 
     try {
         logger.info('Syncing Settings to Firestore...', settings);
-        const ref = doc(firestore, 'users', uid, 'data', 'settings');
         await setDoc(ref, {
             ...settings,
             updatedAt: timestamp || serverTimestamp()
@@ -138,14 +67,12 @@ export const syncSettings = async (uid: string, settings: PlannerSettings, times
 };
 
 /**
- * Subscribe to settings changes from Firestore
- * Returns an unsubscribe function
+ * Subscribe to settings changes from Firestore.
+ * Returns an unsubscribe function.
  */
 export const subscribeToSettings = (uid: string, callback: (settings: Partial<PlannerSettings> & { updatedAt?: number }) => void) => {
-    const firestore = db;
-    if (!uid || !firestore) return () => { };
-
-    const ref = doc(firestore, 'users', uid, 'data', 'settings');
+    const ref = getSettingsRef(uid);
+    if (!ref) return () => { };
 
     return onSnapshot(ref, (snapshot) => {
         if (snapshot.exists()) {
@@ -158,15 +85,11 @@ export const subscribeToSettings = (uid: string, callback: (settings: Partial<Pl
     });
 };
 
-/**
- * Load initial settings from Firestore
- */
 export const loadSettings = async (uid: string): Promise<(Partial<PlannerSettings> & { updatedAt?: number | null }) | null> => {
-    const firestore = db;
-    if (!uid || !firestore) return null;
+    const ref = getSettingsRef(uid);
+    if (!ref) return null;
 
     try {
-        const ref = doc(firestore, 'users', uid, 'data', 'settings');
         const snapshot = await getDoc(ref);
 
         if (snapshot.exists()) {
@@ -181,11 +104,9 @@ export const loadSettings = async (uid: string): Promise<(Partial<PlannerSetting
     }
 };
 
-export const subscribeToGoogleSyncSettings = (uid: string, callback: (settings: GoogleSyncSettings | null) => void) => {
-    const firestore = db;
-    if (!uid || !firestore) return () => { };
-
-    const ref = doc(firestore, 'users', uid, 'data', 'settings');
+export const subscribeToCalendarSelection = (uid: string, callback: (selection: CalendarSelection | null) => void) => {
+    const ref = getSettingsRef(uid);
+    if (!ref) return () => { };
 
     return onSnapshot(ref, (snapshot) => {
         if (!snapshot.exists()) {
@@ -194,25 +115,24 @@ export const subscribeToGoogleSyncSettings = (uid: string, callback: (settings: 
         }
 
         const data = snapshot.data();
-        callback(isGoogleSyncSettings(data.googleSyncSettings) ? data.googleSyncSettings : null);
+        callback(isCalendarSelection(data.calendarSelection) ? data.calendarSelection : null);
     }, (error) => {
-        logger.error('Error subscribing to Google sync settings:', error);
+        logger.error('Error subscribing to calendar selection:', error);
     });
 };
 
-export const saveGoogleSyncSettings = async (uid: string, settings: GoogleSyncSettings): Promise<boolean> => {
-    const firestore = db;
-    if (!uid || !firestore) return false;
+export const saveCalendarSelection = async (uid: string, selection: CalendarSelection): Promise<boolean> => {
+    const ref = getSettingsRef(uid);
+    if (!ref) return false;
 
     try {
-        const ref = doc(firestore, 'users', uid, 'data', 'settings');
         await setDoc(ref, {
-            googleSyncSettings: settings,
+            calendarSelection: selection,
             updatedAt: serverTimestamp()
         }, { merge: true });
         return true;
     } catch (error) {
-        logger.error('Error saving Google sync settings:', error);
+        logger.error('Error saving calendar selection:', error);
         return false;
     }
 };

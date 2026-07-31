@@ -1,211 +1,88 @@
 import React, { FC } from 'react';
-import { useDraggable, useDroppable } from '@dnd-kit/core';
-import { CSS } from '@dnd-kit/utilities';
-import { PlannerEvent, STRIPED_COLOR_INDEX, DOTTED_COLOR_INDEX, TRANSPARENT_COLOR_INDEX, getDisplayEvent } from '../../utils/calendarUtils';
+import { CalendarEvent, DayEvents } from '../../utils/calendarEvents';
 import { useTheme } from '../../hooks/useTheme';
-import { DayNumber, EventPreview, EventShadow, OverflowIndicator } from './DayCellSubComponents';
-
+import { DayNumber, EventChip, StackedEventBars } from './DayCellSubComponents';
+import DayPill from './DayPill';
 
 type DayCellProps =
-    | {
-        type: 'spacer' | 'filler';
-    }
+    | { type: 'spacer' | 'filler' }
     | {
         type: 'day';
+        dayKey: string;
         date: {
             year: number;
             month: number;
             day: number;
         };
-        events: PlannerEvent[];
+        events: DayEvents;
         appearance: {
-            isHighlighted: boolean;
             isWeekend: boolean;
             showWeekends: boolean;
-            activeEventId: string | null;
-            dragPreviewEvent: PlannerEvent | null;
-        };
-        today: {
             isToday: boolean;
+            flipPopover: boolean;
         };
-        interactions: {
-            onEventClick: (e: React.MouseEvent, allEventsOnDay: PlannerEvent[], y: number, m: number, d: number) => void;
-            onMouseDown: (y: number, m: number, d: number) => void;
-            onMouseEnter: (y: number, m: number, d: number) => void;
-            onTouchStart: (e: React.TouchEvent, y: number, m: number, d: number) => void;
-            onTouchMove: (e: React.TouchEvent) => void;
-            onTouchEnd: () => void;
-            onMouseUp: () => void;
+        pill: {
+            isOpen: boolean;
+            onOpenChange: (open: boolean) => void;
         };
     };
 
-const DraggableEventChip: FC<{
-    event: PlannerEvent;
-    day: number;
-    month: number;
-    year: number;
-    hasOverflow: boolean;
-    color: string;
-    isActive: boolean;
-    onClick: (e: React.MouseEvent) => void;
-}> = ({ event, day, month, year, hasOverflow, color, isActive, onClick }) => {
-    const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-        id: `${event.id}-${year}-${month}-${day}`,
-        data: {
-            event,
-            current: { day, month, year }
-        }
-    });
+const getChipTitle = (allDayEvents: CalendarEvent[]): string => (
+    allDayEvents.map((event) => event.title).join('\n')
+);
 
-    const isStriped = event.color === STRIPED_COLOR_INDEX;
-    const isDotted = event.color === DOTTED_COLOR_INDEX;
-    const isTransparent = event.color === TRANSPARENT_COLOR_INDEX;
-
-    let className = "event-chip-common draggable-chip-style";
-    if (isStriped) className += " event-striped";
-    else if (isDotted) className += " event-dotted";
-    else if (isTransparent) className += " event-transparent";
-    if (hasOverflow) className += " has-overflow";
-
-    const dndStyle: React.CSSProperties = {
-        transform: CSS.Translate.toString(transform),
-        opacity: isDragging ? 0.5 : (isActive ? 0.6 : 1),
-        zIndex: isDragging ? 200 : undefined,
-        touchAction: 'manipulation',
-    };
-
-    dndStyle.paddingLeft = '4px';
-
-    if (!isTransparent) {
-        if (!isStriped && !isDotted) {
-            dndStyle.backgroundColor = `${color}15`;
-            dndStyle.borderLeft = `2px solid ${color}`;
-        } else {
-            dndStyle.borderLeft = `2px solid ${color}`;
-            const customProps = dndStyle as React.CSSProperties & Record<string, string>;
-            customProps['--event-color-bg'] = `${color}15`;
-            customProps['--event-color-stripe'] = `${color}30`;
-            customProps['--event-color-dot'] = `${color}80`;
-        }
-    }
-
-    return (
-        <div
-            ref={setNodeRef}
-            style={dndStyle}
-            {...listeners}
-            {...attributes}
-            onMouseDown={(e) => {
-                e.stopPropagation();
-                if (listeners?.onMouseDown) listeners.onMouseDown(e);
-            }}
-            onTouchStart={(e) => {
-                e.stopPropagation();
-                if (listeners?.onTouchStart) listeners.onTouchStart(e);
-            }}
-            onClick={onClick}
-            className={className}
-        >
-            <div className="event-chip-content">
-                {event.title && (
-                    <span className="event-chip-title">{event.title}</span>
-                )}
-                {event.icon && (
-                    <span className="event-chip-icon">
-                        {event.icon}
-                    </span>
-                )}
-            </div>
-        </div>
-    );
-};
-
-const InteractiveDayCell: FC<Extract<DayCellProps, { type: 'day' }>> = ({ date, events, appearance, today, interactions }) => {
-    const { date: dayDate, events: dayEvents, appearance: dayAppearance, today: todayState, interactions: dayInteractions } = {
-        date,
-        events,
-        appearance,
-        today,
-        interactions,
-    };
-    const { year, month, day } = dayDate;
-    const { isHighlighted, isWeekend, showWeekends, activeEventId, dragPreviewEvent } = dayAppearance;
-    const { isToday } = todayState;
-    const { onEventClick, onMouseDown, onMouseEnter, onTouchStart, onTouchMove, onTouchEnd, onMouseUp } = dayInteractions;
+const InteractiveDayCell: FC<Extract<DayCellProps, { type: 'day' }>> = ({
+    dayKey,
+    date,
+    events,
+    appearance,
+    pill
+}) => {
+    const { year, month, day } = date;
+    const { isWeekend, showWeekends, isToday, flipPopover } = appearance;
 
     const currentColors = useTheme();
-    const { isOver, setNodeRef } = useDroppable({
-        id: `day-${year}-${month}-${day}`,
-        data: { year, month, day }
-    });
 
-    const mainEvent = dayEvents[0];
-    const displayEvent = React.useMemo(() => getDisplayEvent(dayEvents) || mainEvent, [dayEvents, mainEvent]);
+    const [mainEvent, ...stackedEvents] = events.allDay;
+    const hasPill = events.pill.length > 0;
+    const pillOffset = !hasPill ? 'none' : events.pill.length > 1 ? 'pill-wide' : 'pill';
 
-    const hiddenEvents = dayEvents.slice(1);
-    const hasOverflow = hiddenEvents.length > 0;
-
-    const cellClassName = `day-cell ${isWeekend && showWeekends ? 'weekend' : ''} ${isHighlighted ? 'highlighted' : ''} ${isToday ? 'today today-marker' : ''}`;
-
-    const droppableStyle: React.CSSProperties = {
-        backgroundColor: isOver ? 'var(--accent-light)' : undefined,
-    };
+    const cellClassName = [
+        'day-cell',
+        isWeekend && showWeekends ? 'weekend' : '',
+        isToday ? 'today today-marker' : ''
+    ].filter(Boolean).join(' ');
 
     return (
         <div
-            ref={setNodeRef}
             className={cellClassName}
-            style={droppableStyle}
             data-year={year}
             data-month={month}
             data-day={day}
-            onMouseDown={(e) => {
-                if (e.button === 0) onMouseDown(year, month, day);
-            }}
-            onMouseEnter={() => onMouseEnter(year, month, day)}
-            onTouchStart={(e) => onTouchStart(e, year, month, day)}
-            onTouchMove={onTouchMove}
-            onTouchEnd={onTouchEnd}
-            onMouseUp={onMouseUp}
         >
             <DayNumber value={day} />
 
-            {dragPreviewEvent && (
-                <EventPreview
-                    event={dragPreviewEvent}
-                    hasConflict={dayEvents.length > 0}
-                    currentColors={currentColors}
+            {mainEvent && (
+                <EventChip
+                    event={mainEvent}
+                    color={currentColors[mainEvent.color] || currentColors[0]}
+                    pillOffset={pillOffset}
+                    title={getChipTitle(events.allDay)}
                 />
             )}
 
-            {mainEvent && displayEvent && (
-                <>
-                    {activeEventId === mainEvent.id && (
-                        <EventShadow
-                            event={displayEvent}
-                            hasOverflow={hasOverflow}
-                            color={currentColors[displayEvent.color] || currentColors[0]}
-                        />
-                    )}
-
-                    <DraggableEventChip
-                        event={displayEvent}
-                        day={day}
-                        month={month}
-                        year={year}
-                        hasOverflow={hasOverflow}
-                        color={currentColors[displayEvent.color] || currentColors[0]}
-                        isActive={activeEventId === mainEvent.id}
-                        onClick={(e) => onEventClick(e, dayEvents, year, month, day)}
-                    />
-                </>
+            {stackedEvents.length > 0 && !hasPill && (
+                <StackedEventBars events={stackedEvents} currentColors={currentColors} />
             )}
 
-            {hasOverflow && (
-                <OverflowIndicator
-                    events={hiddenEvents}
-                    currentColors={currentColors}
-                    onClick={(e) => onEventClick(e, dayEvents, year, month, day)}
+            {hasPill && (
+                <DayPill
+                    dayKey={dayKey}
+                    date={date}
+                    events={events.pill}
+                    isOpen={pill.isOpen}
+                    onOpenChange={pill.onOpenChange}
+                    flipPopover={flipPopover}
                 />
             )}
         </div>
@@ -221,4 +98,3 @@ const DayCell: FC<DayCellProps> = React.memo((props) => {
 });
 
 export default DayCell;
-

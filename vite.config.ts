@@ -18,7 +18,7 @@ export default defineConfig({
       manifest: {
         name: 'Calendy',
         short_name: 'Calendy',
-        description: 'A fast year planner that keeps working offline and syncs your changes when you reconnect.',
+        description: 'A fast year-at-a-glance view of your Google Calendar.',
         theme_color: '#ffffff',
         background_color: '#ffffff',
         display: 'standalone',
