@@ -79,7 +79,12 @@ they are always in the export.
    - Enable the **Google Calendar API** in Google Cloud, create a Web OAuth client, and add
      your authorized origins/domains.
    - Set `VITE_GOOGLE_CALENDAR_CLIENT_ID`.
-   - Calendy only ever requests `calendar.readonly`.
+   - Calendy only ever requests `calendar.readonly`: it can read your calendars and events,
+     and can never create, modify or delete anything. The scope is requested at sign-in, so
+     tokens can then be refreshed silently.
+   - `calendar.readonly` is a **sensitive** scope. Keep the OAuth consent screen in *Testing*
+     and add each person who signs in as a test user; publishing would require Google's
+     verification review.
 4. **Quality checks**
    ```bash
    npm run lint
