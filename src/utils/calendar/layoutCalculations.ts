@@ -1,51 +1,23 @@
 import { getDaysInMonth, getDayOfWeekIndex } from '../calendarUtils';
 
-export interface CellData {
-    type: 'spacer' | 'day' | 'filler';
-    id: string;
-    day?: number;
-    index: number;
-}
-
-export interface MonthLayoutConfig {
-    year: number;
-    monthIndex: number;
-    weekdayAlign: boolean;
-    maxRows: number;
-}
-
-export function generateMonthLayout(config: MonthLayoutConfig): CellData[] {
-    const { year, monthIndex, weekdayAlign, maxRows } = config;
-    const cells: CellData[] = [];
-
-    if (weekdayAlign) {
-        const firstDayIndex = getDayOfWeekIndex(year, monthIndex, 1);
-        for (let i = 0; i < firstDayIndex; i++) {
-            cells.push({
-                type: 'spacer',
-                id: `${monthIndex}-spacer-${i}`,
-                index: i
-            });
-        }
-    }
-
+/**
+ * The rows of one month column: a day number, or null for a blank row.
+ *
+ * Blanks come from two places - weekday alignment at the top, and padding at
+ * the bottom so every column ends up the same height - but they render
+ * identically, so they are not worth telling apart.
+ */
+export const generateMonthLayout = (
+    year: number,
+    monthIndex: number,
+    weekdayAlign: boolean,
+    rows: number
+): Array<number | null> => {
+    const leadingBlanks = weekdayAlign ? getDayOfWeekIndex(year, monthIndex, 1) : 0;
     const daysInMonth = getDaysInMonth(year, monthIndex);
-    for (let day = 1; day <= daysInMonth; day++) {
-        cells.push({
-            type: 'day',
-            id: `${monthIndex}-day-${day}`,
-            day,
-            index: cells.length
-        });
-    }
 
-    while (cells.length < maxRows) {
-        cells.push({
-            type: 'filler',
-            id: `${monthIndex}-filler-${cells.length}`,
-            index: cells.length
-        });
-    }
-
-    return cells;
-}
+    return Array.from({ length: rows }, (_, row) => {
+        const day = row - leadingBlanks + 1;
+        return day >= 1 && day <= daysInMonth ? day : null;
+    });
+};

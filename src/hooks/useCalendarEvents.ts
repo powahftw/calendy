@@ -5,7 +5,6 @@ import {
     isCalendarRateLimitError
 } from '../services/CalendarService';
 import { CalendarEvent, toCalendarEvents } from '../utils/calendarEvents';
-import { getViewYears, getYearBounds } from '../utils/calendarSettings';
 import {
     EVENT_CACHE_TTL_MS,
     isCacheFresh,
@@ -14,6 +13,19 @@ import {
 } from '../utils/eventCache';
 import { logger } from '../utils/logger';
 import { getUserFacingErrorMessage } from '../utils/userFacingErrors';
+
+/** The years a view spans, so events are fetched and cached year by year. */
+const getViewYears = (year: number, startMonth: number, monthsToShow: number): number[] => (
+    [...new Set(
+        Array.from({ length: monthsToShow }, (_, i) => year + Math.floor((startMonth + i) / 12))
+    )]
+);
+
+/** Google wants RFC3339 instants; a whole local year is [Jan 1, next Jan 1). */
+const getYearBounds = (year: number) => ({
+    timeMin: new Date(year, 0, 1).toISOString(),
+    timeMax: new Date(year + 1, 0, 1).toISOString()
+});
 
 export interface CalendarEventsState {
     events: CalendarEvent[];
@@ -71,7 +83,6 @@ export const useCalendarEvents = ({
     const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [lastFetchedAt, setLastFetchedAt] = useState<number | null>(null);
-    const isMountedRef = useRef(true);
     // Identifies what the in-flight load is fetching, so a load for a
     // *different* calendar or range is never swallowed by the re-entrancy
     // guard, and a superseded response is never written to state.
@@ -83,10 +94,6 @@ export const useCalendarEvents = ({
         [monthsToShow, startMonth, year]
     );
     const yearsKey = years.join(',');
-
-    useEffect(() => () => {
-        isMountedRef.current = false;
-    }, []);
 
     const load = useCallback(async (force: boolean) => {
         if (!calendarId) {
@@ -100,7 +107,7 @@ export const useCalendarEvents = ({
         if (inFlightKeyRef.current === requestKey) return;
 
         const requestId = ++latestRequestRef.current;
-        const isCurrent = () => isMountedRef.current && latestRequestRef.current === requestId;
+        const isCurrent = () => latestRequestRef.current === requestId;
 
         const cached = collectCached(calendarId, years);
         const yearsToFetch = force ? years : cached.staleYears;

@@ -1197,14 +1197,3 @@ body[data-theme='dark'] .header-settings-btn:hover {
   font-size: 0.85rem;
   margin: 0;
 }
-
-.event-selection-item.selected {
-  background: var(--accent-light);
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-

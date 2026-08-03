@@ -3,14 +3,33 @@ import {
     doc,
     setDoc,
     onSnapshot,
-    getDoc,
     serverTimestamp,
     FieldValue
 } from 'firebase/firestore';
 import { PlannerSettings } from './utils/calendarUtils';
 import { logger } from './utils/logger';
 import { getTimestampInMillis } from './utils/persistence';
-import { CalendarSelection, isCalendarSelection } from './utils/calendarSettings';
+
+/**
+ * Which Google Calendar the user is looking at. Configuration, not event data:
+ * it is the only calendar-related thing Calendy stores server side, so the
+ * choice follows the user across devices.
+ */
+export interface CalendarSelection {
+    calendarId: string;
+    calendarSummary?: string;
+    accountEmail?: string;
+}
+
+const isCalendarSelection = (value: unknown): value is CalendarSelection => {
+    if (!value || typeof value !== 'object') return false;
+
+    const selection = value as Record<string, unknown>;
+    return typeof selection.calendarId === 'string'
+        && selection.calendarId.length > 0
+        && (!('calendarSummary' in selection) || typeof selection.calendarSummary === 'string')
+        && (!('accountEmail' in selection) || typeof selection.accountEmail === 'string');
+};
 
 /**
  * Firestore stores configuration only. Calendar events are read live from the
@@ -83,25 +102,6 @@ export const subscribeToSettings = (uid: string, callback: (settings: Partial<Pl
     }, (error) => {
         logger.error('Error subscribing to settings:', error);
     });
-};
-
-export const loadSettings = async (uid: string): Promise<(Partial<PlannerSettings> & { updatedAt?: number | null }) | null> => {
-    const ref = getSettingsRef(uid);
-    if (!ref) return null;
-
-    try {
-        const snapshot = await getDoc(ref);
-
-        if (snapshot.exists()) {
-            const data = snapshot.data();
-            const updatedAt = getTimestampInMillis(data.updatedAt);
-            return { ...toPlannerSettings(data), updatedAt };
-        }
-        return null;
-    } catch (error) {
-        logger.error('Error loading settings:', error);
-        return null;
-    }
 };
 
 export const subscribeToCalendarSelection = (uid: string, callback: (selection: CalendarSelection | null) => void) => {

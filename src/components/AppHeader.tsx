@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { usePlannerMeta } from '../context/PlannerMetaContext';
-import { usePlannerEvents } from '../context/PlannerEventsContext';
+import { usePlanner } from '../context/PlannerContext';
 import { calculateViewProgress, getYearLabel } from '../utils/calendarUtils';
 
 interface AppHeaderProps {
@@ -9,8 +8,7 @@ interface AppHeaderProps {
 }
 
 const AppHeader: React.FC<AppHeaderProps> = ({ todayInView, onSettingsClick }) => {
-    const { year, startMonth, showDayProgress, monthsToShow, navigate, setYear, setStartMonth, syncStatus } = usePlannerMeta();
-    const { connection } = usePlannerEvents();
+    const { year, startMonth, showDayProgress, monthsToShow, navigate, updateSettings, syncStatus, connection } = usePlanner();
     const [showPercentage, setShowPercentage] = useState(false);
     const [isNavPinnedOpen, setIsNavPinnedOpen] = useState(false);
     const [shouldScrollToToday, setShouldScrollToToday] = useState(false);
@@ -65,8 +63,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({ todayInView, onSettingsClick }) =
         const isTodayInRange = todayIndex >= currentRangeStart && todayIndex <= currentRangeEnd;
 
         if (!isTodayInRange) {
-            setYear(today.getFullYear());
-            setStartMonth(today.getMonth());
+            updateSettings({ year: today.getFullYear(), startMonth: today.getMonth() });
             setShouldScrollToToday(true);
             return;
         }

@@ -1,39 +1,49 @@
 import React, { FC, useCallback, useEffect, useRef } from 'react';
 import { CalendarEvent, formatEventTimeRange, getPillEmoji } from '../../utils/calendarEvents';
 import { monthNames } from '../../utils/calendarUtils';
+import { usePlannerInteraction } from '../../context/PlannerContext';
 
 interface DayPillProps {
     dayKey: string;
-    date: { year: number; month: number; day: number };
+    year: number;
+    month: number;
+    day: number;
     events: CalendarEvent[];
-    isOpen: boolean;
-    onOpenChange: (open: boolean) => void;
     /** Months on the left of the grid flip the popover to their right side. */
     flipPopover: boolean;
 }
 
 /**
- * One pill per day, grouping every timed event that collapsed onto it.
- * Hover reveals the detail on pointer devices; tap toggles it on touch, since
- * hover does not exist there.
+ * One pill per day, grouping every event that collapsed onto it. Hover reveals
+ * the detail on pointer devices; tap toggles it on touch, where hover does not
+ * exist.
+ *
+ * Open state is read straight from context rather than threaded down through
+ * the grid, so opening a pill re-renders the pills and not all ~440 day cells.
  */
-const DayPill: FC<DayPillProps> = ({ dayKey, date, events, isOpen, onOpenChange, flipPopover }) => {
+const DayPill: FC<DayPillProps> = ({ dayKey, year, month, day, events, flipPopover }) => {
+    const { openPillDayKey, setOpenPillDayKey } = usePlannerInteraction();
+    const isOpen = openPillDayKey === dayKey;
+
     const containerRef = useRef<HTMLDivElement>(null);
     // A tap fires both pointerdown and a synthetic mouseenter on touch devices;
     // this keeps the tap from immediately re-opening what it just closed.
     const isTouchRef = useRef(false);
 
-    const close = useCallback(() => onOpenChange(false), [onOpenChange]);
+    const setOpen = useCallback(
+        (open: boolean) => setOpenPillDayKey(open ? dayKey : null),
+        [dayKey, setOpenPillDayKey]
+    );
 
     useEffect(() => {
         if (!isOpen) return;
 
         const handlePointerDown = (event: PointerEvent) => {
-            if (!containerRef.current?.contains(event.target as Node)) close();
+            if (!containerRef.current?.contains(event.target as Node)) setOpen(false);
         };
 
         const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') close();
+            if (event.key === 'Escape') setOpen(false);
         };
 
         document.addEventListener('pointerdown', handlePointerDown);
@@ -42,23 +52,23 @@ const DayPill: FC<DayPillProps> = ({ dayKey, date, events, isOpen, onOpenChange,
             document.removeEventListener('pointerdown', handlePointerDown);
             document.removeEventListener('keydown', handleKeyDown);
         };
-    }, [close, isOpen]);
+    }, [isOpen, setOpen]);
 
     const emoji = getPillEmoji(events);
     const count = events.length;
     // With no emoji to show, the count carries the pill on its own.
     const showCount = count > 1 || !emoji;
-    const label = `${count} event${count === 1 ? '' : 's'} on ${date.day} ${monthNames[date.month]}`;
+    const label = `${count} event${count === 1 ? '' : 's'} on ${day} ${monthNames[month]}`;
 
     return (
         <div
             ref={containerRef}
             className="day-pill-container"
             onMouseEnter={() => {
-                if (!isTouchRef.current) onOpenChange(true);
+                if (!isTouchRef.current) setOpen(true);
             }}
             onMouseLeave={() => {
-                if (!isTouchRef.current) close();
+                if (!isTouchRef.current) setOpen(false);
             }}
         >
             <button
@@ -72,7 +82,7 @@ const DayPill: FC<DayPillProps> = ({ dayKey, date, events, isOpen, onOpenChange,
                 onPointerDown={(e) => {
                     isTouchRef.current = e.pointerType === 'touch' || e.pointerType === 'pen';
                 }}
-                onClick={() => onOpenChange(!isOpen)}
+                onClick={() => setOpen(!isOpen)}
             >
                 {emoji && <span className="day-pill-emoji" aria-hidden="true">{emoji}</span>}
                 {/* Clamped to two characters so the pill's width stays fixed. */}
@@ -86,7 +96,7 @@ const DayPill: FC<DayPillProps> = ({ dayKey, date, events, isOpen, onOpenChange,
                     role="dialog"
                     aria-labelledby={`day-pill-${dayKey}`}
                 >
-                    <div className="pill-popover-date">{date.day} {monthNames[date.month]} {date.year}</div>
+                    <div className="pill-popover-date">{day} {monthNames[month]} {year}</div>
                     {events.map((event) => (
                         <div key={event.id} className="pill-popover-item">
                             <span className="pill-popover-time">{formatEventTimeRange(event)}</span>

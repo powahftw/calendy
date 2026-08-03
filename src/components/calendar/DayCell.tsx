@@ -1,103 +1,100 @@
 import React, { FC } from 'react';
-import { CalendarEvent, DayEvents, getPillEmoji } from '../../utils/calendarEvents';
-import { useTheme } from '../../hooks/useTheme';
-import { DayNumber, EventChip, StackedEventBars } from './DayCellSubComponents';
+import { DayEvents, getPillEmoji } from '../../utils/calendarEvents';
 import DayPill from './DayPill';
 
-type DayCellProps =
-    | { type: 'spacer' | 'filler' }
-    | {
-        type: 'day';
-        dayKey: string;
-        date: {
-            year: number;
-            month: number;
-            day: number;
-        };
-        events: DayEvents;
-        appearance: {
-            isWeekend: boolean;
-            showWeekends: boolean;
-            isToday: boolean;
-            flipPopover: boolean;
-        };
-        pill: {
-            isOpen: boolean;
-            onOpenChange: (open: boolean) => void;
-        };
-    };
+interface DayCellProps {
+    dayKey: string;
+    year: number;
+    month: number;
+    day: number;
+    events: DayEvents;
+    /** Theme palette, passed down so a cell needs no context of its own. */
+    colors: string[];
+    isWeekend: boolean;
+    isToday: boolean;
+    /** Columns on the left of the grid open their popovers to the right. */
+    flipPopover: boolean;
+}
 
-const getChipTitle = (allDayEvents: CalendarEvent[]): string => (
-    allDayEvents.map((event) => event.title).join('\n')
-);
-
-const InteractiveDayCell: FC<Extract<DayCellProps, { type: 'day' }>> = ({
+/**
+ * Props are deliberately flat primitives plus values that are stable across
+ * renders (`events` comes from a memoized map, `colors` from the theme). That
+ * is what lets React.memo actually skip the ~440 cells in a year view.
+ */
+const DayCell: FC<DayCellProps> = React.memo(({
     dayKey,
-    date,
+    year,
+    month,
+    day,
     events,
-    appearance,
-    pill
+    colors,
+    isWeekend,
+    isToday,
+    flipPopover
 }) => {
-    const { year, month, day } = date;
-    const { isWeekend, showWeekends, isToday, flipPopover } = appearance;
-
-    const currentColors = useTheme();
-
-    const [mainEvent, ...stackedEvents] = events.allDay;
+    const [chipEvent, ...stackedEvents] = events.allDay;
     const hasPill = events.pill.length > 0;
-    // The chip has to reserve room for what the pill will actually draw: both
-    // an emoji and a count only when the pill shows both.
-    const pillIsWide = hasPill && events.pill.length > 1 && getPillEmoji(events.pill) !== undefined;
-    const pillOffset = !hasPill ? 'none' : pillIsWide ? 'pill-wide' : 'pill';
 
-    const cellClassName = [
+    // The chip reserves room for what the pill will actually draw: it is only
+    // wide when the pill shows both an emoji and a count.
+    const pillIsWide = events.pill.length > 1 && getPillEmoji(events.pill) !== undefined;
+    const chipClassName = hasPill
+        ? `event-chip-common has-pill ${pillIsWide ? 'has-pill-wide' : ''}`
+        : 'event-chip-common';
+
+    const className = [
         'day-cell',
-        isWeekend && showWeekends ? 'weekend' : '',
+        isWeekend ? 'weekend' : '',
         isToday ? 'today today-marker' : ''
     ].filter(Boolean).join(' ');
 
     return (
-        <div
-            className={cellClassName}
-            data-year={year}
-            data-month={month}
-            data-day={day}
-        >
-            <DayNumber value={day} />
+        <div className={className} data-year={year} data-month={month} data-day={day}>
+            <span className="day-num">{day}</span>
 
-            {mainEvent && (
-                <EventChip
-                    event={mainEvent}
-                    color={currentColors[mainEvent.color] || currentColors[0]}
-                    pillOffset={pillOffset}
-                    title={getChipTitle(events.allDay)}
-                />
+            {chipEvent && (
+                <div
+                    className={chipClassName}
+                    style={{
+                        backgroundColor: `${colors[chipEvent.color] || colors[0]}15`,
+                        borderLeft: `2px solid ${colors[chipEvent.color] || colors[0]}`,
+                        paddingLeft: '4px'
+                    }}
+                    title={events.allDay.map((event) => event.title).join('\n')}
+                >
+                    <div className="event-chip-content">
+                        <span className="event-chip-title">{chipEvent.title}</span>
+                    </div>
+                </div>
             )}
 
+            {/* Thin bars standing in for the all-day events the chip hid. */}
             {stackedEvents.length > 0 && !hasPill && (
-                <StackedEventBars events={stackedEvents} currentColors={currentColors} />
+                <div className="event-overflow" aria-hidden="true">
+                    <div className="overflow-lines">
+                        {stackedEvents.map((event) => (
+                            <div
+                                key={event.id}
+                                className="overflow-line"
+                                style={{ backgroundColor: colors[event.color] || colors[0] }}
+                            />
+                        ))}
+                    </div>
+                </div>
             )}
 
             {hasPill && (
                 <DayPill
                     dayKey={dayKey}
-                    date={date}
+                    year={year}
+                    month={month}
+                    day={day}
                     events={events.pill}
-                    isOpen={pill.isOpen}
-                    onOpenChange={pill.onOpenChange}
                     flipPopover={flipPopover}
                 />
             )}
         </div>
     );
-};
-
-const DayCell: FC<DayCellProps> = React.memo((props) => {
-    if (props.type !== 'day') {
-        return <div className="day-cell empty"></div>;
-    }
-
-    return <InteractiveDayCell {...props} />;
 });
 
 export default DayCell;

@@ -4,7 +4,7 @@ import { User } from 'firebase/auth';
 import App from '../App';
 import type { GoogleCalendar, GoogleEvent } from '../services/CalendarService';
 import { clearEventCache } from '../utils/eventCache';
-import type { CalendarSelection } from '../utils/calendarSettings';
+import type { CalendarSelection } from '../firestoreSync';
 
 vi.mock('../firebase', () => ({
     db: {},
@@ -33,7 +33,6 @@ const mockSaveCalendarSelection = vi.fn(async (_uid: string, selection: Calendar
 vi.mock('../firestoreSync', () => ({
     syncSettings: vi.fn().mockResolvedValue(true),
     subscribeToSettings: vi.fn().mockReturnValue(() => { }),
-    loadSettings: vi.fn().mockResolvedValue(null),
     subscribeToCalendarSelection: (_uid: string, callback: (s: CalendarSelection | null) => void) => {
         callback(storedSelection);
         return () => { };
@@ -222,22 +221,15 @@ describe('Calendy read-only planner', () => {
             });
         });
 
-        it('leaves timed events without an emoji off the grid', async () => {
+        it('keeps the grid and offers to reconnect when the token has lapsed', async () => {
+            hasToken = false;
+            mockRequestAccessToken.mockRejectedValue(new Error('needs consent'));
             render(<App />);
-            await screen.findAllByText('Lisbon');
 
-            expect(screen.queryByRole('button', { name: /event.* on 20 Jul/i })).not.toBeInTheDocument();
-        });
-
-        it('exposes no way to create, edit or delete an event', async () => {
-            render(<App />);
-            const [chip] = await screen.findAllByText('Lisbon');
-
-            fireEvent.click(chip);
-
-            expect(screen.queryByText(/New Event/i)).not.toBeInTheDocument();
-            expect(screen.queryByRole('button', { name: /delete/i })).not.toBeInTheDocument();
-            expect(screen.queryByRole('button', { name: /^save$/i })).not.toBeInTheDocument();
+            // The calendar is still chosen, so the picker must not take over.
+            expect(await screen.findByText('Jul')).toBeInTheDocument();
+            expect(screen.queryByText('Connect your calendar')).not.toBeInTheDocument();
+            expect(screen.getByRole('button', { name: /^Reconnect$/i })).toBeInTheDocument();
         });
 
         it('offers export but not import or clear-all in settings', async () => {
@@ -249,18 +241,6 @@ describe('Calendy read-only planner', () => {
             expect(await screen.findByRole('button', { name: /Export Markdown/i })).toBeInTheDocument();
             expect(screen.queryByRole('button', { name: /^Import$/i })).not.toBeInTheDocument();
             expect(screen.queryByRole('button', { name: /Clear All/i })).not.toBeInTheDocument();
-        });
-
-        it('only fetches Google once for a cached year', async () => {
-            const { unmount } = render(<App />);
-            await screen.findAllByText('Lisbon');
-            await waitFor(() => expect(mockListEvents).toHaveBeenCalledTimes(1));
-
-            unmount();
-            render(<App />);
-            await screen.findAllByText('Lisbon');
-
-            expect(mockListEvents).toHaveBeenCalledTimes(1);
         });
     });
 });

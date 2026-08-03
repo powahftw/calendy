@@ -1,9 +1,8 @@
-import React, { FC, useMemo, useState } from 'react';
+import React, { FC, useState } from 'react';
 import { User } from 'firebase/auth';
 import toast from 'react-hot-toast';
 import { themes } from '../utils/calendarUtils';
-import { usePlannerMeta } from '../context/PlannerMetaContext';
-import { usePlannerEvents } from '../context/PlannerEventsContext';
+import { usePlanner } from '../context/PlannerContext';
 import { useEscapeKey } from '../hooks/useEscapeKey';
 import { exportEventsToMarkdown, getExportFilename } from '../utils/calendar/exportEvents';
 import CalendarPicker from './CalendarPicker';
@@ -33,19 +32,9 @@ const formatLastFetched = (lastFetchedAt: number | null): string => {
 const SettingsModal: FC<SettingsModalProps> = ({ onClose, user, onSignOut }) => {
     const [showCalendarPicker, setShowCalendarPicker] = useState(false);
 
-    const {
-        year, setYear,
-        startMonth, setStartMonth,
-        monthsToShow, setMonthsToShow,
-        theme, setTheme,
-        highlightToday, setHighlightToday,
-        showWeekends, setShowWeekends,
-        showDayProgress, setShowDayProgress,
-        weekdayAlign, setWeekdayAlign,
-        pillUnmarkedEvents, setPillUnmarkedEvents
-    } = usePlannerMeta();
-
-    const { events, connection, refresh, refreshing, lastFetchedAt } = usePlannerEvents();
+    const planner = usePlanner();
+    const { year, startMonth, monthsToShow, theme, setTheme, updateSettings } = planner;
+    const { events, connection, refresh, refreshing, lastFetchedAt } = planner;
 
     useEscapeKey(onClose);
 
@@ -69,49 +58,13 @@ const SettingsModal: FC<SettingsModalProps> = ({ onClose, user, onSignOut }) => 
         toast.success(`Exported to ${filename}`);
     };
 
-    const checkboxSettings = useMemo(() => ([
-        {
-            id: 'alignWs',
-            label: 'Align Weekdays',
-            checked: weekdayAlign,
-            onChange: setWeekdayAlign
-        },
-        {
-            id: 'hlToday',
-            label: 'Highlight Current Day',
-            checked: highlightToday,
-            onChange: setHighlightToday
-        },
-        {
-            id: 'shwWeekends',
-            label: 'Highlight Weekends',
-            checked: showWeekends,
-            onChange: setShowWeekends
-        },
-        {
-            id: 'shwDayProg',
-            label: 'Show Day Progress (Day X / 365)',
-            checked: showDayProgress,
-            onChange: setShowDayProgress
-        },
-        {
-            id: 'pillUnmarked',
-            label: 'Show a pill on days with only unmarked events',
-            checked: pillUnmarkedEvents,
-            onChange: setPillUnmarkedEvents
-        }
-    ]), [
-        weekdayAlign,
-        highlightToday,
-        showWeekends,
-        showDayProgress,
-        pillUnmarkedEvents,
-        setWeekdayAlign,
-        setHighlightToday,
-        setShowWeekends,
-        setShowDayProgress,
-        setPillUnmarkedEvents
-    ]);
+    const toggles = [
+        { key: 'weekdayAlign', label: 'Align Weekdays' },
+        { key: 'highlightToday', label: 'Highlight Current Day' },
+        { key: 'showWeekends', label: 'Highlight Weekends' },
+        { key: 'showDayProgress', label: 'Show Day Progress (Day X / 365)' },
+        { key: 'pillUnmarkedEvents', label: 'Show a pill on days with only unmarked events' }
+    ] as const;
 
     return (
         <div
@@ -152,11 +105,9 @@ const SettingsModal: FC<SettingsModalProps> = ({ onClose, user, onSignOut }) => 
                                     const val = e.target.value;
                                     if (val === "today") {
                                         const now = new Date();
-                                        setYear(now.getFullYear());
-                                        setStartMonth(now.getMonth());
+                                        updateSettings({ year: now.getFullYear(), startMonth: now.getMonth() });
                                     } else {
-                                        setYear(Number(val));
-                                        setStartMonth(0);
+                                        updateSettings({ year: Number(val), startMonth: 0 });
                                     }
                                 }}
                             >
@@ -171,22 +122,22 @@ const SettingsModal: FC<SettingsModalProps> = ({ onClose, user, onSignOut }) => 
                         </div>
                         <div className="setting-row">
                             <label>Range</label>
-                            <select className="modal-input" value={monthsToShow} onChange={e => setMonthsToShow(Number(e.target.value))}>
+                            <select className="modal-input" value={monthsToShow} onChange={e => updateSettings({ monthsToShow: Number(e.target.value) })}>
                                 <option value={3}>Quarter (3 months)</option>
                                 <option value={6}>Half (6 months)</option>
                                 <option value={12}>Yearly (365 days)</option>
                             </select>
                         </div>
-                        {checkboxSettings.map(setting => (
-                            <div className="setting-row checkbox" key={setting.id}>
+                        {toggles.map(({ key, label }) => (
+                            <div className="setting-row checkbox" key={key}>
                                 <input
                                     className="checkbox-input"
                                     type="checkbox"
-                                    id={setting.id}
-                                    checked={setting.checked}
-                                    onChange={e => setting.onChange(e.target.checked)}
+                                    id={key}
+                                    checked={planner[key]}
+                                    onChange={e => updateSettings({ [key]: e.target.checked })}
                                 />
-                                <label htmlFor={setting.id}>{setting.label}</label>
+                                <label htmlFor={key}>{label}</label>
                             </div>
                         ))}
                     </div>

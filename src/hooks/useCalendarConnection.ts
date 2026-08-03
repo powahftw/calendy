@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { User } from 'firebase/auth';
 import toast from 'react-hot-toast';
 import {
@@ -10,7 +10,7 @@ import {
     preloadGoogleIdentityApi
 } from '../services/CalendarService';
 import { saveCalendarSelection, subscribeToCalendarSelection } from '../firestoreSync';
-import { CalendarSelection } from '../utils/calendarSettings';
+import type { CalendarSelection } from '../firestoreSync';
 import { logger } from '../utils/logger';
 import { getUserFacingErrorMessage } from '../utils/userFacingErrors';
 
@@ -48,6 +48,12 @@ export const getCalendarName = (calendar: GoogleCalendar): string => (
     calendar.summaryOverride || calendar.summary || calendar.id
 );
 
+const describeError = (err: unknown, fallback: string): string => (
+    isCalendarRateLimitError(err)
+        ? 'Google is rate limiting requests. Try again in a minute.'
+        : getUserFacingErrorMessage(err, fallback)
+);
+
 export const useCalendarConnection = (user: User | null): CalendarConnection => {
     const userUid = user?.uid ?? null;
     const userEmail = user?.email ?? null;
@@ -60,11 +66,6 @@ export const useCalendarConnection = (user: User | null): CalendarConnection => 
     const [selection, setSelection] = useState<CalendarSelection | null>(null);
     const [selectionLoading, setSelectionLoading] = useState(Boolean(userUid));
     const [error, setError] = useState<string | null>(null);
-    const isMountedRef = useRef(true);
-
-    useEffect(() => () => {
-        isMountedRef.current = false;
-    }, []);
 
     useEffect(() => {
         preloadGoogleIdentityApi();
@@ -84,27 +85,16 @@ export const useCalendarConnection = (user: User | null): CalendarConnection => 
         });
     }, [userUid]);
 
-    const describeError = useCallback((err: unknown, fallback: string) => {
-        if (isCalendarRateLimitError(err)) {
-            return 'Google is rate limiting requests. Try again in a minute.';
-        }
-
-        return getUserFacingErrorMessage(err, fallback);
-    }, []);
-
     const loadCalendars = useCallback(async () => {
         if (!calendarService.hasValidToken()) return;
 
         setCalendarsLoading(true);
         try {
             const list = await calendarService.listCalendars();
-            if (!isMountedRef.current) return;
-
             setCalendars(sortCalendars(list));
             setError(null);
         } catch (err) {
             logger.error('Failed to list Google calendars', err);
-            if (!isMountedRef.current) return;
 
             if (isCalendarAuthorizationError(err)) {
                 calendarService.clearAccessToken();
@@ -113,9 +103,9 @@ export const useCalendarConnection = (user: User | null): CalendarConnection => 
             }
             setError(describeError(err, 'Could not load your calendars.'));
         } finally {
-            if (isMountedRef.current) setCalendarsLoading(false);
+            setCalendarsLoading(false);
         }
-    }, [describeError]);
+    }, []);
 
     /**
      * Tries to get a token without bothering the user. Google can still decide
@@ -136,17 +126,13 @@ export const useCalendarConnection = (user: User | null): CalendarConnection => 
 
         try {
             await calendarService.requestAccessToken(userEmail);
-            if (!isMountedRef.current) return true;
-
             setHasToken(true);
             setAuthorizationRequired(false);
             return true;
         } catch (err) {
             logger.info('Silent Google Calendar token refresh failed', err);
-            if (isMountedRef.current) {
-                setHasToken(false);
-                setAuthorizationRequired(true);
-            }
+            setHasToken(false);
+            setAuthorizationRequired(true);
             return false;
         }
     }, [userEmail]);
@@ -193,24 +179,20 @@ export const useCalendarConnection = (user: User | null): CalendarConnection => 
 
         try {
             await calendarService.requestAccessToken(userEmail);
-            if (!isMountedRef.current) return true;
-
             setHasToken(true);
             setAuthorizationRequired(false);
             await loadCalendars();
             return true;
         } catch (err) {
             logger.error('Google Calendar connection failed', err);
-            if (!isMountedRef.current) return false;
-
             const message = describeError(err, 'Could not connect to Google Calendar.');
             setError(message);
             toast.error(message);
             return false;
         } finally {
-            if (isMountedRef.current) setConnecting(false);
+            setConnecting(false);
         }
-    }, [describeError, loadCalendars, userEmail, userUid]);
+    }, [loadCalendars, userEmail, userUid]);
 
     const selectCalendar = useCallback(async (calendar: GoogleCalendar) => {
         if (!userUid) return false;
