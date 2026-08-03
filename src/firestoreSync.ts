@@ -4,6 +4,7 @@ import {
     setDoc,
     onSnapshot,
     serverTimestamp,
+    deleteField,
     FieldValue
 } from 'firebase/firestore';
 import { PlannerSettings } from './utils/calendarUtils';
@@ -128,6 +129,10 @@ export const saveCalendarSelection = async (uid: string, selection: CalendarSele
     try {
         await setDoc(ref, {
             calendarSelection: selection,
+            // Remove the field used by the interactive-planner version. The
+            // current rules validate the whole merged document, so leaving it
+            // behind would make this otherwise-valid migration write fail.
+            googleSyncSettings: deleteField(),
             updatedAt: serverTimestamp()
         }, { merge: true });
         return true;
