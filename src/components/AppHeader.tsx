@@ -8,7 +8,7 @@ interface AppHeaderProps {
 }
 
 const AppHeader: React.FC<AppHeaderProps> = ({ todayInView, onSettingsClick }) => {
-    const { year, startMonth, showDayProgress, monthsToShow, navigate, setYear, setStartMonth, syncStatus, googleSync } = usePlanner();
+    const { year, startMonth, showDayProgress, monthsToShow, navigate, updateSettings, syncStatus, connection } = usePlanner();
     const [showPercentage, setShowPercentage] = useState(false);
     const [isNavPinnedOpen, setIsNavPinnedOpen] = useState(false);
     const [shouldScrollToToday, setShouldScrollToToday] = useState(false);
@@ -63,8 +63,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({ todayInView, onSettingsClick }) =
         const isTodayInRange = todayIndex >= currentRangeStart && todayIndex <= currentRangeEnd;
 
         if (!isTodayInRange) {
-            setYear(today.getFullYear());
-            setStartMonth(today.getMonth());
+            updateSettings({ year: today.getFullYear(), startMonth: today.getMonth() });
             setShouldScrollToToday(true);
             return;
         }
@@ -87,9 +86,9 @@ const AppHeader: React.FC<AppHeaderProps> = ({ todayInView, onSettingsClick }) =
 
     const showSyncDot = syncStatus === 'offline' || syncStatus === 'pending';
     const syncTitle = syncStatus === 'offline'
-        ? 'Offline. Changes are saved locally and will sync when you reconnect.'
+        ? 'Offline. Settings are saved locally and will sync when you reconnect.'
         : syncStatus === 'pending'
-            ? 'Online again, syncing your local changes.'
+            ? 'Online again, syncing your settings.'
             : undefined;
 
     return (
@@ -173,9 +172,9 @@ const AppHeader: React.FC<AppHeaderProps> = ({ todayInView, onSettingsClick }) =
                     className="header-settings-btn header-settings-btn-with-status"
                     onClick={onSettingsClick}
                     title="Settings"
-                    aria-label={googleSync.authorizationRequired ? 'Settings. Google Calendar sync needs reconnecting.' : 'Settings'}
+                    aria-label={connection.authorizationRequired ? 'Settings. Google Calendar access needs reconnecting.' : 'Settings'}
                 >
-                    {googleSync.authorizationRequired && (
+                    {connection.authorizationRequired && (
                         <span className="header-alert-dot" aria-hidden="true" />
                     )}
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

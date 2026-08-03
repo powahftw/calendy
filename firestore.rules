@@ -1,5 +1,7 @@
 rules_version = '2';
 
+// Calendy stores configuration only. Calendar events are read live from the
+// Google Calendar API and cached in the browser - they are never written here.
 service cloud.firestore {
   match /databases/{database}/documents {
     function isOwner(userId) {
@@ -12,45 +14,26 @@ service cloud.firestore {
         && request.time < resource.data.updatedAt + duration.value(500, 'ms');
     }
 
-    function validDateString(value) {
-      return value is string
-        && value.matches('^\\d{4}-\\d{2}-\\d{2}$');
-    }
-
-    function validEvent(event) {
-      return event is map
-        && event.keys().hasAll(['id', 'title', 'start', 'end', 'color'])
-        && event.keys().hasOnly(['id', 'title', 'start', 'end', 'color', 'icon', 'gcalEventId'])
-        && event.id is string
-        && event.id.size() > 0
-        && event.id.size() <= 200
-        && event.title is string
-        && event.title.size() <= 500
-        && validDateString(event.start)
-        && validDateString(event.end)
-        && event.color is int
-        && event.color >= 0
-        && event.color <= 10
+    function validCalendarSelection() {
+      return request.resource.data.calendarSelection is map
+        && request.resource.data.calendarSelection.keys().hasOnly(['calendarId', 'calendarSummary', 'accountEmail'])
+        && request.resource.data.calendarSelection.calendarId is string
+        && request.resource.data.calendarSelection.calendarId.size() > 0
+        && request.resource.data.calendarSelection.calendarId.size() <= 500
         && (
-          !event.keys().hasAny(['icon'])
-          || (event.icon is string && event.icon.size() <= 100)
+          !request.resource.data.calendarSelection.keys().hasAny(['calendarSummary'])
+          || (
+            request.resource.data.calendarSelection.calendarSummary is string
+            && request.resource.data.calendarSelection.calendarSummary.size() <= 500
+          )
         )
         && (
-          !event.keys().hasAny(['gcalEventId'])
-          || (event.gcalEventId is string && event.gcalEventId.size() > 0 && event.gcalEventId.size() <= 500)
+          !request.resource.data.calendarSelection.keys().hasAny(['accountEmail'])
+          || (
+            request.resource.data.calendarSelection.accountEmail is string
+            && request.resource.data.calendarSelection.accountEmail.size() <= 500
+          )
         );
-    }
-
-    function validEventList() {
-      return request.resource.data.events is list
-        && request.resource.data.events.size() <= 500
-        && request.resource.data.events.all(event, validEvent(event));
-    }
-
-    function validEventsDocument() {
-      return request.resource.data.keys().hasOnly(['events', 'updatedAt'])
-        && request.resource.data.updatedAt is timestamp
-        && validEventList();
     }
 
     function validSettingsDocument() {
@@ -60,10 +43,11 @@ service cloud.firestore {
         'showWeekends',
         'showDayProgress',
         'weekdayAlign',
+        'pillUnmarkedEvents',
         'year',
         'startMonth',
         'monthsToShow',
-        'googleSyncSettings',
+        'calendarSelection',
         'updatedAt'
       ])
         && request.resource.data.updatedAt is timestamp
@@ -72,6 +56,7 @@ service cloud.firestore {
         && (!request.resource.data.keys().hasAny(['showWeekends']) || request.resource.data.showWeekends is bool)
         && (!request.resource.data.keys().hasAny(['showDayProgress']) || request.resource.data.showDayProgress is bool)
         && (!request.resource.data.keys().hasAny(['weekdayAlign']) || request.resource.data.weekdayAlign is bool)
+        && (!request.resource.data.keys().hasAny(['pillUnmarkedEvents']) || request.resource.data.pillUnmarkedEvents is bool)
         && (
           !request.resource.data.keys().hasAny(['year'])
           || (request.resource.data.year is int && request.resource.data.year >= 2000 && request.resource.data.year <= 2100)
@@ -85,45 +70,18 @@ service cloud.firestore {
           || (request.resource.data.monthsToShow is int && request.resource.data.monthsToShow in [3, 6, 12])
         )
         && (
-          !request.resource.data.keys().hasAny(['googleSyncSettings'])
-          || (
-            request.resource.data.googleSyncSettings is map
-            && request.resource.data.googleSyncSettings.keys().hasOnly(['enabled', 'calendarId', 'accountEmail', 'calendarSummary'])
-            && request.resource.data.googleSyncSettings.enabled is bool
-            && request.resource.data.googleSyncSettings.calendarId is string
-            && request.resource.data.googleSyncSettings.calendarId.size() > 0
-            && request.resource.data.googleSyncSettings.calendarId.size() <= 500
-            && (
-              !request.resource.data.googleSyncSettings.keys().hasAny(['accountEmail'])
-              || (
-                request.resource.data.googleSyncSettings.accountEmail is string
-                && request.resource.data.googleSyncSettings.accountEmail.size() <= 500
-              )
-            )
-            && (
-              !request.resource.data.googleSyncSettings.keys().hasAny(['calendarSummary'])
-              || (
-                request.resource.data.googleSyncSettings.calendarSummary is string
-                && request.resource.data.googleSyncSettings.calendarSummary.size() <= 500
-              )
-            )
-          )
+          !request.resource.data.keys().hasAny(['calendarSelection'])
+          || validCalendarSelection()
         );
     }
 
     match /users/{userId}/data/{docId} {
-      allow read, delete: if isOwner(userId) && docId in ['events', 'settings'];
-      allow create: if isOwner(userId)
-        && (
-          (docId == 'events' && validEventsDocument())
-          || (docId == 'settings' && validSettingsDocument())
-        );
+      allow read, delete: if isOwner(userId) && docId == 'settings';
+      allow create: if isOwner(userId) && docId == 'settings' && validSettingsDocument();
       allow update: if isOwner(userId)
+        && docId == 'settings'
         && !isThrottled()
-        && (
-          (docId == 'events' && validEventsDocument())
-          || (docId == 'settings' && validSettingsDocument())
-        );
+        && validSettingsDocument();
     }
   }
 }

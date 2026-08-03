@@ -1,9 +1,5 @@
 export type ThemeId = 'blue' | 'forest' | 'pastel' | 'dark';
 
-export const STRIPED_COLOR_INDEX = 5;
-export const DOTTED_COLOR_INDEX = 6;
-export const TRANSPARENT_COLOR_INDEX = 7;
-
 export interface Theme {
     id: ThemeId;
     name: string;
@@ -16,35 +12,18 @@ export interface RangeDate {
     day: number;
 }
 
-export interface EventRange {
-    start: RangeDate;
-    end: RangeDate;
-}
-
-export interface PlannerEvent {
-    id: string;
-    title: string;
-    start: string;
-    end: string;
-    color: number;
-    icon?: string;
-    gcalEventId?: string;
-}
-
-export interface EventDraft {
-    title?: string;
-    start: string;
-    end: string;
-    color: number;
-    icon?: string;
-}
-
 export interface PlannerSettings {
     theme: ThemeId;
     highlightToday: boolean;
     showWeekends: boolean;
     showDayProgress: boolean;
     weekdayAlign: boolean;
+    /**
+     * Off by default: a day only gets a pill when something on it opens with
+     * an emoji. On, days holding nothing but plain timed events get a pill
+     * too, so a busy calendar shows everything at the cost of a denser grid.
+     */
+    pillUnmarkedEvents: boolean;
     year: number;
     startMonth: number;
     monthsToShow: number;
@@ -60,17 +39,17 @@ export const themes: Theme[] = [
     { id: 'dark', name: 'Dark Mode', primary: '#818cf8' },
 ];
 
-export const defaultBluePalette = ["#3b82f6", "#10b981", "#db2777", "#f59e0b", "#8b5cf6", "#6366f1", "#ef4444", "transparent"];
+export const defaultBluePalette = ["#3b82f6", "#10b981", "#db2777", "#f59e0b", "#8b5cf6", "#6366f1", "#ef4444"];
 
 export const getThemeColors = (themeId: ThemeId): string[] => {
     if (themeId === 'forest') {
-        return ["#5C7886", "#627264", "#8B5E5E", "#BC9663", "#7A728A", "#646E82", "#A65D57", "transparent"];
+        return ["#5C7886", "#627264", "#8B5E5E", "#BC9663", "#7A728A", "#646E82", "#A65D57"];
     }
     if (themeId === 'pastel') {
-        return ["#a0c4ff", "#baffc9", "#ffb3ba", "#ffdfba", "#eecbff", "#bae1ff", "#ffb3e6", "transparent"];
+        return ["#a0c4ff", "#baffc9", "#ffb3ba", "#ffdfba", "#eecbff", "#bae1ff", "#ffb3e6"];
     }
     if (themeId === 'dark') {
-        return ["#60a5fa", "#34d399", "#f472b6", "#fbbf24", "#a78bfa", "#818cf8", "#f87171", "transparent"];
+        return ["#60a5fa", "#34d399", "#f472b6", "#fbbf24", "#a78bfa", "#818cf8", "#f87171"];
     }
     return defaultBluePalette;
 };
@@ -81,8 +60,6 @@ export const getDayOfWeekIndex = (year: number, month: number, day: number): num
     const d = new Date(year, month, day).getDay();
     return (d + 6) % 7;
 };
-
-export const uid = (): string => Date.now().toString(36) + Math.random().toString(36).substring(2);
 
 export const toDateStr = (year: number, month: number, day: number): string => {
     const mm = String(month + 1).padStart(2, '0');
@@ -116,31 +93,6 @@ export const getDatesInRange = (startStr: string, endStr: string): RangeDate[] =
     }
 
     return dates;
-};
-
-export const formatMonthDay = (dateStr: string): string => {
-    const { month, day } = parseDateStr(dateStr);
-    return `${String(month).padStart(2, '0')}/${String(day).padStart(2, '0')}`;
-};
-
-export const formatDayMonth = (dateStr: string): string => {
-    const { month, day } = parseDateStr(dateStr);
-    return `${String(day).padStart(2, '0')}-${String(month).padStart(2, '0')}`;
-};
-
-export type DateRangeFormat = 'monthDay' | 'dayMonth';
-
-export const formatDateRange = (startStr: string, endStr: string, format: DateRangeFormat): string => {
-    const formatter = format === 'monthDay' ? formatMonthDay : formatDayMonth;
-    if (startStr === endStr) {
-        return formatter(startStr);
-    }
-    return `${formatter(startStr)} - ${formatter(endStr)}`;
-};
-
-export const isDateInRange = (year: number, month: number, day: number, startStr: string, endStr: string): boolean => {
-    const currentStr = toDateStr(year, month, day);
-    return currentStr >= startStr && currentStr <= endStr;
 };
 
 export const getMonthYear = (baseYear: number, startMonth: number, columnIndex: number): { year: number, month: number } => {
@@ -192,26 +144,4 @@ export const calculateViewProgress = (
     }
 
     return { current: currentProgress, total: totalDays };
-};
-
-export const getDisplayEvent = (events: PlannerEvent[]): PlannerEvent | undefined => {
-    if (!events || events.length === 0) return undefined;
-
-    const mainEvent = events[0];
-
-    const eventWithIcon = events.find(e => e.icon && e.icon.trim() !== '');
-    const icon = eventWithIcon ? eventWithIcon.icon : mainEvent.icon;
-
-    const eventWithColor = events.find(e => e.color !== TRANSPARENT_COLOR_INDEX);
-    const color = eventWithColor ? eventWithColor.color : mainEvent.color;
-
-    const eventWithTitle = events.find(e => e.title && e.title.trim() !== '');
-    const title = eventWithTitle ? eventWithTitle.title : mainEvent.title;
-
-    return {
-        ...mainEvent,
-        title,
-        icon,
-        color
-    };
 };

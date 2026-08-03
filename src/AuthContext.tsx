@@ -3,6 +3,8 @@ import toast from 'react-hot-toast';
 import { auth, isFirebaseConfigured } from './firebase';
 import { GoogleAuthProvider, getRedirectResult, onAuthStateChanged, signInWithPopup, signInWithRedirect, signOut as fbSignOut, User } from 'firebase/auth';
 import { getUserFacingErrorMessage } from './utils/userFacingErrors';
+import { GOOGLE_CALENDAR_SCOPE, calendarService, isGoogleCalendarConfigured } from './services/CalendarService';
+import { clearEventCache } from './utils/eventCache';
 
 interface AuthContextType {
     user: User | null;
@@ -76,10 +78,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!auth) return;
 
         try {
-            // Calendar access is requested separately when the user enables
-            // Google Calendar sync; sign-in only needs basic profile scopes.
+            // Asking for the read-only calendar scope up front means Google
+            // Identity Services can mint calendar tokens silently afterwards,
+            // instead of popping consent on first load.
             const provider = new GoogleAuthProvider();
             provider.setCustomParameters({ prompt: 'select_account' });
+            if (isGoogleCalendarConfigured) {
+                provider.addScope(GOOGLE_CALENDAR_SCOPE);
+            }
 
             if (shouldUseRedirectSignIn(auth.config.authDomain)) {
                 await signInWithRedirect(auth, provider);
@@ -98,6 +104,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         try {
             await fbSignOut(auth);
+            // Nothing calendar-related should outlive the session.
+            calendarService.clearAccessToken();
+            clearEventCache();
         } catch (error) {
             console.error("Error signing out", error);
             toast.error(getUserFacingErrorMessage(error, 'Failed to sign out. Please try again.'));

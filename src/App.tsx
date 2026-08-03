@@ -1,4 +1,3 @@
-import React from 'react';
 import { Toaster } from 'react-hot-toast';
 import './App.css';
 import './utils/logger';
@@ -6,7 +5,6 @@ import { useAuth } from './AuthContext';
 import LoginScreen from './LoginScreen';
 import { AppProvider } from './context/AppProvider';
 import PlannerView from './components/PlannerView';
-import { useGuestMode } from './hooks/useGuestMode';
 
 const AppToaster = () => (
   <Toaster
@@ -20,7 +18,6 @@ const AppToaster = () => (
 
 function App() {
   const { user, loading: authLoading, signOut } = useAuth();
-  const { isGuest, setIsGuest, enableGuest } = useGuestMode(user, authLoading);
 
   if (authLoading) {
     return (
@@ -33,11 +30,13 @@ function App() {
     );
   }
 
-  if (!user && !isGuest) {
+  // Sign-in is required: everything Calendy shows comes from the user's
+  // Google Calendar.
+  if (!user) {
     return (
       <>
         <AppToaster />
-        <LoginScreen onGuestLogin={enableGuest} />
+        <LoginScreen />
       </>
     );
   }
@@ -45,12 +44,7 @@ function App() {
   return (
     <AppProvider user={user}>
       <AppToaster />
-      <PlannerView
-        user={user}
-        signOut={signOut}
-        isGuest={isGuest}
-        setIsGuest={setIsGuest}
-      />
+      <PlannerView user={user} signOut={signOut} />
     </AppProvider>
   );
 }

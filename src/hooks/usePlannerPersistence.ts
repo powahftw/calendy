@@ -1,266 +1,87 @@
 import { useEffect, useRef, useCallback, useReducer, useState } from 'react';
 import { User } from 'firebase/auth';
 import { serverTimestamp } from 'firebase/firestore';
-import { PlannerEvent, PlannerSettings, ThemeId } from '../utils/calendarUtils';
-import {
-    plannerReducer,
-    PlannerState
-} from './usePlannerState';
-import {
-    loadFromLocalStorage,
-    saveToLocalStorage,
-    getDefaultData,
-    getLocalStorageKey,
-    getTimestampInMillis,
-    parseLocalStorageState
-} from '../utils/persistence';
-import {
-    syncEvents,
-    syncSettings,
-    subscribeToEvents,
-    subscribeToSettings,
-    loadEvents,
-    loadSettings
-} from '../firestoreSync';
+import { PlannerSettings, ThemeId } from '../utils/calendarUtils';
+import { plannerReducer, PlannerState } from './usePlannerState';
+import { loadFromLocalStorage, saveToLocalStorage, getDefaultSettings, getTimestampInMillis } from '../utils/persistence';
+import { syncSettings, subscribeToSettings } from '../firestoreSync';
 import { logger } from '../utils/logger';
 
 const FIRESTORE_SYNC_DELAY_MS = 500;
-const EMPTY_PENDING_SYNC = { events: false, settings: false };
+const LOCAL_STORAGE_DELAY_MS = 50;
 
 const initialState: PlannerState = {
-    data: getDefaultData(),
-    history: [],
-    metadata: {
-        lastActionType: null,
-        updatedAt: 0,
-        eventsUpdatedAt: 0,
-        settingsUpdatedAt: 0,
-        dirtySlices: {
-            events: false,
-            settings: false
-        },
-        isHydrated: false
-    }
+    settings: getDefaultSettings(),
+    updatedAt: 0,
+    isDirty: false,
+    isHydrated: false
 };
 
 const getInitialOnlineState = () => (
     typeof navigator === 'undefined' ? true : navigator.onLine
 );
 
-const usePlannerPersistence = (user: User | null) => {
+/**
+ * Persists planner settings - and nothing else. Events are read live from
+ * Google Calendar; see useCalendarEvents.
+ *
+ * localStorage is a warm-start cache so the grid does not flash default
+ * settings while Firestore answers. Firestore is the sync channel, including
+ * between tabs, which its snapshot listener already handles.
+ */
+const usePlannerPersistence = (user: User) => {
     const [state, dispatch] = useReducer(plannerReducer, initialState);
     const [isOnline, setIsOnline] = useState(getInitialOnlineState);
-    const userUid = user?.uid ?? null;
-    const currentUserRef = useRef<string>(user?.uid ?? 'guest');
-    const isFirstLoad = useRef(true);
+    const userUid = user.uid;
+    const { isDirty, updatedAt, isHydrated } = state;
 
     const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const localStorageTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const hasPendingSync = state.metadata.dirtySlices.events || state.metadata.dirtySlices.settings;
-    const dirtySlices = state.metadata.dirtySlices;
-    const eventsUpdatedAt = state.metadata.eventsUpdatedAt;
-    const settingsUpdatedAt = state.metadata.settingsUpdatedAt;
-    const isHydrated = state.metadata.isHydrated;
-    const lastActionType = state.metadata.lastActionType;
 
     useEffect(() => {
-        const userId = userUid ?? 'guest';
-
-        if (currentUserRef.current !== userId || isFirstLoad.current) {
-            logger.info('User switched or first load, resetting state', { from: currentUserRef.current, to: userId });
-            currentUserRef.current = userId;
-            isFirstLoad.current = false;
-
-            dispatch({ type: 'RESET', initialState });
-
-            const localState = loadFromLocalStorage(userId);
-            dispatch({
-                type: 'HYDRATE_LOCAL',
-                payload: localState.data,
-                timestamps: localState.timestamps,
-                pendingSync: userUid ? localState.pendingSyncSlices : EMPTY_PENDING_SYNC
-            });
-        }
+        const local = loadFromLocalStorage(userUid);
+        dispatch({ type: 'HYDRATE_LOCAL', settings: local.settings, updatedAt: local.updatedAt, isDirty: local.pendingSync });
     }, [userUid]);
 
     useEffect(() => {
-        if (!userUid) return;
+        logger.info('Setting up Firestore listener for', userUid);
 
-        logger.info('Setting up Firestore listeners for', userUid);
-
-        const initRemoteData = async () => {
-            try {
-                const [remoteEvents, remoteSettings] = await Promise.all([
-                    loadEvents(userUid),
-                    loadSettings(userUid)
-                ]);
-
-                if (remoteEvents) {
-                    dispatch({
-                        type: 'REMOTE_UPDATE',
-                        payload: { events: remoteEvents.events },
-                        timestamp: getTimestampInMillis(remoteEvents.updatedAt)
-                    });
-                }
-
-                if (remoteSettings) {
-                    const { updatedAt, ...settings } = remoteSettings;
-                    dispatch({
-                        type: 'REMOTE_UPDATE',
-                        payload: { settings },
-                        timestamp: getTimestampInMillis(updatedAt)
-                    });
-                }
-            } catch (err) {
-                logger.error('Failed to init remote data', err);
-            }
-        };
-
-        initRemoteData();
-
-        const unsubEvents = subscribeToEvents(userUid, (remotePayload) => {
-            dispatch({
-                type: 'REMOTE_UPDATE',
-                payload: { events: remotePayload.events },
-                timestamp: getTimestampInMillis(remotePayload.updatedAt)
-            });
+        return subscribeToSettings(userUid, ({ updatedAt: remoteUpdatedAt, ...settings }) => {
+            dispatch({ type: 'REMOTE_UPDATE', settings, updatedAt: getTimestampInMillis(remoteUpdatedAt) });
         });
-
-        const unsubSettings = subscribeToSettings(userUid, (remoteSettings) => {
-            const { updatedAt, ...settings } = remoteSettings;
-            dispatch({
-                type: 'REMOTE_UPDATE',
-                payload: { settings },
-                timestamp: getTimestampInMillis(updatedAt)
-            });
-        });
-
-        return () => {
-            unsubEvents();
-            unsubSettings();
-        };
     }, [userUid]);
 
     const performRemoteSync = useCallback(async () => {
-        if (!userUid || !isHydrated) return false;
-        if (!state.metadata.dirtySlices.events && !state.metadata.dirtySlices.settings) return true;
+        logger.info('Syncing local settings to Firestore');
+        const syncedAt = updatedAt;
 
-        logger.info('Syncing local planner state to Firestore', state.metadata.dirtySlices);
-        const eventsTimestamp = state.metadata.eventsUpdatedAt;
-        const settingsTimestamp = state.metadata.settingsUpdatedAt;
-
-        const [eventsSynced, settingsSynced] = await Promise.all([
-            state.metadata.dirtySlices.events
-                ? syncEvents(userUid, state.data.events, serverTimestamp())
-                : Promise.resolve(true),
-            state.metadata.dirtySlices.settings
-                ? syncSettings(userUid, state.data.settings, serverTimestamp())
-                : Promise.resolve(true)
-        ]);
-
-        const syncedSlices = {
-            events: state.metadata.dirtySlices.events && eventsSynced !== false ? eventsTimestamp : null,
-            settings: state.metadata.dirtySlices.settings && settingsSynced !== false ? settingsTimestamp : null
-        };
-
-        if (syncedSlices.events !== null || syncedSlices.settings !== null) {
-            dispatch({
-                type: 'SYNC_CONFIRMED',
-                slices: syncedSlices
-            });
+        if (await syncSettings(userUid, state.settings, serverTimestamp())) {
+            dispatch({ type: 'SYNC_CONFIRMED', updatedAt: syncedAt });
         }
-
-        return eventsSynced !== false && settingsSynced !== false;
-    }, [
-        isHydrated,
-        state.data.events,
-        state.data.settings,
-        state.metadata.dirtySlices,
-        state.metadata.eventsUpdatedAt,
-        state.metadata.settingsUpdatedAt,
-        userUid
-    ]);
+    }, [state.settings, updatedAt, userUid]);
 
     useEffect(() => {
         if (!isHydrated) return;
 
-        const userId = userUid ?? 'guest';
-
         if (localStorageTimeoutRef.current) clearTimeout(localStorageTimeoutRef.current);
         localStorageTimeoutRef.current = setTimeout(() => {
-            logger.info('Saving state to LocalStorage for user:', userId);
-            saveToLocalStorage(userId, state.data, {
-                events: eventsUpdatedAt,
-                settings: settingsUpdatedAt
-            }, dirtySlices);
-        }, 50);
+            saveToLocalStorage(userUid, state.settings, updatedAt, isDirty);
+        }, LOCAL_STORAGE_DELAY_MS);
 
-        if (userUid && hasPendingSync && isOnline) {
+        if (isDirty && isOnline) {
             if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
-            syncTimeoutRef.current = setTimeout(() => {
-                void performRemoteSync();
-            }, FIRESTORE_SYNC_DELAY_MS);
+            syncTimeoutRef.current = setTimeout(() => void performRemoteSync(), FIRESTORE_SYNC_DELAY_MS);
         }
 
         return () => {
             if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
             if (localStorageTimeoutRef.current) clearTimeout(localStorageTimeoutRef.current);
         };
-    }, [
-        state.data,
-        dirtySlices,
-        eventsUpdatedAt,
-        isHydrated,
-        hasPendingSync,
-        isOnline,
-        performRemoteSync,
-        settingsUpdatedAt,
-        userUid
-    ]);
+    }, [state.settings, isDirty, isHydrated, isOnline, performRemoteSync, updatedAt, userUid]);
 
     useEffect(() => {
-        if (!isHydrated) return;
-
-        const userId = userUid ?? 'guest';
-        const storageKey = getLocalStorageKey(userId);
-
-        const handleStorage = (event: StorageEvent) => {
-            if (event.key !== storageKey || event.newValue === null) return;
-            if (event.storageArea && event.storageArea !== localStorage) return;
-
-            const incomingState = parseLocalStorageState(event.newValue);
-            if (!incomingState) {
-                logger.warn('Ignoring invalid planner LocalStorage update from another tab');
-                return;
-            }
-
-            dispatch({
-                type: 'LOCAL_STORAGE_UPDATE',
-                payload: incomingState.data,
-                timestamps: incomingState.timestamps,
-                pendingSync: userUid ? incomingState.pendingSyncSlices : EMPTY_PENDING_SYNC
-            });
-        };
-
-        window.addEventListener('storage', handleStorage);
-        return () => {
-            window.removeEventListener('storage', handleStorage);
-        };
-    }, [isHydrated, userUid]);
-
-    useEffect(() => {
-        const handleOnline = () => {
-            setIsOnline(true);
-
-            if (userUid && isHydrated && hasPendingSync) {
-                logger.info('Back online with pending local changes. Syncing to Firestore...');
-                void performRemoteSync();
-            }
-        };
-
-        const handleOffline = () => {
-            setIsOnline(false);
-        };
+        const handleOnline = () => setIsOnline(true);
+        const handleOffline = () => setIsOnline(false);
 
         window.addEventListener('online', handleOnline);
         window.addEventListener('offline', handleOffline);
@@ -268,114 +89,31 @@ const usePlannerPersistence = (user: User | null) => {
             window.removeEventListener('online', handleOnline);
             window.removeEventListener('offline', handleOffline);
         };
-    }, [hasPendingSync, isHydrated, performRemoteSync, userUid]);
-
-    useEffect(() => {
-        if (!userUid || !isHydrated || !hasPendingSync || !isOnline) {
-            return;
-        }
-
-        if (lastActionType === 'USER_CHANGE' || lastActionType === 'UNDO') {
-            return;
-        }
-
-        logger.info('Found pending local changes after hydration. Syncing to Firestore...');
-        void performRemoteSync();
-    }, [
-        hasPendingSync,
-        isOnline,
-        isHydrated,
-        lastActionType,
-        performRemoteSync,
-        userUid
-    ]);
-
-    const updateState = useCallback((payload: { events?: PlannerEvent[]; settings?: Partial<PlannerSettings> }) => {
-        dispatch({
-            type: 'USER_CHANGE',
-            payload,
-            timestamp: Date.now()
-        });
     }, []);
 
     const updateSettings = useCallback((updates: Partial<PlannerSettings>) => {
-        dispatch({
-            type: 'USER_CHANGE',
-            payload: { settings: updates },
-            timestamp: Date.now()
-        });
+        dispatch({ type: 'USER_CHANGE', settings: updates, updatedAt: Date.now() });
     }, []);
 
-    const setEvents = useCallback((eventsOrUpdater: PlannerEvent[] | ((prev: PlannerEvent[]) => PlannerEvent[])) => {
-        const newEvents = typeof eventsOrUpdater === 'function'
-            ? eventsOrUpdater(state.data.events)
-            : eventsOrUpdater;
-
-        updateState({ events: newEvents });
-    }, [state.data.events, updateState]);
-
-    const stampGoogleEventIds = useCallback((updates: Array<{ eventId: string; gcalEventId?: string }>) => {
-        if (updates.length === 0) return;
-
-        dispatch({
-            type: 'EVENT_METADATA_CHANGE',
-            updates,
-            timestamp: Date.now()
-        });
-    }, []);
-
+    // Theme is the one setting worth its own setter: it is set from a list of
+    // cards where a generic `updateSettings({ theme })` would read worse.
     const setTheme = useCallback((theme: ThemeId) => updateSettings({ theme }), [updateSettings]);
-    const setHighlightToday = useCallback((highlightToday: boolean) => updateSettings({ highlightToday }), [updateSettings]);
-    const setShowWeekends = useCallback((showWeekends: boolean) => updateSettings({ showWeekends }), [updateSettings]);
-    const setShowDayProgress = useCallback((showDayProgress: boolean) => updateSettings({ showDayProgress }), [updateSettings]);
-    const setWeekdayAlign = useCallback((weekdayAlign: boolean) => updateSettings({ weekdayAlign }), [updateSettings]);
-    const setYear = useCallback((year: number | ((prev: number) => number)) => {
-        const newYear = typeof year === 'function' ? year(state.data.settings.year) : year;
-        updateSettings({ year: newYear });
-    }, [state.data.settings.year, updateSettings]);
-    const setStartMonth = useCallback((startMonth: number) => updateSettings({ startMonth }), [updateSettings]);
-    const setMonthsToShow = useCallback((monthsToShow: number) => updateSettings({ monthsToShow }), [updateSettings]);
 
+    /** Steps the view forward or back by exactly one visible range. */
     const navigate = useCallback((direction: 1 | -1) => {
-        const { year, startMonth, monthsToShow } = state.data.settings;
-        let newYear = year;
-        let newStartMonth = startMonth + (direction * monthsToShow);
+        const { year, startMonth, monthsToShow } = state.settings;
+        const months = year * 12 + startMonth + direction * monthsToShow;
 
-        while (newStartMonth >= 12) {
-            newYear += 1;
-            newStartMonth -= 12;
-        }
-        while (newStartMonth < 0) {
-            newYear -= 1;
-            newStartMonth += 12;
-        }
-
-        updateSettings({ year: newYear, startMonth: newStartMonth });
-    }, [state.data.settings, updateSettings]);
-
-    const undo = useCallback(() => {
-        dispatch({ type: 'UNDO', timestamp: Date.now() });
-    }, []);
+        updateSettings({ year: Math.floor(months / 12), startMonth: months % 12 });
+    }, [state.settings, updateSettings]);
 
     return {
-        events: state.data.events,
-        ...state.data.settings,
-        canUndo: state.history.length > 0,
-        setEvents,
-        stampGoogleEventIds,
+        settings: state.settings,
+        updateSettings,
         setTheme,
-        setHighlightToday,
-        setShowWeekends,
-        setShowDayProgress,
-        setWeekdayAlign,
-        setYear,
-        setStartMonth,
-        setMonthsToShow,
         navigate,
-        undo,
-        isInitialLoadDone: isHydrated,
-        syncStatus: !userUid ? 'local-only' : !isOnline ? 'offline' : hasPendingSync ? 'pending' : 'synced'
-    };
+        syncStatus: !isOnline ? 'offline' : isDirty ? 'pending' : 'synced'
+    } as const;
 };
 
 export default usePlannerPersistence;
