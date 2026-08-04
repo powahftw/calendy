@@ -13,8 +13,9 @@ export interface PlannerContextValue extends PlannerSettings {
     syncStatus: SyncStatus;
 
     events: CalendarEvent[];
-    /** Day key -> that day's events, split into full-day chips and pill events. */
+    /** Day key -> every all-day and timed event touching that day. */
     eventMap: Map<string, DayEvents>;
+    cycleEventStyle: (event: CalendarEvent) => void;
     loading: boolean;
     refreshing: boolean;
     error: string | null;
@@ -23,13 +24,23 @@ export interface PlannerContextValue extends PlannerSettings {
     connection: CalendarConnection;
 }
 
-/**
- * Which pill's popover is open. Split from the main context because it changes
- * on every hover, and only the pills care.
- */
+export interface OpenDayDetails {
+    dayKey: string;
+    anchor: HTMLElement;
+    pinned: boolean;
+}
+
+/** Stable interaction actions consumed by every occupied day cell. */
 export interface PlannerInteractionValue {
-    openPillDayKey: string | null;
-    setOpenPillDayKey: (dayKey: string | null) => void;
+    showDayDetails: (dayKey: string, anchor: HTMLElement, pinned?: boolean) => void;
+    scheduleDayDetailsClose: () => void;
+    cancelDayDetailsClose: () => void;
+    closeDayDetails: () => void;
+}
+
+/** Volatile state consumed only by the single shared details popover. */
+export interface PlannerDetailsStateValue {
+    openDayDetails: OpenDayDetails | null;
 }
 
 const createRequiredContext = <T,>(name: string) => {
@@ -47,3 +58,5 @@ const createRequiredContext = <T,>(name: string) => {
 export const [PlannerProvider, usePlanner] = createRequiredContext<PlannerContextValue>('Planner');
 export const [PlannerInteractionProvider, usePlannerInteraction] =
     createRequiredContext<PlannerInteractionValue>('PlannerInteraction');
+export const [PlannerDetailsStateProvider, usePlannerDetailsState] =
+    createRequiredContext<PlannerDetailsStateValue>('PlannerDetailsState');

@@ -1,5 +1,11 @@
 export type ThemeId = 'blue' | 'forest' | 'pastel' | 'dark';
 
+export const STRIPED_COLOR_INDEX = 5;
+export const DOTTED_COLOR_INDEX = 6;
+export const TRANSPARENT_COLOR_INDEX = 7;
+export const EVENT_STYLE_COUNT = 8;
+export const AUTOMATIC_SOLID_COLOR_COUNT = 5;
+
 export interface Theme {
     id: ThemeId;
     name: string;
@@ -18,12 +24,6 @@ export interface PlannerSettings {
     showWeekends: boolean;
     showDayProgress: boolean;
     weekdayAlign: boolean;
-    /**
-     * Off by default: a day only gets a pill when something on it opens with
-     * an emoji. On, days holding nothing but plain timed events get a pill
-     * too, so a busy calendar shows everything at the cost of a denser grid.
-     */
-    pillUnmarkedEvents: boolean;
     year: number;
     startMonth: number;
     monthsToShow: number;
@@ -39,17 +39,17 @@ export const themes: Theme[] = [
     { id: 'dark', name: 'Dark Mode', primary: '#818cf8' },
 ];
 
-export const defaultBluePalette = ["#3b82f6", "#10b981", "#db2777", "#f59e0b", "#8b5cf6", "#6366f1", "#ef4444"];
+export const defaultBluePalette = ["#3b82f6", "#10b981", "#db2777", "#f59e0b", "#8b5cf6", "#6366f1", "#ef4444", "transparent"];
 
 export const getThemeColors = (themeId: ThemeId): string[] => {
     if (themeId === 'forest') {
-        return ["#5C7886", "#627264", "#8B5E5E", "#BC9663", "#7A728A", "#646E82", "#A65D57"];
+        return ["#5C7886", "#627264", "#8B5E5E", "#BC9663", "#7A728A", "#646E82", "#A65D57", "transparent"];
     }
     if (themeId === 'pastel') {
-        return ["#a0c4ff", "#baffc9", "#ffb3ba", "#ffdfba", "#eecbff", "#bae1ff", "#ffb3e6"];
+        return ["#a0c4ff", "#baffc9", "#ffb3ba", "#ffdfba", "#eecbff", "#bae1ff", "#ffb3e6", "transparent"];
     }
     if (themeId === 'dark') {
-        return ["#60a5fa", "#34d399", "#f472b6", "#fbbf24", "#a78bfa", "#818cf8", "#f87171"];
+        return ["#60a5fa", "#34d399", "#f472b6", "#fbbf24", "#a78bfa", "#818cf8", "#f87171", "transparent"];
     }
     return defaultBluePalette;
 };

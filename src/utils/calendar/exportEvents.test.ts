@@ -9,6 +9,8 @@ const EVENTS: CalendarEvent[] = [
         start: '2026-07-14',
         end: '2026-07-16',
         allDay: true,
+        styleKey: 'trip',
+        automaticColor: 0,
         color: 0
     },
     {
@@ -19,6 +21,8 @@ const EVENTS: CalendarEvent[] = [
         allDay: false,
         startTime: '06:40',
         endTime: '09:05',
+        styleKey: 'flight',
+        automaticColor: 0,
         color: 0
     },
     {
@@ -29,6 +33,8 @@ const EVENTS: CalendarEvent[] = [
         allDay: false,
         startTime: '10:00',
         endTime: '10:30',
+        styleKey: 'dentist',
+        automaticColor: 1,
         color: 1
     }
 ];

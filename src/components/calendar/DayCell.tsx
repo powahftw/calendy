@@ -1,6 +1,8 @@
-import React, { FC } from 'react';
-import { DayEvents, getPillEmoji } from '../../utils/calendarEvents';
-import DayPill from './DayPill';
+import React, { FC, useCallback, useRef } from 'react';
+import { usePlannerInteraction } from '../../context/PlannerContext';
+import type { DayEvents } from '../../utils/calendarEvents';
+import { monthNames } from '../../utils/calendarUtils';
+import { getEventStylePresentation } from '../../utils/eventStylePresentation';
 
 interface DayCellProps {
     dayKey: string;
@@ -8,19 +10,11 @@ interface DayCellProps {
     month: number;
     day: number;
     events: DayEvents;
-    /** Theme palette, passed down so a cell needs no context of its own. */
     colors: string[];
     isWeekend: boolean;
     isToday: boolean;
-    /** Columns on the left of the grid open their popovers to the right. */
-    flipPopover: boolean;
 }
 
-/**
- * Props are deliberately flat primitives plus values that are stable across
- * renders (`events` comes from a memoized map, `colors` from the theme). That
- * is what lets React.memo actually skip the ~440 cells in a year view.
- */
 const DayCell: FC<DayCellProps> = React.memo(({
     dayKey,
     year,
@@ -29,69 +23,60 @@ const DayCell: FC<DayCellProps> = React.memo(({
     events,
     colors,
     isWeekend,
-    isToday,
-    flipPopover
+    isToday
 }) => {
-    const [chipEvent, ...stackedEvents] = events.allDay;
-    const hasPill = events.pill.length > 0;
+    const triggerRef = useRef<HTMLButtonElement>(null);
+    const {
+        showDayDetails,
+        scheduleDayDetailsClose,
+        cancelDayDetailsClose
+    } = usePlannerInteraction();
+    const primaryEvent = events.allDay[0];
+    const eventCount = events.allDay.length + events.timed.length;
+    const hiddenCount = eventCount - (primaryEvent ? 1 : 0);
+    const presentation = primaryEvent
+        ? getEventStylePresentation(primaryEvent.color, colors)
+        : null;
 
-    // The chip reserves room for what the pill will actually draw: it is only
-    // wide when the pill shows both an emoji and a count.
-    const pillIsWide = events.pill.length > 1 && getPillEmoji(events.pill) !== undefined;
-    const chipClassName = hasPill
-        ? `event-chip-common has-pill ${pillIsWide ? 'has-pill-wide' : ''}`
-        : 'event-chip-common';
+    const reveal = useCallback((pinned: boolean) => {
+        if (triggerRef.current) showDayDetails(dayKey, triggerRef.current, pinned);
+    }, [dayKey, showDayDetails]);
 
     const className = [
         'day-cell',
         isWeekend ? 'weekend' : '',
         isToday ? 'today today-marker' : ''
     ].filter(Boolean).join(' ');
+    const label = `${eventCount} event${eventCount === 1 ? '' : 's'} on ${day} ${monthNames[month]} ${year}`;
 
     return (
         <div className={className} data-year={year} data-month={month} data-day={day}>
             <span className="day-num">{day}</span>
 
-            {chipEvent && (
-                <div
-                    className={chipClassName}
-                    style={{
-                        backgroundColor: `${colors[chipEvent.color] || colors[0]}15`,
-                        borderLeft: `2px solid ${colors[chipEvent.color] || colors[0]}`,
-                        paddingLeft: '4px'
-                    }}
-                    title={events.allDay.map((event) => event.title).join('\n')}
+            {eventCount > 0 && (
+                <button
+                    ref={triggerRef}
+                    type="button"
+                    className={primaryEvent
+                        ? `event-chip-common event-summary-trigger ${hiddenCount > 0 ? 'has-overlap' : ''} ${presentation?.className || ''}`
+                        : 'day-overlap-trigger'}
+                    style={presentation?.style}
+                    aria-label={label}
+                    aria-haspopup="dialog"
+                    onMouseEnter={() => reveal(false)}
+                    onMouseLeave={scheduleDayDetailsClose}
+                    onFocus={() => reveal(false)}
+                    onBlur={scheduleDayDetailsClose}
+                    onClick={() => reveal(true)}
+                    onPointerEnter={cancelDayDetailsClose}
                 >
-                    <div className="event-chip-content">
-                        <span className="event-chip-title">{chipEvent.title}</span>
-                    </div>
-                </div>
-            )}
-
-            {/* Thin bars standing in for the all-day events the chip hid. */}
-            {stackedEvents.length > 0 && !hasPill && (
-                <div className="event-overflow" aria-hidden="true">
-                    <div className="overflow-lines">
-                        {stackedEvents.map((event) => (
-                            <div
-                                key={event.id}
-                                className="overflow-line"
-                                style={{ backgroundColor: colors[event.color] || colors[0] }}
-                            />
-                        ))}
-                    </div>
-                </div>
-            )}
-
-            {hasPill && (
-                <DayPill
-                    dayKey={dayKey}
-                    year={year}
-                    month={month}
-                    day={day}
-                    events={events.pill}
-                    flipPopover={flipPopover}
-                />
+                    {primaryEvent && (
+                        <span className="event-chip-title">{primaryEvent.title}</span>
+                    )}
+                    {hiddenCount > 0 && (
+                        <span className="event-overlap-count" aria-hidden="true">+{hiddenCount}</span>
+                    )}
+                </button>
             )}
         </div>
     );

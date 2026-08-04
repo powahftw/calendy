@@ -32,7 +32,9 @@ const mockSaveCalendarSelection = vi.fn(async (_uid: string, selection: Calendar
 
 vi.mock('../firestoreSync', () => ({
     syncSettings: vi.fn().mockResolvedValue(true),
+    syncEventStyleOverrides: vi.fn().mockResolvedValue(true),
     subscribeToSettings: vi.fn().mockReturnValue(() => { }),
+    subscribeToEventStyleOverrides: vi.fn().mockReturnValue(() => { }),
     subscribeToCalendarSelection: (_uid: string, callback: (s: CalendarSelection | null) => void) => {
         callback(storedSelection);
         return () => { };
@@ -57,7 +59,6 @@ const GOOGLE_EVENTS: GoogleEvent[] = [
         end: { date: july(17) }
     },
     {
-        // All-day, but leading emoji, so it belongs in the pill not the chip.
         id: 'hotel',
         summary: '🏨 Hotel do Mar',
         start: { date: july(14) },
@@ -80,6 +81,12 @@ const GOOGLE_EVENTS: GoogleEvent[] = [
         summary: 'Dentist',
         start: { dateTime: `${july(20)}T10:00:00` },
         end: { dateTime: `${july(20)}T10:30:00` }
+    },
+    {
+        id: 'solo-all-day',
+        summary: 'Solo holiday',
+        start: { date: july(22) },
+        end: { date: july(23) }
     }
 ];
 
@@ -181,44 +188,70 @@ describe('Calendy read-only planner', () => {
             expect(await screen.findAllByText('Lisbon')).toHaveLength(3);
         });
 
-        it('downgrades an all-day event with a leading emoji to the pill', async () => {
+        it('shows one universal overlap count and reveals every event', async () => {
             render(<App />);
             await screen.findAllByText('Lisbon');
 
-            // The hotel covers the same days as the trip but must not take a chip.
+            // One primary chip stays compact; every other event contributes to +N.
             expect(screen.queryByText('🏨 Hotel do Mar')).not.toBeInTheDocument();
-
-            fireEvent.click(screen.getAllByRole('button', { name: /events on 1[456] Jul/i })[0]);
+            const trigger = screen.getByRole('button', { name: /4 events on 14 Jul/i });
+            expect(trigger).toHaveTextContent('+3');
+            fireEvent.click(trigger);
 
             expect(await screen.findByText('🏨 Hotel do Mar')).toBeInTheDocument();
-            expect(screen.getByText('All day')).toBeInTheDocument();
+            expect(screen.getByText('All-day events')).toBeInTheDocument();
+            expect(screen.getAllByText('14–16 Jul')).toHaveLength(2);
+            expect(screen.getByText('✈️ FCO to LIS')).toBeInTheDocument();
         });
 
-        it('collapses the day\'s timed emoji events into one pill', async () => {
+        it('shows a +1 trigger on a day containing only one timed event', async () => {
             render(<App />);
 
-            const pill = await screen.findByRole('button', { name: /3 events on 14 Jul/i });
-            expect(pill).toBeInTheDocument();
-            // One pill for the day, not one per event.
-            expect(screen.queryByRole('button', { name: /1 event on 14 Jul/i })).not.toBeInTheDocument();
+            const trigger = await screen.findByRole('button', { name: /1 event on 20 Jul/i });
+            expect(trigger).toHaveTextContent('+1');
         });
 
-        it('reveals the grouped events when the pill is tapped, and hides them again', async () => {
+        it('renders one all-day event directly without a redundant +1', async () => {
             render(<App />);
 
-            const pill = await screen.findByRole('button', { name: /3 events on 14 Jul/i });
-            expect(screen.queryByText('✈️ FCO to LIS')).not.toBeInTheDocument();
+            const trigger = await screen.findByRole('button', { name: /1 event on 22 Jul/i });
+            expect(trigger).toHaveTextContent('Solo holiday');
+            expect(trigger).not.toHaveTextContent('+1');
+        });
 
-            fireEvent.click(pill);
+        it('cycles an event style from the popover and saves it locally', async () => {
+            render(<App />);
 
-            expect(await screen.findByText('✈️ FCO to LIS')).toBeInTheDocument();
-            expect(screen.getByText('🚆 Airport to town')).toBeInTheDocument();
-            expect(screen.getByText('06:40–09:05')).toBeInTheDocument();
+            fireEvent.click(await screen.findByRole('button', { name: /4 events on 14 Jul/i }));
+            const colorLine = await screen.findByRole('button', { name: /Cycle color for Lisbon/i });
+            fireEvent.click(colorLine);
+
+            expect(JSON.parse(localStorage.getItem('calendy_event_styles_v1_travel-cal') || '{}'))
+                .toMatchObject({
+                    styles: { trip: expect.any(Number) },
+                    pendingSync: true
+                });
 
             fireEvent.keyDown(document, { key: 'Escape' });
             await waitFor(() => {
-                expect(screen.queryByText('✈️ FCO to LIS')).not.toBeInTheDocument();
+                expect(screen.queryByRole('button', { name: /Cycle color for Lisbon/i })).not.toBeInTheDocument();
             });
+        });
+
+        it('hands the open hover card directly to another occupied day', async () => {
+            render(<App />);
+
+            const busyDay = await screen.findByRole('button', { name: /4 events on 14 Jul/i });
+            const timedOnlyDay = screen.getByRole('button', { name: /1 event on 20 Jul/i });
+
+            fireEvent.mouseEnter(busyDay);
+            expect(await screen.findByText('🏨 Hotel do Mar')).toBeInTheDocument();
+
+            fireEvent.mouseLeave(busyDay);
+            fireEvent.mouseEnter(timedOnlyDay);
+
+            expect(await screen.findByText('Dentist')).toBeInTheDocument();
+            expect(screen.queryByText('🏨 Hotel do Mar')).not.toBeInTheDocument();
         });
 
         it('keeps the grid and offers to reconnect when the token has lapsed', async () => {

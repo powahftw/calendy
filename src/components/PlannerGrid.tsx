@@ -3,6 +3,7 @@ import { usePlanner } from '../context/PlannerContext';
 import MonthColumn from './MonthColumn';
 import { daysOfWeek, getDateKey, getMonthYear } from '../utils/calendarUtils';
 import { useTodayVisibility } from '../hooks/useTodayVisibility';
+import DayDetailsPopover from './calendar/DayDetailsPopover';
 
 const MONTH_ROWS = 37; // 31 days plus up to 6 weekday-alignment blanks.
 
@@ -41,8 +42,6 @@ const PlannerGrid: React.FC<{ setTodayInView: (inView: boolean) => void }> = ({ 
                     return (
                         <MonthColumn
                             key={monthIndex}
-                            monthIndex={monthIndex}
-                            monthsToShow={monthsToShow}
                             year={colYear}
                             month={month}
                             rows={MONTH_ROWS}
@@ -51,6 +50,7 @@ const PlannerGrid: React.FC<{ setTodayInView: (inView: boolean) => void }> = ({ 
                     );
                 })}
             </div>
+            <DayDetailsPopover />
         </div>
     );
 };
