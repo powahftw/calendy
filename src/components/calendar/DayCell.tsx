@@ -65,8 +65,7 @@ const DayCell: FC<DayCellProps> = React.memo(({
                     aria-haspopup="dialog"
                     onMouseEnter={() => reveal(false)}
                     onMouseLeave={scheduleDayDetailsClose}
-                    onFocus={() => reveal(false)}
-                    onBlur={scheduleDayDetailsClose}
+                    onFocus={() => reveal(true)}
                     onClick={() => reveal(true)}
                     onPointerEnter={cancelDayDetailsClose}
                 >

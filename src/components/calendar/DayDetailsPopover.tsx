@@ -42,19 +42,26 @@ const EventRow = ({ event, isAllDay }: { event: CalendarEvent; isAllDay: boolean
     const presentation = getEventStylePresentation(event.color, colors);
 
     return (
-        <div className="day-details-item">
-            <button
-                type="button"
+        <button
+            type="button"
+            className="day-details-item"
+            aria-label={`Cycle color for ${event.title}`}
+            onPointerDown={(pointerEvent) => pointerEvent.stopPropagation()}
+            onClick={(clickEvent) => {
+                clickEvent.stopPropagation();
+                cycleEventStyle(event);
+            }}
+        >
+            <span
                 className={`day-details-color ${presentation.className}`}
                 style={presentation.style}
-                aria-label={`Cycle color for ${event.title}`}
-                onClick={() => cycleEventStyle(event)}
+                aria-hidden="true"
             />
             <span className="day-details-when">
                 {isAllDay ? formatEventDateRange(event) : formatEventTimeRange(event)}
             </span>
             <span className="day-details-title">{event.title}</span>
-        </div>
+        </button>
     );
 };
 
@@ -88,14 +95,20 @@ const DayDetailsPopover = () => {
                     Object.assign(elements.floating.style, {
                         maxHeight: `${Math.max(0, availableHeight)}px`,
                         maxWidth: `${Math.max(0, Math.min(360, availableWidth))}px`,
-                        '--day-details-content-height': `${Math.max(80, availableHeight - 108)}px`
+                        '--day-details-content-height': `${Math.max(80, availableHeight - 68)}px`
                     });
                 }
             }),
             hide({ padding: 4 })
         ]
     });
-    const dismiss = useDismiss(context, { outsidePressEvent: 'pointerdown' });
+    const dismiss = useDismiss(context, {
+        outsidePressEvent: 'pointerdown',
+        outsidePress: (event) => {
+            const target = event.target;
+            return !(target instanceof Node && refs.floating.current?.contains(target));
+        }
+    });
     const { getFloatingProps } = useInteractions([dismiss]);
 
     useEffect(() => {
@@ -175,7 +188,6 @@ const DayDetailsPopover = () => {
                     </section>
                 )}
             </div>
-            <div className="day-details-help">{isMobile ? 'Tap' : 'Select'} a color line to cycle its style.</div>
         </div>
     );
 
