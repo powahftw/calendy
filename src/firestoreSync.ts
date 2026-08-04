@@ -7,7 +7,7 @@ import {
     deleteField,
     FieldValue
 } from 'firebase/firestore';
-import { PlannerSettings } from './utils/calendarUtils';
+import { EVENT_STYLE_COUNT, PlannerSettings } from './utils/calendarUtils';
 import { logger } from './utils/logger';
 import { getTimestampInMillis } from './utils/persistence';
 
@@ -22,6 +22,13 @@ export interface CalendarSelection {
     accountEmail?: string;
 }
 
+export type EventStyleOverrides = Record<string, number>;
+
+export interface RemoteEventStyleOverrides {
+    styles: EventStyleOverrides;
+    updatedAt: number;
+}
+
 const isCalendarSelection = (value: unknown): value is CalendarSelection => {
     if (!value || typeof value !== 'object') return false;
 
@@ -33,8 +40,8 @@ const isCalendarSelection = (value: unknown): value is CalendarSelection => {
 };
 
 /**
- * Firestore stores configuration only. Calendar events are read live from the
- * Google Calendar API and cached in the browser, never written here.
+ * Firestore stores configuration and user-selected styles only. Calendar event
+ * contents are read live from Google and cached in the browser, never written here.
  */
 
 const SETTINGS_FIELDS = [
@@ -43,7 +50,6 @@ const SETTINGS_FIELDS = [
     'showWeekends',
     'showDayProgress',
     'weekdayAlign',
-    'pillUnmarkedEvents',
     'year',
     'startMonth',
     'monthsToShow'
@@ -53,6 +59,33 @@ const getSettingsRef = (uid: string) => {
     const firestore = db;
     if (!uid || !firestore) return null;
     return doc(firestore, 'users', uid, 'data', 'settings');
+};
+
+const hashString = (value: string, seed: number): string => {
+    let hash = seed >>> 0;
+    for (let i = 0; i < value.length; i += 1) {
+        hash ^= value.charCodeAt(i);
+        hash = Math.imul(hash, 16777619);
+    }
+    return (hash >>> 0).toString(16).padStart(8, '0');
+};
+
+/** Calendar IDs are not safe Firestore path segments, so use a stable 64-bit key. */
+export const getEventStylesDocumentId = (calendarId: string) => (
+    `${hashString(calendarId, 2166136261)}${hashString(calendarId, 3339675911)}`
+);
+
+const getEventStylesRef = (uid: string, calendarId: string) => {
+    const firestore = db;
+    if (!uid || !calendarId || !firestore) return null;
+    return doc(firestore, 'users', uid, 'eventStyles', getEventStylesDocumentId(calendarId));
+};
+
+const isEventStyleOverrides = (value: unknown): value is EventStyleOverrides => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+    return Object.values(value).every((style) => (
+        Number.isInteger(style) && Number(style) >= 0 && Number(style) < EVENT_STYLE_COUNT
+    ));
 };
 
 const toPlannerSettings = (data: Record<string, unknown>): Partial<PlannerSettings> => {
@@ -140,4 +173,52 @@ export const saveCalendarSelection = async (uid: string, selection: CalendarSele
         logger.error('Error saving calendar selection:', error);
         return false;
     }
+};
+
+export const syncEventStyleOverrides = async (
+    uid: string,
+    calendarId: string,
+    styles: EventStyleOverrides,
+    timestamp?: number | FieldValue
+): Promise<boolean> => {
+    const ref = getEventStylesRef(uid, calendarId);
+    if (!ref) return false;
+
+    try {
+        await setDoc(ref, {
+            calendarId,
+            styles,
+            updatedAt: timestamp || serverTimestamp()
+        });
+        return true;
+    } catch (error) {
+        logger.error('Error syncing event styles:', error);
+        return false;
+    }
+};
+
+export const subscribeToEventStyleOverrides = (
+    uid: string,
+    calendarId: string,
+    callback: (styles: RemoteEventStyleOverrides) => void
+) => {
+    const ref = getEventStylesRef(uid, calendarId);
+    if (!ref) return () => { };
+
+    return onSnapshot(ref, (snapshot) => {
+        if (!snapshot.exists()) return;
+
+        const data = snapshot.data();
+        if (data.calendarId !== calendarId || !isEventStyleOverrides(data.styles)) {
+            logger.warn('Ignoring invalid event style overrides from Firestore');
+            return;
+        }
+
+        callback({
+            styles: data.styles,
+            updatedAt: getTimestampInMillis(data.updatedAt)
+        });
+    }, (error) => {
+        logger.error('Error subscribing to event styles:', error);
+    });
 };

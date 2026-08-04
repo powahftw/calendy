@@ -15,8 +15,9 @@ calendar but can never create, change or delete anything in it.
 ## Features
 
 - See an entire year or quarter of your Google Calendar at a glance in a high-density grid.
-- Full-day events fill the day; shorter events marked with an emoji (✈️, 🚆, 🚩, …) collapse
-  into a small pill you can hover or tap to expand.
+- Full-day events fill the day; a compact `+N` badge reveals every overlapping or timed event.
+- Hover or tap any occupied day for complete titles, all-day ranges, and scheduled times.
+- Restore meaningful event styles with five solid colors, stripes, dots, and transparent display.
 - Pick which of your calendars to view - it does not have to be the primary one.
 - Four curated themes: Modern Blue, Forest (Sepia), Pastel, and Dark Mode.
 - Responsive layout across desktop and mobile devices.
@@ -25,42 +26,31 @@ calendar but can never create, change or delete anything in it.
 
 ## How events are displayed
 
-A **leading emoji** is the only signal that matters. Duration decides nothing:
-it marks an event as logistics rather than the headline for its days.
+The longest all-day event is the named chip for a day. A single all-day event
+needs no extra badge; any additional all-day or timed events contribute to a
+universal `+N`. A day containing only scheduled events stays visually open and
+shows `+1`, `+2`, and so on.
 
-| Title | Renders as |
-| --- | --- |
-| `Brazil` (all-day) | The full-width day chip |
-| `Brazil 🇧🇷` (emoji not leading) | Still the chip |
-| `🏨 Hotel do Mar` (all-day) | Folded into the day's pill |
-| `✈︎ FCO → LIS` (timed) | Folded into the day's pill |
-| `Dentist` (timed, no emoji) | Popover content only — too small to own a day |
+Hovering or tapping the chip or badge opens one unified detail view. All-day
+rows show their complete date range, scheduled rows show their time, and long
+titles wrap instead of relying on a browser tooltip. On mobile the same content
+opens as a bottom sheet.
 
-So a hotel stay booked across the same week as the trip it belongs to steps
-aside and lets the trip keep the chip.
-
-A day gets **one** pill no matter how many events fold into it, and it repeats
-across every day of a multi-day stay. The pill shows the first marked event's
-emoji plus a count when there is more than one; a pill built only from unmarked
-events shows the count alone. Hovering, or tapping on touch devices, lists
-everything with its time.
-
-Both emoji presentations work and are preserved exactly as typed: `✈︎`
-(the monochrome text form, U+FE0E) stays monochrome and `✈️` (U+FE0F)
-stays in colour. Flags, skin tones and ZWJ sequences all count as a leading
-emoji.
-
-Days holding nothing but unmarked events show nothing by default, which keeps a
-year of routine meetings from burying the things worth seeing. **Show a pill on
-days with only unmarked events** in settings opts into showing them; either way
-they are always in the export.
+Google event colors are respected. Events without one receive a stable
+automatic color. Select the color line beside an event to cycle through the
+legacy solid, striped, dotted, and transparent styles; overrides are saved
+locally immediately, then synced through Firestore per calendar and recurring
+series so the same meaning follows you across devices.
 
 ## Data
 
 - **Events** are fetched from the Google Calendar API and cached in `localStorage` for 30
   minutes, per calendar and per year. They are never written to a server.
-- **Settings** - theme, view range, and which calendar you picked - are the only thing
-  stored in Firestore, so they follow you across devices.
+- **Event style overrides** are cached locally by calendar and event/series ID, then synced
+  to an owner-only Firestore document after a short debounce. They contain no titles, dates,
+  times, or other event contents.
+- **Settings** - theme, view range, and which calendar you picked - are also stored in
+  Firestore, so they follow you across devices.
 
 ## Getting Started
 

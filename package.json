@@ -15,6 +15,7 @@
     "test:update": "playwright test --update-snapshots"
   },
   "dependencies": {
+    "@floating-ui/react": "^0.27.20",
     "@fontsource/inter": "^5.2.8",
     "@fontsource/oswald": "^5.2.8",
     "firebase": "^12.7.0",

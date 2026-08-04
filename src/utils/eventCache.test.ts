@@ -14,6 +14,8 @@ const EVENTS: CalendarEvent[] = [{
     start: '2026-07-14',
     end: '2026-07-16',
     allDay: true,
+    styleKey: 'a',
+    automaticColor: 0,
     color: 0
 }];
 
