@@ -62,8 +62,7 @@ const SettingsModal: FC<SettingsModalProps> = ({ onClose, user, onSignOut }) => 
         { key: 'weekdayAlign', label: 'Align Weekdays' },
         { key: 'highlightToday', label: 'Highlight Current Day' },
         { key: 'showWeekends', label: 'Highlight Weekends' },
-        { key: 'showDayProgress', label: 'Show Day Progress (Day X / 365)' },
-        { key: 'pillUnmarkedEvents', label: 'Show a pill on days with only unmarked events' }
+        { key: 'showDayProgress', label: 'Show Day Progress (Day X / 365)' }
     ] as const;
 
     return (

@@ -1,7 +1,7 @@
 rules_version = '2';
 
-// Calendy stores configuration only. Calendar events are read live from the
-// Google Calendar API and cached in the browser - they are never written here.
+// Calendy stores configuration and user-selected event styles only. Calendar
+// event contents are read live from Google and are never written here.
 service cloud.firestore {
   match /databases/{database}/documents {
     function isOwner(userId) {
@@ -75,6 +75,16 @@ service cloud.firestore {
         );
     }
 
+    function validEventStylesDocument() {
+      return request.resource.data.keys().hasOnly(['calendarId', 'styles', 'updatedAt'])
+        && request.resource.data.calendarId is string
+        && request.resource.data.calendarId.size() > 0
+        && request.resource.data.calendarId.size() <= 500
+        && request.resource.data.styles is map
+        && request.resource.data.styles.size() <= 5000
+        && request.resource.data.updatedAt is timestamp;
+    }
+
     match /users/{userId}/data/{docId} {
       allow read, delete: if isOwner(userId) && docId == 'settings';
       allow create: if isOwner(userId) && docId == 'settings' && validSettingsDocument();
@@ -82,6 +92,14 @@ service cloud.firestore {
         && docId == 'settings'
         && !isThrottled()
         && validSettingsDocument();
+    }
+
+    match /users/{userId}/eventStyles/{calendarKey} {
+      allow read, delete: if isOwner(userId);
+      allow create: if isOwner(userId) && validEventStylesDocument();
+      allow update: if isOwner(userId)
+        && !isThrottled()
+        && validEventStylesDocument();
     }
   }
 }

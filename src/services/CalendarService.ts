@@ -128,6 +128,8 @@ export interface GoogleEventDateTime {
 
 export interface GoogleEvent {
     id: string;
+    iCalUID?: string;
+    recurringEventId?: string;
     summary?: string;
     status?: 'confirmed' | 'tentative' | 'cancelled';
     colorId?: string;
