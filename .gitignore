@@ -29,7 +29,6 @@ firebase-debug.log
 firestore-debug.log
 ui-debug.log
 .firebaserc
-gha-creds-*.json
 
 # Environment variables (secrets)
 .env
