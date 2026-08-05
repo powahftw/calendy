@@ -38,7 +38,9 @@ export interface CalendarEventsState {
 }
 
 interface UseCalendarEventsOptions {
-    calendarId: string | null;
+    calendarIds?: string[];
+    /** Backward-compatible shorthand for one calendar. */
+    calendarId?: string | null;
     year: number;
     startMonth: number;
     monthsToShow: number;
@@ -66,12 +68,21 @@ const collectCached = (calendarId: string, years: number[]) => {
     return { events, staleYears, oldestFetchedAt, hasAnyCache: events.length > 0 || oldestFetchedAt !== null };
 };
 
+const namespaceEvents = (events: CalendarEvent[], calendarId: string): CalendarEvent[] => (
+    events.map((event) => ({
+        ...event,
+        id: `${calendarId}:${event.id}`,
+        styleKey: `${calendarId}:${event.styleKey}`
+    }))
+);
+
 /**
  * Reads events straight from Google, cached client-side per calendar-year.
  * Nothing here is persisted server side - Firestore only holds which calendar
  * to read.
  */
 export const useCalendarEvents = ({
+    calendarIds: requestedCalendarIds,
     calendarId,
     year,
     startMonth,
@@ -94,43 +105,62 @@ export const useCalendarEvents = ({
         [monthsToShow, startMonth, year]
     );
     const yearsKey = years.join(',');
+    const requestedIdsKey = JSON.stringify(requestedCalendarIds?.length
+        ? requestedCalendarIds
+        : calendarId ? [calendarId] : []);
+    const calendarIds = useMemo(
+        () => requestedCalendarIds?.length ? [...new Set(requestedCalendarIds)] : calendarId ? [calendarId] : [],
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [requestedIdsKey]
+    );
+    const calendarIdsKey = JSON.stringify(calendarIds);
 
     const load = useCallback(async (force: boolean) => {
-        if (!calendarId) {
+        if (calendarIds.length === 0) {
             setEvents([]);
             setLastFetchedAt(null);
             return;
         }
 
-        const requestKey = `${calendarId}|${years.join(',')}`;
+        const requestKey = `${calendarIdsKey}|${years.join(',')}`;
         // Only skip when an identical load is already running.
         if (inFlightKeyRef.current === requestKey) return;
 
         const requestId = ++latestRequestRef.current;
         const isCurrent = () => latestRequestRef.current === requestId;
 
-        const cached = collectCached(calendarId, years);
-        const yearsToFetch = force ? years : cached.staleYears;
+        const cachedByCalendar = calendarIds.map((id) => ({ id, ...collectCached(id, years) }));
+        const cachedEvents = cachedByCalendar.flatMap(({ id, events: cached }) => (
+            calendarIds.length === 1 ? cached : namespaceEvents(cached, id)
+        ));
+        const cachedDates = cachedByCalendar
+            .map(({ oldestFetchedAt }) => oldestFetchedAt)
+            .filter((value): value is number => value !== null);
+        const hasAnyCache = cachedByCalendar.some(({ hasAnyCache: hasCache }) => hasCache);
+        const oldestFetchedAt = cachedDates.length ? Math.min(...cachedDates) : null;
+        const fetches = cachedByCalendar.flatMap(({ id, staleYears }) => (
+            (force ? years : staleYears).map((fetchYear) => ({ id, year: fetchYear }))
+        ));
 
         // Show whatever is cached immediately, even when it is stale.
-        if (cached.hasAnyCache) {
-            setEvents(cached.events);
-            setLastFetchedAt(cached.oldestFetchedAt);
+        if (hasAnyCache) {
+            setEvents(cachedEvents);
+            setLastFetchedAt(oldestFetchedAt);
         }
 
-        if (yearsToFetch.length === 0) {
+        if (fetches.length === 0) {
             setError(null);
             return;
         }
 
         inFlightKeyRef.current = requestKey;
-        if (cached.hasAnyCache) setRefreshing(true);
+        if (hasAnyCache) setRefreshing(true);
         else setLoading(true);
 
         try {
             const hasAccess = await ensureAccess();
             if (!hasAccess) {
-                if (isCurrent() && !cached.hasAnyCache) {
+                if (isCurrent() && !hasAnyCache) {
                     setError('Reconnect Google Calendar to load your events.');
                 }
                 return;
@@ -138,24 +168,29 @@ export const useCalendarEvents = ({
 
             const fetchedAt = Date.now();
             const fetchedYears = await Promise.all(
-                yearsToFetch.map(async (fetchYear) => {
+                fetches.map(async ({ id, year: fetchYear }) => {
                     const { timeMin, timeMax } = getYearBounds(fetchYear);
-                    const googleEvents = await calendarService.listEvents(calendarId, timeMin, timeMax);
-                    return { year: fetchYear, events: toCalendarEvents(googleEvents) };
+                    const googleEvents = await calendarService.listEvents(id, timeMin, timeMax);
+                    return { id, year: fetchYear, events: toCalendarEvents(googleEvents) };
                 })
             );
 
             for (const fetched of fetchedYears) {
-                writeCachedEvents(calendarId, fetched.year, fetched.events, fetchedAt);
+                writeCachedEvents(fetched.id, fetched.year, fetched.events, fetchedAt);
             }
 
             // A newer load (calendar switch, range change) has taken over.
             if (!isCurrent()) return;
 
             // Re-read so untouched years keep their cached copies.
-            const merged = collectCached(calendarId, years);
-            setEvents(merged.events);
-            setLastFetchedAt(merged.oldestFetchedAt);
+            const merged = calendarIds.map((id) => ({ id, ...collectCached(id, years) }));
+            setEvents(merged.flatMap(({ id, events: calendarEvents }) => (
+                calendarIds.length === 1 ? calendarEvents : namespaceEvents(calendarEvents, id)
+            )));
+            const fetchedDates = merged
+                .map(({ oldestFetchedAt: date }) => date)
+                .filter((value): value is number => value !== null);
+            setLastFetchedAt(fetchedDates.length ? Math.min(...fetchedDates) : null);
             setError(null);
         } catch (err) {
             logger.error('Failed to load Google Calendar events', err);
@@ -176,17 +211,17 @@ export const useCalendarEvents = ({
                 setRefreshing(false);
             }
         }
-    }, [calendarId, ensureAccess, years]);
+    }, [calendarIds, calendarIdsKey, ensureAccess, years]);
 
     useEffect(() => {
         void load(false);
         // `years` is captured through `load`; yearsKey keeps the effect stable
         // when the array identity changes but its contents do not.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [calendarId, yearsKey]);
+    }, [calendarIdsKey, yearsKey]);
 
     useEffect(() => {
-        if (!calendarId) return;
+        if (calendarIds.length === 0) return;
 
         const refreshIfStale = () => {
             if (document.visibilityState === 'hidden') return;
@@ -204,7 +239,7 @@ export const useCalendarEvents = ({
             window.removeEventListener('focus', refreshIfStale);
             document.removeEventListener('visibilitychange', refreshIfStale);
         };
-    }, [calendarId, load]);
+    }, [calendarIds.length, calendarIdsKey, load]);
 
     const refresh = useCallback(() => load(true), [load]);
 

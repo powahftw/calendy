@@ -39,6 +39,14 @@ const renderEvents = (calendarId: string | null) => renderHook(
     { initialProps: { id: calendarId } }
 );
 
+const renderMultipleCalendars = (calendarIds: string[]) => renderHook(() => useCalendarEvents({
+    calendarIds,
+    year: 2026,
+    startMonth: 0,
+    monthsToShow: 12,
+    ensureAccess
+}));
+
 describe('useCalendarEvents', () => {
     beforeEach(() => {
         localStorage.clear();
@@ -61,6 +69,21 @@ describe('useCalendarEvents', () => {
         expect(mockListEvents).toHaveBeenCalledTimes(1);
         expect(mockListEvents.mock.calls[0][0]).toBe('cal-1');
         expect(readCachedEvents('cal-1', 2026)?.events).toHaveLength(1);
+    });
+
+    it('merges events from every selected calendar', async () => {
+        mockListEvents.mockImplementation(async (calendarId) => [
+            eventOn(`event-${calendarId}`, '2026-07-14')
+        ]);
+
+        const { result } = renderMultipleCalendars(['cal-1', 'cal-2']);
+
+        await waitFor(() => expect(result.current.events).toHaveLength(2));
+        expect(mockListEvents.mock.calls.map(([calendarId]) => calendarId)).toEqual(['cal-1', 'cal-2']);
+        expect(result.current.events.map((event) => event.id)).toEqual([
+            'cal-1:event-cal-1',
+            'cal-2:event-cal-2'
+        ]);
     });
 
     it('serves a fresh cache without hitting Google again', async () => {

@@ -5,6 +5,7 @@ import { useCalendarConnection } from '../hooks/useCalendarConnection';
 import { useCalendarEvents } from '../hooks/useCalendarEvents';
 import { buildDayEventMap } from '../utils/calendarEvents';
 import { useEventStyleOverrides } from '../hooks/useEventStyleOverrides';
+import { getEventStylesDocumentId, getSelectedCalendarIds } from '../firestoreSync';
 import {
     PlannerProvider,
     PlannerInteractionProvider,
@@ -22,8 +23,17 @@ export const AppProvider: React.FC<{ user: User; children: React.ReactNode }> = 
         syncStatus: settingsSyncStatus
     } = usePlannerPersistence(user);
     const connection = useCalendarConnection(user);
+    const selectedCalendarIds = useMemo(
+        () => getSelectedCalendarIds(connection.selection),
+        [connection.selection]
+    );
+    const eventStyleScope = useMemo(() => (
+        selectedCalendarIds.length <= 1
+            ? selectedCalendarIds[0] ?? null
+            : `multi:${getEventStylesDocumentId(JSON.stringify(selectedCalendarIds.slice().sort()))}`
+    ), [selectedCalendarIds]);
     const { events: sourceEvents, loading, refreshing, error, lastFetchedAt, refresh } = useCalendarEvents({
-        calendarId: connection.selection?.calendarId ?? null,
+        calendarIds: selectedCalendarIds,
         year: settings.year,
         startMonth: settings.startMonth,
         monthsToShow: settings.monthsToShow,
@@ -31,7 +41,7 @@ export const AppProvider: React.FC<{ user: User; children: React.ReactNode }> = 
     });
     const { events, cycleEventStyle, syncStatus: eventStylesSyncStatus } = useEventStyleOverrides(
         user.uid,
-        connection.selection?.calendarId ?? null,
+        eventStyleScope,
         sourceEvents
     );
     const syncStatus = settingsSyncStatus === 'offline' || eventStylesSyncStatus === 'offline'

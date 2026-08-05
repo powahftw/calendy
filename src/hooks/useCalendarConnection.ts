@@ -10,7 +10,7 @@ import {
     preloadGoogleIdentityApi
 } from '../services/CalendarService';
 import { saveCalendarSelection, subscribeToCalendarSelection } from '../firestoreSync';
-import type { CalendarSelection } from '../firestoreSync';
+import { getSelectedCalendarIds, type CalendarSelection } from '../firestoreSync';
 import { logger } from '../utils/logger';
 import { getUserFacingErrorMessage } from '../utils/userFacingErrors';
 
@@ -32,7 +32,7 @@ export interface CalendarConnection {
     selectionLoading: boolean;
     error: string | null;
     connect: () => Promise<boolean>;
-    selectCalendar: (calendar: GoogleCalendar) => Promise<boolean>;
+    toggleCalendar: (calendar: GoogleCalendar) => Promise<boolean>;
     /** Refreshes the token silently; used when returning to a backgrounded tab. */
     ensureAccess: () => Promise<boolean>;
 }
@@ -194,23 +194,39 @@ export const useCalendarConnection = (user: User | null): CalendarConnection => 
         }
     }, [loadCalendars, userEmail, userUid]);
 
-    const selectCalendar = useCallback(async (calendar: GoogleCalendar) => {
+    const toggleCalendar = useCallback(async (calendar: GoogleCalendar) => {
         if (!userUid) return false;
 
+        const selectedIds = getSelectedCalendarIds(selection);
+        const isSelected = selectedIds.includes(calendar.id);
+        // A connected planner always needs at least one visible calendar.
+        if (isSelected && selectedIds.length === 1) return true;
+
+        const nextIds = isSelected
+            ? selectedIds.filter((id) => id !== calendar.id)
+            : [...selectedIds, calendar.id];
+        const calendarById = new Map(calendars.map((item) => [item.id, item]));
+        const nextNames = nextIds.map((id) => {
+            const item = calendarById.get(id);
+            return item ? getCalendarName(item) : id;
+        });
         const next: CalendarSelection = {
-            calendarId: calendar.id,
-            calendarSummary: getCalendarName(calendar),
+            calendarId: nextIds[0],
+            calendarSummary: nextNames[0],
+            calendarIds: nextIds,
+            calendarSummaries: nextNames,
             ...(userEmail ? { accountEmail: userEmail } : {})
         };
 
         const saved = await saveCalendarSelection(userUid, next);
         if (saved) {
             setSelection(next);
+            setError(null);
         } else {
             toast.error('Could not save your calendar choice.');
         }
         return saved;
-    }, [userEmail, userUid]);
+    }, [calendars, selection, userEmail, userUid]);
 
     const status: CalendarConnectionStatus = !hasToken
         ? 'disconnected'
@@ -222,9 +238,12 @@ export const useCalendarConnection = (user: User | null): CalendarConnection => 
     // an empty year.
     useEffect(() => {
         if (!selection || calendars.length === 0) return;
-        if (calendars.some((calendar) => calendar.id === selection.calendarId)) return;
+        const missing = getSelectedCalendarIds(selection).filter(
+            (id) => !calendars.some((calendar) => calendar.id === id)
+        );
+        if (missing.length === 0) return;
 
-        setError(`"${selection.calendarSummary || selection.calendarId}" is no longer available on this account. Pick another calendar.`);
+        setError('One or more selected calendars are no longer available on this account. Update your calendar selection.');
     }, [calendars, selection]);
 
     return useMemo(() => ({
@@ -237,7 +256,7 @@ export const useCalendarConnection = (user: User | null): CalendarConnection => 
         selectionLoading,
         error,
         connect,
-        selectCalendar,
+        toggleCalendar,
         ensureAccess
     }), [
         authorizationRequired,
@@ -247,7 +266,7 @@ export const useCalendarConnection = (user: User | null): CalendarConnection => 
         connecting,
         ensureAccess,
         error,
-        selectCalendar,
+        toggleCalendar,
         selection,
         selectionLoading,
         status

@@ -6,6 +6,7 @@ import { usePlanner } from '../context/PlannerContext';
 import { useEscapeKey } from '../hooks/useEscapeKey';
 import { exportEventsToMarkdown, getExportFilename } from '../utils/calendar/exportEvents';
 import CalendarPicker from './CalendarPicker';
+import { getSelectedCalendarNames } from '../firestoreSync';
 
 interface SettingsModalProps {
     onClose: () => void;
@@ -35,6 +36,8 @@ const SettingsModal: FC<SettingsModalProps> = ({ onClose, user, onSignOut }) => 
     const planner = usePlanner();
     const { year, startMonth, monthsToShow, theme, setTheme, updateSettings } = planner;
     const { events, connection, refresh, refreshing, lastFetchedAt } = planner;
+    const selectedCalendarNames = getSelectedCalendarNames(connection.selection);
+    const calendarLabel = selectedCalendarNames.join(', ');
 
     useEscapeKey(onClose);
 
@@ -43,7 +46,7 @@ const SettingsModal: FC<SettingsModalProps> = ({ onClose, user, onSignOut }) => 
             year,
             startMonth,
             monthsToShow,
-            calendarName: connection.selection?.calendarSummary
+            calendarName: calendarLabel || undefined
         };
         const markdown = exportEventsToMarkdown(events, view);
         const filename = getExportFilename(view);
@@ -145,20 +148,20 @@ const SettingsModal: FC<SettingsModalProps> = ({ onClose, user, onSignOut }) => 
                         <h4>Google Calendar</h4>
                         {connection.selection ? (
                             <SettingsHelperText>
-                                Viewing <strong>{connection.selection.calendarSummary || connection.selection.calendarId}</strong>
+                                Viewing <strong>{calendarLabel}</strong>
                                 {' '}(read-only) &middot; updated {formatLastFetched(lastFetchedAt)}
                             </SettingsHelperText>
                         ) : (
                             <SettingsHelperText>No calendar selected yet.</SettingsHelperText>
                         )}
 
-                        <div className="settings-actions-row">
+                        <div className="settings-actions-row settings-calendar-actions">
                             <button
                                 className="btn-primary-outline btn-icon-with-text"
                                 onClick={() => setShowCalendarPicker(open => !open)}
                                 aria-expanded={showCalendarPicker}
                             >
-                                {showCalendarPicker ? 'Hide calendars' : 'Change calendar'}
+                                {showCalendarPicker ? 'Hide calendars' : 'Change calendars'}
                             </button>
                             <button
                                 className="btn-primary-outline btn-icon-with-text"
@@ -173,7 +176,6 @@ const SettingsModal: FC<SettingsModalProps> = ({ onClose, user, onSignOut }) => 
                             <CalendarPicker
                                 connection={connection}
                                 variant="inline"
-                                onPicked={() => setShowCalendarPicker(false)}
                             />
                         )}
                     </div>

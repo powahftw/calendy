@@ -859,6 +859,25 @@ body[data-theme='dark'] .header-settings-btn:hover {
   color: var(--accent-text);
 }
 
+.calendar-list-check {
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--line-color);
+  border-radius: 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--bg-color);
+  font-size: 0.72rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.calendar-list-check.is-checked {
+  border-color: var(--accent-color);
+  background: var(--accent-color);
+}
+
 /* --- Modals --- */
 .modal-overlay {
   position: fixed;
@@ -1087,6 +1106,10 @@ body[data-theme='dark'] .header-settings-btn:hover {
   display: flex;
   gap: 12px;
   align-items: stretch;
+}
+
+.settings-calendar-actions {
+  margin-top: 16px;
 }
 
 .settings-actions-row>* {

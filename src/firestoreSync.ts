@@ -19,8 +19,25 @@ import { getTimestampInMillis } from './utils/persistence';
 export interface CalendarSelection {
     calendarId: string;
     calendarSummary?: string;
+    /** All visible calendars. Older saved selections omit these arrays. */
+    calendarIds?: string[];
+    calendarSummaries?: string[];
     accountEmail?: string;
 }
+
+export const getSelectedCalendarIds = (selection: CalendarSelection | null): string[] => {
+    if (!selection) return [];
+    const ids = selection.calendarIds?.filter((id) => typeof id === 'string' && id.length > 0);
+    return ids?.length ? [...new Set(ids)] : [selection.calendarId];
+};
+
+export const getSelectedCalendarNames = (selection: CalendarSelection | null): string[] => {
+    if (!selection) return [];
+    const ids = getSelectedCalendarIds(selection);
+    return ids.map((id, index) => selection.calendarSummaries?.[index]
+        || (id === selection.calendarId ? selection.calendarSummary : undefined)
+        || id);
+};
 
 export type EventStyleOverrides = Record<string, number>;
 
@@ -36,6 +53,16 @@ const isCalendarSelection = (value: unknown): value is CalendarSelection => {
     return typeof selection.calendarId === 'string'
         && selection.calendarId.length > 0
         && (!('calendarSummary' in selection) || typeof selection.calendarSummary === 'string')
+        && (!('calendarIds' in selection) || (
+            Array.isArray(selection.calendarIds)
+            && selection.calendarIds.length > 0
+            && selection.calendarIds.length <= 50
+            && selection.calendarIds.every((id) => typeof id === 'string' && id.length > 0)
+        ))
+        && (!('calendarSummaries' in selection) || (
+            Array.isArray(selection.calendarSummaries)
+            && selection.calendarSummaries.every((name) => typeof name === 'string')
+        ))
         && (!('accountEmail' in selection) || typeof selection.accountEmail === 'string');
 };
 

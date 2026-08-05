@@ -40,6 +40,15 @@ vi.mock('../firestoreSync', () => ({
         return () => { };
     },
     saveCalendarSelection: (...args: [string, CalendarSelection]) => mockSaveCalendarSelection(...args),
+    getSelectedCalendarIds: (selection: CalendarSelection | null) => selection
+        ? selection.calendarIds?.length ? selection.calendarIds : [selection.calendarId]
+        : [],
+    getSelectedCalendarNames: (selection: CalendarSelection | null) => selection
+        ? selection.calendarSummaries?.length
+            ? selection.calendarSummaries
+            : [selection.calendarSummary || selection.calendarId]
+        : [],
+    getEventStylesDocumentId: vi.fn(() => 'multi-style-scope'),
 }));
 
 const CALENDARS: GoogleCalendar[] = [
@@ -274,6 +283,26 @@ describe('Calendy read-only planner', () => {
             expect(await screen.findByRole('button', { name: /Export Markdown/i })).toBeInTheDocument();
             expect(screen.queryByRole('button', { name: /^Import$/i })).not.toBeInTheDocument();
             expect(screen.queryByRole('button', { name: /Clear All/i })).not.toBeInTheDocument();
+        });
+
+        it('lets the user view another calendar from the same account', async () => {
+            render(<App />);
+            await screen.findAllByText('Lisbon');
+
+            fireEvent.click(screen.getByRole('button', { name: /^Settings$/i }));
+            fireEvent.click(await screen.findByRole('button', { name: /Change calendars/i }));
+            fireEvent.click(screen.getByText('Federico'));
+
+            await waitFor(() => {
+                expect(mockSaveCalendarSelection).toHaveBeenCalledWith(
+                    'test-user',
+                    expect.objectContaining({
+                        calendarIds: ['travel-cal', 'primary-cal'],
+                        calendarSummaries: ['Travel', 'Federico']
+                    })
+                );
+            });
+            expect(screen.getByText('Travel, Federico')).toBeInTheDocument();
         });
     });
 });

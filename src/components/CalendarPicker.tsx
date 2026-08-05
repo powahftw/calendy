@@ -1,12 +1,12 @@
 import React, { FC } from 'react';
 import { CalendarConnection, getCalendarName } from '../hooks/useCalendarConnection';
 import { isGoogleCalendarConfigured } from '../services/CalendarService';
+import { getSelectedCalendarIds } from '../firestoreSync';
 
 interface CalendarPickerProps {
     connection: CalendarConnection;
     /** `full` takes over the screen before a calendar is chosen. */
     variant: 'full' | 'inline';
-    onPicked?: () => void;
 }
 
 const CalendarIcon = () => (
@@ -18,8 +18,9 @@ const CalendarIcon = () => (
     </svg>
 );
 
-const CalendarList: FC<CalendarPickerProps> = ({ connection, onPicked }) => {
+const CalendarList: FC<CalendarPickerProps> = ({ connection }) => {
     const { calendars, calendarsLoading, selection } = connection;
+    const selectedIds = getSelectedCalendarIds(selection);
 
     if (calendarsLoading && calendars.length === 0) {
         return <p className="calendar-picker-copy">Loading your calendars…</p>;
@@ -32,7 +33,7 @@ const CalendarList: FC<CalendarPickerProps> = ({ connection, onPicked }) => {
     return (
         <ul className="calendar-list">
             {calendars.map((calendar) => {
-                const isSelected = selection?.calendarId === calendar.id;
+                const isSelected = selectedIds.includes(calendar.id);
 
                 return (
                     <li key={calendar.id}>
@@ -41,8 +42,7 @@ const CalendarList: FC<CalendarPickerProps> = ({ connection, onPicked }) => {
                             className={`calendar-list-item ${isSelected ? 'is-selected' : ''}`}
                             aria-pressed={isSelected}
                             onClick={async () => {
-                                const saved = await connection.selectCalendar(calendar);
-                                if (saved) onPicked?.();
+                                await connection.toggleCalendar(calendar);
                             }}
                         >
                             <span
@@ -52,7 +52,9 @@ const CalendarList: FC<CalendarPickerProps> = ({ connection, onPicked }) => {
                             />
                             <span className="calendar-list-name">{getCalendarName(calendar)}</span>
                             {calendar.primary && <span className="calendar-list-tag">Primary</span>}
-                            {isSelected && <span className="calendar-list-tag calendar-list-tag-active">Viewing</span>}
+                            <span className={`calendar-list-check ${isSelected ? 'is-checked' : ''}`} aria-hidden="true">
+                                {isSelected ? '✓' : ''}
+                            </span>
                         </button>
                     </li>
                 );
