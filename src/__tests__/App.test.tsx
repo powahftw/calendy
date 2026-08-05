@@ -274,15 +274,22 @@ describe('Calendy read-only planner', () => {
             expect(screen.getByRole('button', { name: /^Reconnect$/i })).toBeInTheDocument();
         });
 
-        it('offers export but not import or clear-all in settings', async () => {
+        it('opens a selectable Markdown preview with download and close actions', async () => {
             render(<App />);
             await screen.findAllByText('Lisbon');
 
             fireEvent.click(screen.getByRole('button', { name: /^Settings$/i }));
 
-            expect(await screen.findByRole('button', { name: /Export Markdown/i })).toBeInTheDocument();
+            fireEvent.click(await screen.findByRole('button', { name: /View Markdown/i }));
+
+            const preview = await screen.findByRole('dialog', { name: /Markdown preview/i });
+            expect(preview).toHaveTextContent('# Travel');
+            expect(screen.getByRole('button', { name: /Download Markdown/i })).toBeInTheDocument();
             expect(screen.queryByRole('button', { name: /^Import$/i })).not.toBeInTheDocument();
             expect(screen.queryByRole('button', { name: /Clear All/i })).not.toBeInTheDocument();
+
+            fireEvent.click(screen.getByRole('button', { name: /Close markdown preview/i }));
+            expect(screen.queryByRole('dialog', { name: /Markdown preview/i })).not.toBeInTheDocument();
         });
 
         it('lets the user view another calendar from the same account', async () => {
