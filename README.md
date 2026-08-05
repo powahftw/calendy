@@ -18,7 +18,7 @@ calendar but can never create, change or delete anything in it.
 - Full-day events fill the day; a compact `+N` badge reveals every overlapping or timed event.
 - Hover or tap any occupied day for complete titles, all-day ranges, and scheduled times.
 - Restore meaningful event styles with five solid colors, stripes, dots, and transparent display.
-- Pick which of your calendars to view - it does not have to be the primary one.
+- Pick one or several calendars from the same account to view together - they do not have to include the primary one.
 - Four curated themes: Modern Blue, Forest (Sepia), Pastel, and Dark Mode.
 - Responsive layout across desktop and mobile devices.
 - Markdown export of everything in the range you are viewing.

@@ -8,18 +8,28 @@ service cloud.firestore {
       return request.auth != null && request.auth.uid == userId;
     }
 
-    function isThrottled() {
-      return resource != null
-        && resource.data.updatedAt is timestamp
-        && request.time < resource.data.updatedAt + duration.value(500, 'ms');
-    }
-
     function validCalendarSelection() {
+      // Calendar preferences are private to their owner. Validate fields the
+      // app consumes, while allowing future metadata without a rules deploy.
       return request.resource.data.calendarSelection is map
-        && request.resource.data.calendarSelection.keys().hasOnly(['calendarId', 'calendarSummary', 'accountEmail'])
         && request.resource.data.calendarSelection.calendarId is string
         && request.resource.data.calendarSelection.calendarId.size() > 0
         && request.resource.data.calendarSelection.calendarId.size() <= 500
+        && (
+          !request.resource.data.calendarSelection.keys().hasAny(['calendarIds'])
+          || (
+            request.resource.data.calendarSelection.calendarIds is list
+            && request.resource.data.calendarSelection.calendarIds.size() > 0
+            && request.resource.data.calendarSelection.calendarIds.size() <= 50
+          )
+        )
+        && (
+          !request.resource.data.calendarSelection.keys().hasAny(['calendarSummaries'])
+          || (
+            request.resource.data.calendarSelection.calendarSummaries is list
+            && request.resource.data.calendarSelection.calendarSummaries.size() <= 50
+          )
+        )
         && (
           !request.resource.data.calendarSelection.keys().hasAny(['calendarSummary'])
           || (
@@ -37,20 +47,9 @@ service cloud.firestore {
     }
 
     function validSettingsDocument() {
-      return request.resource.data.keys().hasOnly([
-        'theme',
-        'highlightToday',
-        'showWeekends',
-        'showDayProgress',
-        'weekdayAlign',
-        'pillUnmarkedEvents',
-        'year',
-        'startMonth',
-        'monthsToShow',
-        'calendarSelection',
-        'updatedAt'
-      ])
-        && request.resource.data.updatedAt is timestamp
+      // Firestore is intentionally schemaless here: known settings stay
+      // type-safe, and new private preference fields are forward-compatible.
+      return request.resource.data.updatedAt is timestamp
         && (!request.resource.data.keys().hasAny(['theme']) || request.resource.data.theme is string)
         && (!request.resource.data.keys().hasAny(['highlightToday']) || request.resource.data.highlightToday is bool)
         && (!request.resource.data.keys().hasAny(['showWeekends']) || request.resource.data.showWeekends is bool)
@@ -76,8 +75,9 @@ service cloud.firestore {
     }
 
     function validEventStylesDocument() {
-      return request.resource.data.keys().hasOnly(['calendarId', 'styles', 'updatedAt'])
-        && request.resource.data.calendarId is string
+      // Keep bounds on the potentially large styles map, but tolerate future
+      // owner-only metadata alongside it.
+      return request.resource.data.calendarId is string
         && request.resource.data.calendarId.size() > 0
         && request.resource.data.calendarId.size() <= 500
         && request.resource.data.styles is map
@@ -90,7 +90,6 @@ service cloud.firestore {
       allow create: if isOwner(userId) && docId == 'settings' && validSettingsDocument();
       allow update: if isOwner(userId)
         && docId == 'settings'
-        && !isThrottled()
         && validSettingsDocument();
     }
 
@@ -98,7 +97,6 @@ service cloud.firestore {
       allow read, delete: if isOwner(userId);
       allow create: if isOwner(userId) && validEventStylesDocument();
       allow update: if isOwner(userId)
-        && !isThrottled()
         && validEventStylesDocument();
     }
   }
