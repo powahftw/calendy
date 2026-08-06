@@ -1,4 +1,4 @@
-import React, { FC, useState } from 'react';
+import React, { FC, useCallback, useState } from 'react';
 import { User } from 'firebase/auth';
 import toast from 'react-hot-toast';
 import { themes } from '../utils/calendarUtils';
@@ -12,6 +12,11 @@ interface SettingsModalProps {
     onClose: () => void;
     user: User;
     onSignOut: () => void;
+}
+
+interface MarkdownPreview {
+    content: string;
+    filename: string;
 }
 
 const SettingsHelperText: FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -32,6 +37,7 @@ const formatLastFetched = (lastFetchedAt: number | null): string => {
 
 const SettingsModal: FC<SettingsModalProps> = ({ onClose, user, onSignOut }) => {
     const [showCalendarPicker, setShowCalendarPicker] = useState(false);
+    const [markdownPreview, setMarkdownPreview] = useState<MarkdownPreview | null>(null);
 
     const planner = usePlanner();
     const { year, startMonth, monthsToShow, theme, setTheme, updateSettings } = planner;
@@ -39,9 +45,14 @@ const SettingsModal: FC<SettingsModalProps> = ({ onClose, user, onSignOut }) => 
     const selectedCalendarNames = getSelectedCalendarNames(connection.selection);
     const calendarLabel = selectedCalendarNames.join(', ');
 
-    useEscapeKey(onClose);
+    const handleEscape = useCallback(() => {
+        if (markdownPreview) setMarkdownPreview(null);
+        else onClose();
+    }, [markdownPreview, onClose]);
 
-    const handleExport = () => {
+    useEscapeKey(handleEscape);
+
+    const handleViewMarkdown = () => {
         const view = {
             year,
             startMonth,
@@ -51,14 +62,20 @@ const SettingsModal: FC<SettingsModalProps> = ({ onClose, user, onSignOut }) => 
         const markdown = exportEventsToMarkdown(events, view);
         const filename = getExportFilename(view);
 
-        const blob = new Blob([markdown], { type: 'text/markdown' });
+        setMarkdownPreview({ content: markdown, filename });
+    };
+
+    const handleDownloadMarkdown = () => {
+        if (!markdownPreview) return;
+
+        const blob = new Blob([markdownPreview.content], { type: 'text/markdown' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = filename;
+        a.download = markdownPreview.filename;
         a.click();
         URL.revokeObjectURL(url);
-        toast.success(`Exported to ${filename}`);
+        toast.success(`Exported to ${markdownPreview.filename}`);
     };
 
     const toggles = [
@@ -183,17 +200,12 @@ const SettingsModal: FC<SettingsModalProps> = ({ onClose, user, onSignOut }) => 
                     <div className="settings-section">
                         <h4>Data</h4>
                         <div className="settings-actions-row">
-                            <button className="btn-primary-outline btn-icon-with-text" onClick={handleExport}>
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                                    <polyline points="17 8 12 3 7 8"></polyline>
-                                    <line x1="12" y1="3" x2="12" y2="15"></line>
-                                </svg>
-                                Export Markdown
+                            <button className="btn-primary-outline" onClick={handleViewMarkdown}>
+                                View Markdown
                             </button>
                         </div>
                         <SettingsHelperText>
-                            Exports every event in the range you are viewing, full-day and timed alike.
+                            Preview every event in the visible range, then copy what you need or download the full file.
                         </SettingsHelperText>
                     </div>
 
@@ -216,6 +228,43 @@ const SettingsModal: FC<SettingsModalProps> = ({ onClose, user, onSignOut }) => 
                     </div>
                 </div>
             </div>
+
+            {markdownPreview && (
+                <div
+                    className="modal-overlay markdown-preview-overlay"
+                    onMouseDown={(e: React.MouseEvent) => e.target === e.currentTarget && setMarkdownPreview(null)}
+                    onTouchStart={(e: React.TouchEvent) => e.target === e.currentTarget && setMarkdownPreview(null)}
+                >
+                    <div
+                        className="modal markdown-preview-modal"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-label="Markdown preview"
+                    >
+                        <div className="modal-header markdown-preview-header">
+                            <button
+                                className="btn-primary-outline btn-icon-with-text markdown-preview-download"
+                                onClick={handleDownloadMarkdown}
+                            >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="17 8 12 3 7 8"></polyline>
+                                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                                </svg>
+                                Download Markdown
+                            </button>
+                            <button
+                                onClick={() => setMarkdownPreview(null)}
+                                className="close-btn"
+                                aria-label="Close markdown preview"
+                            >
+                                &times;
+                            </button>
+                        </div>
+                        <pre className="markdown-preview-content" tabIndex={0}>{markdownPreview.content}</pre>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

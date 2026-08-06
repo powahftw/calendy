@@ -1116,6 +1116,46 @@ body[data-theme='dark'] .header-settings-btn:hover {
   flex: 1;
 }
 
+.markdown-preview-overlay {
+  z-index: 210;
+}
+
+.modal.markdown-preview-modal {
+  width: 720px;
+  max-width: 94vw;
+  height: min(82vh, 760px);
+  height: min(82dvh, 760px);
+  display: flex;
+  flex-direction: column;
+}
+
+.markdown-preview-header {
+  flex-shrink: 0;
+}
+
+.markdown-preview-download {
+  flex: 0 0 auto;
+  padding: 7px 12px;
+}
+
+.markdown-preview-content {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 20px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--weekend-bg);
+  color: var(--text-primary);
+  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  cursor: text;
+  user-select: text;
+  -webkit-overflow-scrolling: touch;
+}
+
 @media (max-width: 480px) {
   .modal.settings-modal {
     width: 94vw;
