@@ -3,7 +3,7 @@ import { User } from 'firebase/auth';
 import usePlannerPersistence from '../hooks/usePlannerPersistence';
 import { useCalendarConnection } from '../hooks/useCalendarConnection';
 import { useCalendarEvents } from '../hooks/useCalendarEvents';
-import { buildDayEventMap } from '../utils/calendarEvents';
+import { buildDayEventMap, deduplicateCalendarEvents } from '../utils/calendarEvents';
 import { useEventStyleOverrides } from '../hooks/useEventStyleOverrides';
 import { getEventStylesDocumentId, getSelectedCalendarIds } from '../firestoreSync';
 import {
@@ -39,10 +39,14 @@ export const AppProvider: React.FC<{ user: User; children: React.ReactNode }> = 
         monthsToShow: settings.monthsToShow,
         ensureAccess: connection.ensureAccess
     });
+    const visibleSourceEvents = useMemo(
+        () => settings.hideDuplicateEvents ? deduplicateCalendarEvents(sourceEvents) : sourceEvents,
+        [settings.hideDuplicateEvents, sourceEvents]
+    );
     const { events, cycleEventStyle, syncStatus: eventStylesSyncStatus } = useEventStyleOverrides(
         user.uid,
         eventStyleScope,
-        sourceEvents
+        visibleSourceEvents
     );
     const syncStatus = settingsSyncStatus === 'offline' || eventStylesSyncStatus === 'offline'
         ? 'offline'

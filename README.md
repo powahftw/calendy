@@ -19,6 +19,7 @@ calendar but can never create, change or delete anything in it.
 - Hover or tap any occupied day for complete titles, all-day ranges, and scheduled times.
 - Restore meaningful event styles with five solid colors, stripes, dots, and transparent display.
 - Pick one or several calendars from the same account to view together - they do not have to include the primary one.
+- Optionally hide exact duplicate events across the calendars you are viewing.
 - Four curated themes: Modern Blue, Forest (Sepia), Pastel, and Dark Mode.
 - Responsive layout across desktop and mobile devices.
 - Markdown export of everything in the range you are viewing.

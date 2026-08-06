@@ -17,6 +17,8 @@ const GOOGLE_COLOR_ID_TO_PALETTE_INDEX: Record<string, number> = {
 export interface CalendarEvent {
     id: string;
     title: string;
+    /** Normalized Google description, used when identifying exact duplicates. */
+    description?: string;
     /** Inclusive local start date, `YYYY-MM-DD`. */
     start: string;
     /** Inclusive local end date, `YYYY-MM-DD`. */
@@ -75,6 +77,7 @@ const toPaletteIndex = (event: GoogleEvent, styleKey: string): number => (
  */
 export const toCalendarEvent = (event: GoogleEvent): CalendarEvent | null => {
     const title = event.summary?.trim() || '(no title)';
+    const description = event.description?.trim() || '';
     const styleKey = getStyleKey(event);
     const automaticColor = toPaletteIndex(event, styleKey);
 
@@ -89,6 +92,7 @@ export const toCalendarEvent = (event: GoogleEvent): CalendarEvent | null => {
         return {
             id: event.id,
             title,
+            description,
             start,
             end: end < start ? start : end,
             allDay: true,
@@ -112,6 +116,7 @@ export const toCalendarEvent = (event: GoogleEvent): CalendarEvent | null => {
     return {
         id: event.id,
         title,
+        description,
         start: toLocalDateStr(startDate),
         end: toLocalDateStr(resolvedEnd),
         allDay: false,
@@ -128,6 +133,40 @@ export const toCalendarEvents = (events: GoogleEvent[]): CalendarEvent[] => (
         .map(toCalendarEvent)
         .filter((event): event is CalendarEvent => event !== null)
 );
+
+const getDuplicateKey = (event: CalendarEvent): string => JSON.stringify([
+    event.title,
+    event.start,
+    event.end,
+    event.allDay,
+    event.startTime ?? '',
+    event.endTime ?? '',
+    event.description ?? ''
+]);
+
+/**
+ * Keeps one event for each exact visible occurrence. The lowest stable ID wins,
+ * so Google response order and parallel multi-calendar fetches cannot change
+ * which copy remains visible.
+ */
+export const deduplicateCalendarEvents = (events: CalendarEvent[]): CalendarEvent[] => {
+    const winners = new Map<string, { event: CalendarEvent; position: number }>();
+
+    events.forEach((event, position) => {
+        const key = getDuplicateKey(event);
+        const current = winners.get(key);
+
+        if (!current) {
+            winners.set(key, { event, position });
+        } else if (event.id < current.event.id) {
+            winners.set(key, { event, position: current.position });
+        }
+    });
+
+    return [...winners.values()]
+        .sort((a, b) => a.position - b.position)
+        .map(({ event }) => event);
+};
 
 const byStartTime = (a: CalendarEvent, b: CalendarEvent): number => (
     (a.startTime ?? '').localeCompare(b.startTime ?? '') || a.title.localeCompare(b.title)

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { GoogleEvent } from '../services/CalendarService';
 import {
     buildDayEventMap,
+    deduplicateCalendarEvents,
     formatEventDateRange,
     formatEventTimeRange,
     toCalendarEvent,
@@ -124,6 +125,41 @@ describe('toCalendarEvent', () => {
         });
 
         expect(result?.automaticColor).toBe(2);
+    });
+
+    it('normalizes the description used for duplicate matching', () => {
+        const result = toCalendarEvent({
+            id: 'described',
+            description: '  Gate 12  ',
+            start: { date: '2026-07-14' },
+            end: { date: '2026-07-15' }
+        });
+
+        expect(result?.description).toBe('Gate 12');
+    });
+});
+
+describe('deduplicateCalendarEvents', () => {
+    it('keeps the lowest stable ID for an exact duplicate regardless of input order', () => {
+        const laterId = timed({ id: 'z-copy', styleKey: 'z-copy', description: 'Gate 12' });
+        const stableWinner = timed({ id: 'a-copy', styleKey: 'a-copy', description: 'Gate 12' });
+
+        expect(deduplicateCalendarEvents([laterId, stableWinner]).map((event) => event.id))
+            .toEqual(['a-copy']);
+        expect(deduplicateCalendarEvents([stableWinner, laterId]).map((event) => event.id))
+            .toEqual(['a-copy']);
+    });
+
+    it('keeps events when title, time, or description differs', () => {
+        const base = timed({ id: 'base', description: 'Gate 12' });
+        const events = [
+            base,
+            timed({ id: 'title', title: 'Different', description: 'Gate 12' }),
+            timed({ id: 'time', startTime: '07:00', description: 'Gate 12' }),
+            timed({ id: 'description', description: 'Gate 14' })
+        ];
+
+        expect(deduplicateCalendarEvents(events)).toEqual(events);
     });
 });
 

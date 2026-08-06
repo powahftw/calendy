@@ -24,6 +24,7 @@ export const getDefaultSettings = (): PlannerSettings => ({
     showWeekends: true,
     showDayProgress: true,
     weekdayAlign: true,
+    hideDuplicateEvents: false,
     year: new Date().getFullYear(),
     startMonth: 0,
     monthsToShow: 12

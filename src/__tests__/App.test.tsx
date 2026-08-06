@@ -292,6 +292,34 @@ describe('Calendy read-only planner', () => {
             expect(screen.queryByRole('dialog', { name: /Markdown preview/i })).not.toBeInTheDocument();
         });
 
+        it('offers an opt-in setting to hide duplicate events', async () => {
+            render(<App />);
+            await screen.findAllByText('Lisbon');
+
+            fireEvent.click(screen.getByRole('button', { name: /^Settings$/i }));
+
+            const toggle = await screen.findByRole('checkbox', { name: /Hide Duplicate Events/i });
+            expect(toggle).not.toBeChecked();
+            fireEvent.click(toggle);
+            expect(toggle).toBeChecked();
+        });
+
+        it('removes exact duplicate occurrences when the setting is enabled', async () => {
+            mockListEvents.mockResolvedValue([
+                ...GOOGLE_EVENTS,
+                { ...GOOGLE_EVENTS[0], id: 'trip-copy' }
+            ]);
+            render(<App />);
+
+            expect(await screen.findByRole('button', { name: /5 events on 14 Jul/i })).toBeInTheDocument();
+            fireEvent.click(screen.getByRole('button', { name: /^Settings$/i }));
+            fireEvent.click(await screen.findByRole('checkbox', { name: /Hide Duplicate Events/i }));
+
+            await waitFor(() => {
+                expect(screen.getByRole('button', { name: /4 events on 14 Jul/i })).toBeInTheDocument();
+            });
+        });
+
         it('lets the user view another calendar from the same account', async () => {
             render(<App />);
             await screen.findAllByText('Lisbon');
