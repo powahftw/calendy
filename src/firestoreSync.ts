@@ -77,6 +77,7 @@ const SETTINGS_FIELDS = [
     'showWeekends',
     'showDayProgress',
     'weekdayAlign',
+    'hideDuplicateEvents',
     'year',
     'startMonth',
     'monthsToShow'

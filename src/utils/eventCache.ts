@@ -14,8 +14,8 @@ import { logger } from './logger';
 export const EVENT_CACHE_TTL_MS = 30 * 60_000;
 
 const CACHE_PREFIX = 'calendy_events_v1_';
-// v2 adds stable style keys and automatic colors to each cached event.
-const CACHE_VERSION = 2;
+// v3 adds descriptions so duplicate detection never compares stale partial data.
+const CACHE_VERSION = 3;
 
 export interface CachedEvents {
     events: CalendarEvent[];

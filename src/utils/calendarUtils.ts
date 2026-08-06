@@ -24,6 +24,7 @@ export interface PlannerSettings {
     showWeekends: boolean;
     showDayProgress: boolean;
     weekdayAlign: boolean;
+    hideDuplicateEvents: boolean;
     year: number;
     startMonth: number;
     monthsToShow: number;

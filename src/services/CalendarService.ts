@@ -131,6 +131,7 @@ export interface GoogleEvent {
     iCalUID?: string;
     recurringEventId?: string;
     summary?: string;
+    description?: string;
     status?: 'confirmed' | 'tentative' | 'cancelled';
     colorId?: string;
     start?: GoogleEventDateTime;
