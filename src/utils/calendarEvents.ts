@@ -17,6 +17,8 @@ const GOOGLE_COLOR_ID_TO_PALETTE_INDEX: Record<string, number> = {
 export interface CalendarEvent {
     id: string;
     title: string;
+    /** Canonical Google Calendar URL for viewing or editing this event. */
+    htmlLink?: string;
     /** Normalized Google description, used when identifying exact duplicates. */
     description?: string;
     /** Inclusive local start date, `YYYY-MM-DD`. */
@@ -92,6 +94,7 @@ export const toCalendarEvent = (event: GoogleEvent): CalendarEvent | null => {
         return {
             id: event.id,
             title,
+            htmlLink: event.htmlLink,
             description,
             start,
             end: end < start ? start : end,
@@ -116,6 +119,7 @@ export const toCalendarEvent = (event: GoogleEvent): CalendarEvent | null => {
     return {
         id: event.id,
         title,
+        htmlLink: event.htmlLink,
         description,
         start: toLocalDateStr(startDate),
         end: toLocalDateStr(resolvedEnd),

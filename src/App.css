@@ -612,12 +612,19 @@ body[data-theme='dark'] .header-settings-btn:hover {
 }
 
 .day-details-item {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  min-height: 34px;
+}
+
+.day-details-event {
   display: grid;
   grid-template-columns: 8px minmax(56px, auto) minmax(0, 1fr);
   align-items: stretch;
   gap: 8px;
-  width: 100%;
-  min-height: 34px;
+  flex: 1;
+  min-width: 0;
   padding: 5px 4px;
   border: 0;
   background: transparent;
@@ -635,9 +642,34 @@ body[data-theme='dark'] .header-settings-btn:hover {
   background: color-mix(in srgb, var(--weekend-bg) 65%, transparent);
 }
 
-.day-details-item:focus-visible {
+.day-details-event:focus-visible,
+.day-details-open:focus-visible {
   outline: 2px solid var(--accent-color);
   outline-offset: -2px;
+}
+
+.day-details-open {
+  display: grid;
+  flex: 0 0 28px;
+  place-items: center;
+  align-self: stretch;
+  border-radius: 5px;
+  color: var(--text-secondary);
+}
+
+.day-details-open:hover {
+  background: color-mix(in srgb, var(--line-color) 55%, transparent);
+  color: var(--text-primary);
+}
+
+.day-details-open svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
 }
 
 .day-details-color {

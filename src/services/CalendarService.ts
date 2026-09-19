@@ -128,6 +128,7 @@ export interface GoogleEventDateTime {
 
 export interface GoogleEvent {
     id: string;
+    htmlLink?: string;
     iCalUID?: string;
     recurringEventId?: string;
     summary?: string;

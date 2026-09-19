@@ -137,6 +137,17 @@ describe('toCalendarEvent', () => {
 
         expect(result?.description).toBe('Gate 12');
     });
+
+    it('preserves the canonical Google Calendar event link', () => {
+        const result = toCalendarEvent({
+            id: 'linked',
+            htmlLink: 'https://calendar.google.com/calendar/event?eid=linked',
+            start: { date: '2026-07-14' },
+            end: { date: '2026-07-15' }
+        });
+
+        expect(result?.htmlLink).toBe('https://calendar.google.com/calendar/event?eid=linked');
+    });
 });
 
 describe('deduplicateCalendarEvents', () => {
