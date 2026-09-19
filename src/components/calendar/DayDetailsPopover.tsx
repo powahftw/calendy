@@ -42,26 +42,44 @@ const EventRow = ({ event, isAllDay }: { event: CalendarEvent; isAllDay: boolean
     const presentation = getEventStylePresentation(event.color, colors);
 
     return (
-        <button
-            type="button"
-            className="day-details-item"
-            aria-label={`Cycle color for ${event.title}`}
-            onPointerDown={(pointerEvent) => pointerEvent.stopPropagation()}
-            onClick={(clickEvent) => {
-                clickEvent.stopPropagation();
-                cycleEventStyle(event);
-            }}
-        >
-            <span
-                className={`day-details-color ${presentation.className}`}
-                style={presentation.style}
-                aria-hidden="true"
-            />
-            <span className="day-details-when">
-                {isAllDay ? formatEventDateRange(event) : formatEventTimeRange(event)}
-            </span>
-            <span className="day-details-title">{event.title}</span>
-        </button>
+        <div className="day-details-item">
+            <button
+                type="button"
+                className="day-details-event"
+                aria-label={`Cycle color for ${event.title}`}
+                onPointerDown={(pointerEvent) => pointerEvent.stopPropagation()}
+                onClick={(clickEvent) => {
+                    clickEvent.stopPropagation();
+                    cycleEventStyle(event);
+                }}
+            >
+                <span
+                    className={`day-details-color ${presentation.className}`}
+                    style={presentation.style}
+                    aria-hidden="true"
+                />
+                <span className="day-details-when">
+                    {isAllDay ? formatEventDateRange(event) : formatEventTimeRange(event)}
+                </span>
+                <span className="day-details-title">{event.title}</span>
+            </button>
+            {event.htmlLink && (
+                <a
+                    className="day-details-open"
+                    href={event.htmlLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`Open ${event.title} in Google Calendar (new tab)`}
+                    title="Open in Google Calendar"
+                    onPointerDown={(pointerEvent) => pointerEvent.stopPropagation()}
+                    onClick={(clickEvent) => clickEvent.stopPropagation()}
+                >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M14 4h6v6M20 4l-9 9M19 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h6" />
+                    </svg>
+                </a>
+            )}
+        </div>
     );
 };
 

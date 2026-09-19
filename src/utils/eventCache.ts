@@ -14,8 +14,8 @@ import { logger } from './logger';
 export const EVENT_CACHE_TTL_MS = 30 * 60_000;
 
 const CACHE_PREFIX = 'calendy_events_v1_';
-// v3 adds descriptions so duplicate detection never compares stale partial data.
-const CACHE_VERSION = 3;
+// v4 adds canonical Google Calendar links for opening events outside Calendy.
+const CACHE_VERSION = 4;
 
 export interface CachedEvents {
     events: CalendarEvent[];

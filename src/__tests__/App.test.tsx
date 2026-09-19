@@ -75,6 +75,7 @@ const GOOGLE_EVENTS: GoogleEvent[] = [
     },
     {
         id: 'flight',
+        htmlLink: 'https://calendar.google.com/calendar/event?eid=flight',
         summary: '✈️ FCO to LIS',
         start: { dateTime: `${july(14)}T06:40:00` },
         end: { dateTime: `${july(14)}T09:05:00` }
@@ -245,6 +246,19 @@ describe('Calendy read-only planner', () => {
             await waitFor(() => {
                 expect(screen.queryByRole('button', { name: /Cycle color for Lisbon/i })).not.toBeInTheDocument();
             });
+        });
+
+        it('links an event to Google Calendar in a new tab', async () => {
+            render(<App />);
+
+            fireEvent.click(await screen.findByRole('button', { name: /4 events on 14 Jul/i }));
+            const link = await screen.findByRole('link', {
+                name: /Open ✈️ FCO to LIS in Google Calendar \(new tab\)/i
+            });
+
+            expect(link).toHaveAttribute('href', 'https://calendar.google.com/calendar/event?eid=flight');
+            expect(link).toHaveAttribute('target', '_blank');
+            expect(link).toHaveAttribute('rel', 'noopener noreferrer');
         });
 
         it('hands the open hover card directly to another occupied day', async () => {
